@@ -1,0 +1,66 @@
+{
+    "name": "meta-manager",
+    "displayName": "meta-manager",
+    "description": "Visualize and manage console logs, code comments, etc.",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.78.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "meta-manager.helloWorld",
+                "title": "Hello World"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "compile": "run-s build:webpack build:webview",
+        "build:webpack": "webpack",
+        "build:webview": "webpack --mode development --config webpack-webview.config.js",
+        "watch:webpack": "webpack --watch --mode development",
+        "watch:webview": "webpack --watch --mode development --config webpack-webview.config.js",
+        "watch": "run-p watch:*",
+        "package": "webpack --mode production --devtool hidden-source-map",
+        "compile-tests": "tsc -p . --outDir out",
+        "watch-tests": "tsc -p . -w --outDir out",
+        "pretest": "npm run compile-tests && npm run compile && npm run lint",
+        "lint": "eslint src --ext ts",
+        "test": "node ./out/test/runTest.js"
+    },
+    "devDependencies": {
+        "@snowpack/plugin-dotenv": "^2.2.0",
+        "@snowpack/plugin-typescript": "^1.2.1",
+        "@types/glob": "^8.1.0",
+        "@types/mocha": "^10.0.1",
+        "@types/node": "16.x",
+        "@types/react": "^18.2.6",
+        "@types/react-dom": "^18.2.4",
+        "@types/vscode": "^1.78.0",
+        "@typescript-eslint/eslint-plugin": "^5.59.1",
+        "@typescript-eslint/parser": "^5.59.1",
+        "@vscode/test-electron": "^2.3.0",
+        "eslint": "^8.39.0",
+        "glob": "^8.1.0",
+        "mocha": "^10.2.0",
+        "npm-run-all": "^4.1.5",
+        "ts-loader": "^9.4.2",
+        "typescript": "^5.0.4",
+        "webpack": "^5.81.0",
+        "webpack-cli": "^5.1.1"
+    },
+    "dependencies": {
+        "json5": "^2.2.3",
+        "prettier": "^2.8.8",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+    }
+}
