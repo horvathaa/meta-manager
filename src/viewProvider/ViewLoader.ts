@@ -10,16 +10,13 @@ export default class ViewLoader {
     // create the webview and point it to our compiled/bundled extension
     constructor(context: vscode.ExtensionContext) {
         this._context = context;
-        console.log('hewwo?', this._context);
         this._localUri = vscode.Uri.joinPath(
             this._context.extensionUri,
             'dist',
             // 'view',
             'index.js'
         );
-        console.log('im screaming', this._localUri);
 
-        // catseyeLog.appendLine(`Creating ViewLoader at ${extensionPath}`);
         this._panel = vscode.window.createWebviewPanel(
             'meta-manager',
             'Meta Manager',
