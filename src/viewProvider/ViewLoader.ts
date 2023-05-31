@@ -8,6 +8,7 @@ export default class ViewLoader {
     private readonly _localUri: vscode.Uri;
 
     // create the webview and point it to our compiled/bundled extension
+    // this is the entry point for our React code
     constructor(context: vscode.ExtensionContext) {
         this._context = context;
         this._localUri = vscode.Uri.joinPath(

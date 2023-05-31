@@ -19,7 +19,25 @@
                 "command": "meta-manager.helloWorld",
                 "title": "Hello World"
             }
-        ]
+        ],
+        "viewsContainers": {
+            "panel": [
+                {
+                    "id": "meta-manager-view",
+                    "title": "Meta Manager",
+                    "icon": "resources/catseye.png"
+                }
+            ]
+        },
+        "views": {
+            "meta-manager-view": [
+                {
+                    "id": "meta-manager.webview",
+                    "type": "webview",
+                    "name": "Meta Manager"
+                }
+            ]
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run package",
@@ -61,6 +79,7 @@
         "json5": "^2.2.3",
         "prettier": "^2.8.8",
         "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "react-dom": "^18.2.0",
+        "timelines-chart": "^2.12.1"
     }
 }

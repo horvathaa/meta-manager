@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import ViewLoader from './viewProvider/ViewLoader';
 import { TextDocument, window, commands, ExtensionContext } from 'vscode';
 import { MetaInformationExtractor } from './comments/CommentCreator';
+import ViewLoaderProvider from './viewProvider/ViewLoaderProvider';
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: ExtensionContext) {
@@ -14,14 +15,30 @@ export function activate(context: ExtensionContext) {
     );
     window.showInformationMessage('Hello World from meta-manager!');
     // const view = new ViewLoader(context);
-    // console.log('view', view);
+    const view = new ViewLoaderProvider(context.extensionUri);
+    console.log(
+        'view',
+        view
+        // '??',
+        // vscode.window.registerWebviewViewProvider(
+        //     ViewLoaderProvider.viewType,
+        //     view,
+        //     { webviewOptions: { retainContextWhenHidden: true } }
+        // )
+    );
     // if (view) {
-    //     view._panel?.reveal();
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            ViewLoaderProvider.viewType,
+            view,
+            { webviewOptions: { retainContextWhenHidden: true } }
+        )
+    );
     // }
     if (window.activeTextEditor) {
-        const meta = new MetaInformationExtractor(
-            window.activeTextEditor.document as TextDocument
-        );
+        // const meta = new MetaInformationExtractor(
+        //     window.activeTextEditor.document as TextDocument
+        // );
     }
 
     // The command has been defined in the package.json file
