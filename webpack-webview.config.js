@@ -10,8 +10,8 @@ const config = {
     mode: 'production', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 
     entry: {
-        // index: './src/view/src/index.tsx',
-        index: './src/view2/src/index.ts',
+        index: './src/view/src/index.ts',
+        // index: './src/view2/src/index.ts',
         // filename: path.resolve(__dirname, 'dist/[name].js') ,
     },
     // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/

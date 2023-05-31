@@ -2,7 +2,6 @@ import TimelinesChart from 'timelines-chart';
 const el = document.getElementById('root');
 if (el) {
     const chart = TimelinesChart();
-
     chart.data([
         {
             group: 'group1name',

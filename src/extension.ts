@@ -5,9 +5,10 @@ import ViewLoader from './viewProvider/ViewLoader';
 import { TextDocument, window, commands, ExtensionContext } from 'vscode';
 import { MetaInformationExtractor } from './comments/CommentCreator';
 import ViewLoaderProvider from './viewProvider/ViewLoaderProvider';
+import { Container } from './container';
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
     // Use the console to output diagnostic information (console.log) and errors (console.error)
     // This line of code will only be executed once when your extension is activated
     console.log(
@@ -40,6 +41,10 @@ export function activate(context: ExtensionContext) {
         //     window.activeTextEditor.document as TextDocument
         // );
     }
+
+    // const lol = new Container(context);
+    const lol = await Container.create(context);
+    console.log('lol', lol);
 
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with registerCommand
