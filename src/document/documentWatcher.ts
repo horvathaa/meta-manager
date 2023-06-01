@@ -91,8 +91,11 @@ class DocumentWatcher extends Disposable {
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
         const tree = new SimplifiedTree<ReadableNode>(docCopy.uri.fsPath);
+        tree.initRoot(); // initialize the root node
+        // why do we do this? because if we don't we keep adding to the array (currTreeInstance)
+        // instead of the first node because we read from the "top" of the array
+        // it's hard to explain
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
-        // const map = new Map();
 
         // Enter function will be executed as each node is first interacted with
         function enter(node: ts.Node) {
@@ -106,6 +109,7 @@ class DocumentWatcher extends Disposable {
                 const readableNodeArrayCopy = nodes.map((n) =>
                     makeReadableNode(n, docCopy)
                 );
+
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
                         readableNode,

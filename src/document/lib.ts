@@ -117,7 +117,7 @@ export interface NamedReadableNode extends ReadableNode {
 
 interface TreeReadableNode<T> extends TreeReadableRootNode<T> {
     data: T;
-    // children: SimplifiedTree<T>[];
+    children: SimplifiedTree<T>[];
 }
 
 interface TreeReadableRootNode<T> {
@@ -127,20 +127,17 @@ interface TreeReadableRootNode<T> {
 // https://dtjv.io/the-generic-tree-data-structure/
 // i haven't implemented a tree in eons lmao
 export class SimplifiedTree<T> {
-    root: TreeReadableRootNode<T> | undefined;
+    root: TreeReadableNode<T> | undefined;
     name: string;
-    constructor(name: string, root?: TreeReadableRootNode<T>) {
-        this.root = root || undefined;
+    constructor(name: string) {
+        this.root = undefined;
         this.name = name;
     }
 
     public insert(data: T, name: string): SimplifiedTree<T> {
         // scenario 1
         if (!this.root) {
-            this.root = { children: [] };
-            this.root.children.push(
-                new SimplifiedTree<T>(name, { ...data, children: [] })
-            );
+            this.root = { children: [], data };
             return this;
         }
 
@@ -149,6 +146,12 @@ export class SimplifiedTree<T> {
 
         this.root.children.push(child.insert({ ...data, children: [] }, name));
         return child;
+    }
+
+    public initRoot() {
+        if (!this.root) {
+            this.root = { children: [], data: {} as T };
+        }
     }
 }
 
