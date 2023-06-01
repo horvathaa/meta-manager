@@ -3,165 +3,132 @@ import {
     TextDocument,
     TextDocumentChangeEvent,
     workspace,
-    Location,
+    window,
+    Range,
+    TextEditorSelectionChangeEvent,
 } from 'vscode';
 import { Container } from '../container';
 import {
+    SimplifiedTree,
     getCleanedNodeRange,
     getProjectName,
+    getSimplifiedTreeName,
     getVisiblePath,
+    makeReadableNode,
     nodeToRange,
 } from './lib';
 import * as ts from 'typescript';
 import { ReadableNode, namedDeclarations } from '../constants/types';
 const tstraverse = require('tstraverse');
 
+interface RangeNodeMap {
+    range: Range;
+    tree: SimplifiedTree<ReadableNode[]>;
+}
+
 class DocumentWatcher extends Disposable {
     _disposable: Disposable;
     _relativeFilePath: string;
-    _nodesInFile: Map<string, ReadableNode>;
+    _nodesInFile: SimplifiedTree<ReadableNode>;
+    // _mapNodesInFile: Map<Range, SimplifiedTree<ReadableNode[]>>;
+    _mapNodes: RangeNodeMap[];
     constructor(
         private readonly document: TextDocument,
         private readonly container: Container
     ) {
         super(() => this.dispose());
         this._disposable = Disposable.from(
-            workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this)
+            workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this),
+            window.onDidChangeTextEditorSelection(
+                this.onTextEditorSelectionChanged,
+                this
+            )
         );
         this._relativeFilePath = getVisiblePath(
             workspace.name || getProjectName(this.document.uri.toString()),
             this.document.uri.fsPath
         );
-
+        // this._mapNodesInFile = new Map();
+        this._mapNodes = [] as RangeNodeMap[];
         this._nodesInFile = this.traverse();
     }
 
     onTextDocumentChanged(e: TextDocumentChangeEvent) {
-        if (e.document !== this.document) {
+        // not our file!
+        if (e.document.uri.fsPath !== this.document.uri.fsPath) {
             return;
         }
+        // rebuilds the tree representation on every keystroke....
+        // seemed not to cause slowdown on a 1000+ line file
+        // so this may be fine
+        // but tbd how well this scales for like huge files or huge changes (e.g., git pulls)
+        // better to find location of change and update that node or insert new node
+        // but that's a lot of work
+        this.traverse();
+    }
+
+    onTextEditorSelectionChanged(e: TextEditorSelectionChangeEvent) {
+        const selection = e.selections[0];
+        const range = new Range(selection.start, selection.end);
+        // get top level nodes and recrursively (?) go down to find all the nodes that contain
+        // the range
+        // const trees = Array.from(this._mapNodesInFile.keys()).filter((r) =>
+        //     r.contains(range)
+        // );
+        // if (trees.length) {
+        // }
     }
 
     traverse() {
         // traverse the document and find the code anchors
-
         const sourceFile = ts.createSourceFile(
             this.document.fileName,
             this.document.getText(),
             ts.ScriptTarget.Latest,
-            true // this sets the parent property on all nodes - does not extract parent-level nodes...
-            // there is statements which are the top level statements which may be useful
+            true
         );
 
         let nodes: ts.Node[] = [];
-
-        let isMatching = true;
-        // let map = new Map<ReadableNode, ReadableNode[]>();
-        let newMap = new Map<string, ReadableNode>();
+        const docCopy = this.document;
+        const tree = new SimplifiedTree<ReadableNode>(docCopy.uri.fsPath);
+        let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
+        // const map = new Map();
 
         // Enter function will be executed as each node is first interacted with
         function enter(node: ts.Node) {
             nodes.push(node);
-        }
 
-        const docCopy = this.document;
+            // probably need to add in other scopes such as object literals
+            // some of the scopes do not use the block node
+            // i'm not sure why
+            if (ts.isBlock(node)) {
+                const readableNode = makeReadableNode(node, docCopy);
+                const readableNodeArrayCopy = nodes.map((n) =>
+                    makeReadableNode(n, docCopy)
+                );
+                currTreeInstance.push(
+                    currTreeInstance[currTreeInstance.length - 1].insert(
+                        readableNode,
+                        getSimplifiedTreeName(readableNodeArrayCopy.reverse())
+                    )
+                );
+            }
+        }
 
         // Leave function will be executed after all children have been interacted with
         function leave(node: ts.Node) {
             const topNode = nodes.pop();
-
-            if (topNode && ts.isIdentifier(topNode)) {
-                const copy: ReadableNode[] = nodes.map((n) => {
-                    return {
-                        node: n,
-                        humanReadableKind: ts.SyntaxKind[n.kind],
-                        location: new Location(
-                            docCopy.uri,
-                            nodeToRange(n, sourceFile ? sourceFile.text : '')
-                        ),
-                    };
-                });
-                topNode.text === 'tabSize' &&
-                    console.log('top node', topNode, 'nodes', copy);
-                // look thru array to see if the previous node is a declaration.. i think?
-
-                const foundDeclarationBool = namedDeclarations.includes(
-                    copy[copy.length - 1].humanReadableKind
-                );
-                if (!foundDeclarationBool) {
-                    return;
-                }
-                const foundDeclaration = copy[copy.length - 1];
-                // const foundDeclaration = copy.find(
-                //     // (n) => n.humanReadableKind === 'VariableDeclaration'
-                //     (n) => namedDeclarations.includes(n.humanReadableKind)
-                // );
-                if (foundDeclaration) {
-                    if (
-                        ts.isClassDeclaration(foundDeclaration.node) &&
-                        foundDeclaration.node.name &&
-                        !newMap.has(foundDeclaration.node.name.text)
-                    ) {
-                        const classDeclaration =
-                            foundDeclaration.node as ts.ClassDeclaration;
-                        const classMembers = classDeclaration.members;
-                        classMembers.forEach((member) => {
-                            if (ts.isMethodDeclaration(member)) {
-                                const propertyIdentifierLocation = nodeToRange(
-                                    member,
-                                    sourceFile ? sourceFile.text : ''
-                                );
-
-                                newMap.set(member.name.getText(), {
-                                    node: member,
-                                    humanReadableKind:
-                                        ts.SyntaxKind[member.kind],
-                                    location: new Location(
-                                        docCopy.uri,
-                                        propertyIdentifierLocation
-                                    ),
-                                });
-                            }
-                        });
-                    }
-
-                    newMap.set(topNode.text, foundDeclaration);
-
-                    // newMap.set(
-                    //     foundDeclaration.node,
-                    //     foundDeclaration.location
-                    // );
-                    // console.log('setting new Map...', newMap)
-                }
-                const key = {
-                    node: topNode,
-                    humanReadableKind: ts.SyntaxKind[node.kind],
-                    location: new Location(
-                        docCopy.uri,
-                        getCleanedNodeRange(
-                            docCopy,
-                            nodeToRange(
-                                node,
-                                sourceFile ? sourceFile.text : ''
-                            ),
-                            topNode.text
-                        )
-                    ),
-                };
-                // map.set(key, copy);
+            if (topNode && ts.isBlock(topNode)) {
+                const popped = currTreeInstance.pop();
+                const readableNode = makeReadableNode(topNode, docCopy);
+                // map.set(readableNode.location.range, popped);
             }
-
-            isMatching = isMatching && topNode === node;
         }
 
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
-        // console.log('map', map, 'newMap', newMap)
-        console.log('lol', newMap, 'source', sourceFile);
 
-        // this.topLevelNodes.set(document, newMap);
-        // console.log('this...', this)
-        // return map;
-        return newMap;
+        // this._mapNodesInFile = map;
+        return tree;
     }
 }
 

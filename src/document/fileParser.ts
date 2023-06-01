@@ -11,14 +11,16 @@ import { Container } from '../container';
 
 class FileParser extends Disposable {
     _filesToIgnore: string[];
-    _docs: DocumentWatcher[]; // array of DocumentWatcher objects
+    // _docs: DocumentWatcher[]; // array of DocumentWatcher objects
+    _docs: Map<string, DocumentWatcher>;
     constructor(
         context: ExtensionContext,
         private readonly container: Container
     ) {
         super(() => this.dispose());
         this._filesToIgnore = [];
-        this._docs = [];
+        // this._docs = [];
+        this._docs = new Map();
     }
 
     public static async createFileParser(
@@ -58,6 +60,10 @@ class FileParser extends Disposable {
             ].indexOf(document.languageId) > -1 &&
             document.languageId !== 'json'
         );
+    }
+
+    public get docs(): Map<string, DocumentWatcher> {
+        return this._docs;
     }
 
     async recurseThroughFiles(directory: [string, FileType][], currUri: Uri) {
@@ -106,7 +112,8 @@ class FileParser extends Disposable {
                     }
 
                     if (this.isTsJsTsxJsx(doc)) {
-                        this._docs.push(
+                        this._docs.set(
+                            doc.uri.fsPath,
                             new DocumentWatcher(doc, this.container)
                         );
                     }

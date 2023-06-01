@@ -5,6 +5,7 @@ import {
     Position,
     Range,
     TextDocument,
+    Location,
 } from 'vscode';
 import * as ts from 'typescript';
 import { ReadableNode } from '../constants/types';
@@ -101,3 +102,98 @@ export const getCleanedNodeRange = (
               );
     return cleanedRange;
 };
+
+export function makeReadableNode(node: ts.Node, doc: TextDocument) {
+    return {
+        node: node,
+        humanReadableKind: ts.SyntaxKind[node.kind],
+        location: new Location(doc.uri, nodeToRange(node, doc.getText())),
+    };
+}
+
+export interface NamedReadableNode extends ReadableNode {
+    name: string;
+}
+
+interface TreeReadableNode<T> extends TreeReadableRootNode<T> {
+    data: T;
+    // children: SimplifiedTree<T>[];
+}
+
+interface TreeReadableRootNode<T> {
+    children: SimplifiedTree<T>[];
+}
+
+// https://dtjv.io/the-generic-tree-data-structure/
+// i haven't implemented a tree in eons lmao
+export class SimplifiedTree<T> {
+    root: TreeReadableRootNode<T> | undefined;
+    name: string;
+    constructor(name: string, root?: TreeReadableRootNode<T>) {
+        this.root = root || undefined;
+        this.name = name;
+    }
+
+    public insert(data: T, name: string): SimplifiedTree<T> {
+        // scenario 1
+        if (!this.root) {
+            this.root = { children: [] };
+            this.root.children.push(
+                new SimplifiedTree<T>(name, { ...data, children: [] })
+            );
+            return this;
+        }
+
+        // scenario 2
+        const child = new SimplifiedTree<T>(name);
+
+        this.root.children.push(child.insert({ ...data, children: [] }, name));
+        return child;
+    }
+}
+
+export function getSimplifiedTreeName(nodes: ReadableNode[]): string {
+    const copy = [...nodes];
+    const first = copy.shift();
+    if (!first) {
+        return '';
+    }
+    if (ts.isIfStatement(first.node)) {
+        return 'If';
+    }
+    if (ts.isForStatement(first.node)) {
+        return 'For';
+    }
+    if (ts.isWhileStatement(first.node)) {
+        return 'While';
+    }
+    if (ts.isDoStatement(first.node)) {
+        return 'Do';
+    }
+    if (ts.isSwitchStatement(first.node)) {
+        return 'Switch';
+    }
+    if (ts.isTryStatement(first.node)) {
+        return 'Try';
+    }
+    if (ts.isCatchClause(first.node)) {
+        return 'Catch';
+    }
+    if (ts.isConstructorDeclaration(first.node)) {
+        return 'Constructor';
+    }
+    if (first.node.hasOwnProperty('name')) {
+        return (first.node as ts.FunctionDeclaration).name?.getText() || '';
+    }
+    if (ts.isArrowFunction(first.node)) {
+        if (
+            copy.length > 1 &&
+            copy[0].humanReadableKind === 'VariableDeclaration'
+        ) {
+            return (copy[0].node as ts.VariableDeclaration).name.getText();
+        }
+        return 'Arrow Function'; // could do something fancier to try and get the name of the function but this is fine for now
+        // but this is fine for now
+    }
+    return getSimplifiedTreeName(copy);
+}
