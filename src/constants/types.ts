@@ -7,7 +7,12 @@ export interface ReadableNode {
     node: ts.Node;
     humanReadableKind: string;
     location: Location;
+    id?: string;
 }
+
+export const isReadableNode = (node: any): node is ReadableNode => {
+    return node.humanReadableKind !== undefined && node.location !== undefined;
+};
 
 export const namedDeclarations = [
     'VariableDeclaration',

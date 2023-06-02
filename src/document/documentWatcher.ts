@@ -9,16 +9,21 @@ import {
 } from 'vscode';
 import { Container } from '../container';
 import {
-    SimplifiedTree,
+    // SimplifiedTree,
     getCleanedNodeRange,
     getProjectName,
-    getSimplifiedTreeName,
+    // getSimplifiedTreeName,
     getVisiblePath,
     makeReadableNode,
     nodeToRange,
 } from './lib';
+import { SimplifiedTree, Traversals, getSimplifiedTreeName } from './tree';
 import * as ts from 'typescript';
-import { ReadableNode, namedDeclarations } from '../constants/types';
+import {
+    ReadableNode,
+    isReadableNode,
+    namedDeclarations,
+} from '../constants/types';
 const tstraverse = require('tstraverse');
 
 interface RangeNodeMap {
@@ -53,18 +58,46 @@ class DocumentWatcher extends Disposable {
         this._nodesInFile = this.traverse();
     }
 
+    // maybe not worth doing this on every keystroke
+    // and instead do it on save, blur, close
+    // such that we can do the more "safe" node addition/removal
+    // because i think we need to have some concept of an ID or something
+    // for each node such that it can be tied to its metadata
+    // how to store this ID?
+    // maybe key value between ID: Range on each save? with some temp version
+    // of the tree? or file?
+    // and if we make the tree indexable by id, that could work
     onTextDocumentChanged(e: TextDocumentChangeEvent) {
         // not our file!
         if (e.document.uri.fsPath !== this.document.uri.fsPath) {
             return;
         }
+
+        console.log('e', e);
+        // console.log(this._nodesInFile.toArray(Traversals.PRE_ORDER));
+        for (const change of e.contentChanges) {
+            console.log('huh?', change, this._nodesInFile);
+            const { root } = this._nodesInFile;
+            const friend = this._nodesInFile.searchTree(
+                (node: ReadableNode) => {
+                    // console.log('hewwo', node);
+                    return (
+                        isReadableNode(node) &&
+                        !node.location.range.end.isAfter(change.range.start)
+                    );
+                }
+            );
+            console.log('friend', friend);
+        }
+
         // rebuilds the tree representation on every keystroke....
         // seemed not to cause slowdown on a 1000+ line file
+
         // so this may be fine
         // but tbd how well this scales for like huge files or huge changes (e.g., git pulls)
         // better to find location of change and update that node or insert new node
         // but that's a lot of work
-        this.traverse();
+        // this.traverse();
     }
 
     onTextEditorSelectionChanged(e: TextEditorSelectionChangeEvent) {
@@ -123,9 +156,7 @@ class DocumentWatcher extends Disposable {
         function leave(node: ts.Node) {
             const topNode = nodes.pop();
             if (topNode && ts.isBlock(topNode)) {
-                const popped = currTreeInstance.pop();
-                const readableNode = makeReadableNode(topNode, docCopy);
-                // map.set(readableNode.location.range, popped);
+                currTreeInstance.pop();
             }
         }
 

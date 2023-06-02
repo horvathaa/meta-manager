@@ -58,6 +58,7 @@
         "@snowpack/plugin-dotenv": "^2.2.0",
         "@snowpack/plugin-typescript": "^1.2.1",
         "@types/glob": "^8.1.0",
+        "@types/lodash": "^4.14.195",
         "@types/mocha": "^10.0.1",
         "@types/node": "16.x",
         "@types/react": "^18.2.6",
@@ -77,10 +78,12 @@
     },
     "dependencies": {
         "json5": "^2.2.3",
+        "lodash": "^4.17.21",
         "prettier": "^2.8.8",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "timelines-chart": "^2.12.1",
-        "tstraverse": "^0.2.0"
+        "tstraverse": "^0.2.0",
+        "uuid": "^9.0.0"
     }
 }
