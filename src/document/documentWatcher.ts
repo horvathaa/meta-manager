@@ -43,7 +43,7 @@ class DocumentWatcher extends Disposable {
     ) {
         super(() => this.dispose());
         this._disposable = Disposable.from(
-            workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this),
+            // workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this),
             window.onDidChangeTextEditorSelection(
                 this.onTextEditorSelectionChanged,
                 this
@@ -67,38 +67,38 @@ class DocumentWatcher extends Disposable {
     // maybe key value between ID: Range on each save? with some temp version
     // of the tree? or file?
     // and if we make the tree indexable by id, that could work
-    onTextDocumentChanged(e: TextDocumentChangeEvent) {
-        // not our file!
-        if (e.document.uri.fsPath !== this.document.uri.fsPath) {
-            return;
-        }
+    // onTextDocumentChanged(e: TextDocumentChangeEvent) {
+    //     // not our file!
+    //     if (e.document.uri.fsPath !== this.document.uri.fsPath) {
+    //         return;
+    //     }
 
-        console.log('e', e);
-        // console.log(this._nodesInFile.toArray(Traversals.PRE_ORDER));
-        for (const change of e.contentChanges) {
-            console.log('huh?', change, this._nodesInFile);
-            const { root } = this._nodesInFile;
-            const friend = this._nodesInFile.searchTree(
-                (node: ReadableNode) => {
-                    // console.log('hewwo', node);
-                    return (
-                        isReadableNode(node) &&
-                        !node.location.range.end.isAfter(change.range.start)
-                    );
-                }
-            );
-            console.log('friend', friend);
-        }
+    //     console.log('e', e);
+    //     // console.log(this._nodesInFile.toArray(Traversals.PRE_ORDER));
+    //     for (const change of e.contentChanges) {
+    //         console.log('huh?', change, this._nodesInFile);
+    //         const { root } = this._nodesInFile;
+    //         const friend = this._nodesInFile.searchTree(
+    //             (node: ReadableNode) => {
+    //                 // console.log('hewwo', node);
+    //                 return (
+    //                     isReadableNode(node) &&
+    //                     !node.location.range.end.isAfter(change.range.start)
+    //                 );
+    //             }
+    //         );
+    //         console.log('friend', friend);
+    //     }
 
-        // rebuilds the tree representation on every keystroke....
-        // seemed not to cause slowdown on a 1000+ line file
+    //     // rebuilds the tree representation on every keystroke....
+    //     // seemed not to cause slowdown on a 1000+ line file
 
-        // so this may be fine
-        // but tbd how well this scales for like huge files or huge changes (e.g., git pulls)
-        // better to find location of change and update that node or insert new node
-        // but that's a lot of work
-        // this.traverse();
-    }
+    //     // so this may be fine
+    //     // but tbd how well this scales for like huge files or huge changes (e.g., git pulls)
+    //     // better to find location of change and update that node or insert new node
+    //     // but that's a lot of work
+    //     // this.traverse();
+    // }
 
     onTextEditorSelectionChanged(e: TextEditorSelectionChangeEvent) {
         const selection = e.selections[0];
@@ -138,7 +138,7 @@ class DocumentWatcher extends Disposable {
             // some of the scopes do not use the block node
             // i'm not sure why
             if (ts.isBlock(node)) {
-                const readableNode = makeReadableNode(node, docCopy);
+                const readableNode = makeReadableNode(node, docCopy, true);
                 const readableNodeArrayCopy = nodes.map((n) =>
                     makeReadableNode(n, docCopy)
                 );

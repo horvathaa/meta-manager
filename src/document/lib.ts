@@ -9,6 +9,7 @@ import {
 } from 'vscode';
 import * as ts from 'typescript';
 import { ReadableNode } from '../constants/types';
+import LocationPlus from './location';
 
 export const getVisiblePath = (
     projectName: string,
@@ -103,10 +104,23 @@ export const getCleanedNodeRange = (
     return cleanedRange;
 };
 
-export function makeReadableNode(node: ts.Node, doc: TextDocument) {
+export function makeReadableNode(
+    node: ts.Node,
+    doc: TextDocument,
+    useLocationPlus: boolean = false
+) {
+    let location: Location | LocationPlus;
+    if (useLocationPlus) {
+        location = new LocationPlus(doc.uri, nodeToRange(node, doc.getText()));
+        (location as LocationPlus).onDelete.event((location: LocationPlus) =>
+            console.log('deleted', location)
+        );
+    } else {
+        location = new Location(doc.uri, nodeToRange(node, doc.getText()));
+    }
     return {
         node: node,
         humanReadableKind: ts.SyntaxKind[node.kind],
-        location: new Location(doc.uri, nodeToRange(node, doc.getText())),
+        location,
     };
 }

@@ -1,45 +1,65 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import {
-    Disposable,
+    EventEmitter,
     Position,
     Range,
-    TextDocumentChangeEvent,
+    TextDocument,
     TextDocumentContentChangeEvent,
-    workspace,
 } from 'vscode';
+
+enum RangeIntersectionType {
+    STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME,
+    STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START,
+    STARTS_BEFORE_ENDS_AFTER_OUR_START,
+    STARTS_BEFORE_ENDS_AFTER_OUR_END,
+    STARTS_ON_OUR_START_ENDS_BEFORE_OUR_END,
+    STARTS_ON_OUR_START_ENDS_ON_OUR_END,
+    STARTS_ON_OUR_START_ENDS_AFTER_OUR_END,
+    STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END,
+    STARTS_AFTER_OUR_START_ENDS_ON_OUR_END,
+    STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END,
+    STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END,
+    UNKNOWN,
+}
 
 interface Delta {
     lineDelta: number;
     characterDelta: number;
 }
 
-interface EndRangeDeletionContext {
-    endPositionIsTheSame: boolean;
-    endPositionIsBefore: boolean;
-    endPositionIsAfter: boolean;
-}
-
-interface DeletionContext {
-    isMultilineDeletion: boolean;
-    doesFullyContainDeletion: boolean;
-    deletionFullyContains: boolean;
-    deletionEndsBefore: boolean;
-    deletionStartsBefore: boolean;
-    deletionEndsOnOrAfter: boolean;
-    deletionStartsOnOrAfter: boolean;
-}
-
-interface ChangeContext {
-    isOurRangeSingleLine: boolean;
-    isTheirRangeSingleLine: boolean;
-    isDeletion: boolean | DeletionContext;
+interface ContentChangeContext {
+    isAddition: boolean;
+    isSingleLineChange: boolean;
+    rangeIntersectionType: RangeIntersectionType;
+    isPaste?: boolean;
 }
 
 class RangePlus extends Range {
+    _rangeLength: number;
+    onDelete: EventEmitter<RangePlus>;
     public constructor(
-        public readonly start: Position,
-        public readonly end: Position
+        public readonly _start: Position,
+        public readonly _end: Position
     ) {
-        super(start, end);
+        super(_start, _end);
+        this._rangeLength = 0;
+        this.onDelete = new EventEmitter<RangePlus>();
+    }
+
+    public get rangeLength(): number {
+        return this._rangeLength;
+    }
+
+    public set rangeLength(value: number) {
+        this._rangeLength = value;
+    }
+
+    public computeRangeLength(doc: TextDocument): number {
+        return doc.offsetAt(this.end) - doc.offsetAt(this.start);
+    }
+
+    public updateRangeLength(doc: TextDocument): void {
+        this._rangeLength = this.computeRangeLength(doc);
     }
 
     public static fromRange(range: Range): RangePlus {
@@ -69,13 +89,11 @@ class RangePlus extends Range {
             const { range, text } = textDocumentContentChangeEvent;
             const numNewlines = text.split('\n').length - 1;
             if (numNewlines) {
-                return RangePlus.fromPositions(
-                    range.start,
-                    range.end.translate(
-                        numNewlines,
-                        text.substring(text.lastIndexOf('\n')).length
-                    )
+                const end = new Position(
+                    range.start.line + numNewlines,
+                    text.substring(text.lastIndexOf('\n')).length
                 );
+                return RangePlus.fromPositions(range.start, end);
             } else {
                 return RangePlus.fromPositions(
                     range.start,
@@ -190,72 +208,496 @@ class RangePlus extends Range {
         };
     };
 
+    public copy(): RangePlus {
+        return RangePlus.fromPositions(this.start, this.end);
+    }
+
     public update(contentChange: TextDocumentContentChangeEvent): RangePlus {
         const contentChangeRange =
             RangePlus.fromTextDocumentContentChangeEvent(contentChange);
-        return this;
-        // if (contentChange.text.length) {
-        //     // return this.updateWithAddition(contentChange);
-        // } else {
-        //     return this.updateWithDeletion(contentChange);
-        // }
+        const changeContext = getContentChangeContext(
+            contentChange,
+            contentChangeRange,
+            this
+        );
+        if (
+            changeContext.rangeIntersectionType ===
+                RangeIntersectionType.UNKNOWN ||
+            changeContext.rangeIntersectionType ===
+                RangeIntersectionType.STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END
+        ) {
+            return this;
+        }
+        if (changeContext.isPaste) {
+            const res = this.updateWithDeletion(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+            const copy = {
+                ...contentChange,
+                range: new Range(
+                    contentChangeRange.start,
+                    contentChangeRange.start
+                ),
+            };
+            const newRange = RangePlus.fromTextDocumentContentChangeEvent(copy);
+            const newChangeContext = getContentChangeContext(
+                copy,
+                newRange,
+                res
+            );
+
+            const postAddition = res.updateWithAddition(
+                copy,
+                newRange,
+                newChangeContext
+            );
+            return postAddition;
+        }
+        if (!changeContext.isAddition) {
+            const res = this.updateWithDeletion(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+            return res;
+        }
+
+        const res = this.updateWithAddition(
+            contentChange,
+            contentChangeRange,
+            changeContext
+        );
+
+        return res;
     }
 
-    private updateWithDeletion(contentChange: TextDocumentContentChangeEvent) {
+    private singleLineAndSingleLineChangeDeletion(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const { rangeLength } = contentChange;
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return this;
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START:
+                return RangePlus.fromPositions(
+                    this.start.translate(0, -rangeLength),
+                    this.end.translate(0, -rangeLength)
+                );
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_START:
+                return RangePlus.fromPositions(
+                    contentChangeRange.start,
+                    this.end.translate(0, -rangeLength)
+                );
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END:
+                this.onDelete.fire(this);
+                return this;
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_BEFORE_OUR_END:
+                return RangePlus.fromPositions(
+                    this.start,
+                    this.end.translate(0, -rangeLength)
+                );
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
+                return RangePlus.fromPositions(
+                    this.start,
+                    contentChangeRange.start
+                );
+        }
+        return this;
+    }
+
+    private multiLineAndSingleLineChangeDeletion(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const { rangeLength } = contentChange;
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return this;
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START:
+                return RangePlus.fromPositions(
+                    this.start.translate(0, -rangeLength),
+                    this.end
+                );
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_START:
+                return RangePlus.fromPositions(
+                    contentChangeRange.start,
+                    this.end
+                );
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
+                if (
+                    this.end.line === contentChangeRange.start.line &&
+                    contentChangeRange.contains(this.end)
+                ) {
+                    return RangePlus.fromPositions(
+                        this.start,
+                        contentChangeRange.start
+                    );
+                } else if (
+                    this.end.line === contentChangeRange.start.line &&
+                    this.contains(contentChangeRange.end)
+                ) {
+                    return RangePlus.fromPositions(
+                        this.start,
+                        this.end.translate(0, -rangeLength)
+                    );
+                } else {
+                    return this;
+                }
+        }
+        return this;
+    }
+
+    private singleLineAndMultiLineChangeDeletion(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const lineDifference =
+            contentChangeRange.end.line - contentChangeRange.start.line;
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return RangePlus.fromPositions(
+                    this.start.translate(lineDifference, 0),
+                    this.end.translate(lineDifference, 0)
+                );
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START: {
+                const { characterDelta } = this.getDifferenceFromStart(
+                    contentChangeRange.end
+                );
+                const newStart = new Position(
+                    contentChangeRange.start.line,
+                    contentChangeRange.start.character - characterDelta
+                );
+                const newEnd = new Position(
+                    contentChangeRange.start.line,
+                    newStart.character + this.rangeLength
+                );
+                return RangePlus.fromPositions(newStart, newEnd);
+            }
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_START:
+                const newEnd = new Position(
+                    contentChangeRange.start.line,
+                    contentChangeRange.start.character + this.rangeLength
+                );
+                return RangePlus.fromPositions(
+                    contentChangeRange.start,
+                    newEnd
+                );
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END:
+                this.onDelete.fire(this);
+                return this;
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
+                return RangePlus.fromPositions(
+                    this.start,
+                    contentChangeRange.start
+                );
+        }
+        return this;
+    }
+
+    private multiLineAndMultiLineChangeDeletion(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const lineDifference =
+            -1 * (contentChangeRange.end.line - contentChangeRange.start.line);
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return RangePlus.fromPositions(
+                    this.start.translate(lineDifference, 0),
+                    this.end.translate(lineDifference, 0)
+                );
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START: {
+                const { characterDelta } = this.getDifferenceFromStart(
+                    contentChangeRange.end
+                );
+                const newStart = new Position(
+                    contentChangeRange.start.line,
+                    contentChangeRange.start.character - characterDelta
+                );
+
+                return RangePlus.fromPositions(
+                    newStart,
+                    this.end.translate(lineDifference, 0)
+                );
+            }
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_START:
+                return RangePlus.fromPositions(
+                    contentChangeRange.start,
+                    this.end.translate(lineDifference, 0)
+                );
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END:
+                this.onDelete.fire(this);
+                return this;
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
+                return RangePlus.fromPositions(
+                    this.start,
+                    contentChangeRange.start
+                );
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
+                if (this.end.line === contentChangeRange.end.line) {
+                    const { characterDelta } = this.getDifferenceFromEnd(
+                        contentChangeRange.end
+                    );
+                    const newEnd = contentChangeRange.start.translate(
+                        0,
+                        -characterDelta
+                    );
+                    return RangePlus.fromPositions(this.start, newEnd);
+                }
+                return RangePlus.fromPositions(
+                    this.start,
+                    this.end.translate(lineDifference, 0)
+                );
+        }
+        return this;
+    }
+
+    private updateWithDeletion(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ): RangePlus {
+        const { isSingleLineChange } = changeContext;
+        if (this.isSingleLine && isSingleLineChange) {
+            return this.singleLineAndSingleLineChangeDeletion(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+        } else if (!this.isSingleLine && isSingleLineChange) {
+            return this.multiLineAndSingleLineChangeDeletion(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+        }
+
+        if (this.isSingleLine && !isSingleLineChange) {
+            return this.singleLineAndMultiLineChangeDeletion(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+        } else if (!this.isSingleLine && !isSingleLineChange) {
+            return this.multiLineAndMultiLineChangeDeletion(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+        }
+        // should never get here
+        return this;
+    }
+
+    private singleLineAndSingleLineChangeAddition(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const { text } = contentChange;
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return this;
+            default:
+                return this.start.isEqual(contentChangeRange.start)
+                    ? RangePlus.fromPositions(
+                          this.start,
+                          this.end.translate(0, text.length)
+                      )
+                    : RangePlus.fromPositions(
+                          this.start.translate(0, text.length),
+                          this.end.translate(0, text.length)
+                      );
+        }
+    }
+
+    private multiLineAndSingleLineChangeAddition(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const { text } = contentChange;
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return this;
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_START:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START:
+                return this.start.isEqual(contentChangeRange.start)
+                    ? this
+                    : RangePlus.fromPositions(
+                          this.start.translate(0, text.length),
+                          this.end
+                      );
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
+                return this.end.line === contentChangeRange.start.line &&
+                    this.end.isBeforeOrEqual(contentChangeRange.start)
+                    ? RangePlus.fromPositions(
+                          this.start,
+                          this.end.translate(0, text.length)
+                      )
+                    : this;
+            default:
+                return this;
+        }
+    }
+
+    private singleLineAndMultiLineChangeAddition(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const { text } = contentChange;
+        const numNewlines = text.split('\n').length - 1;
+        const endTextLength = text.substring(text.lastIndexOf('\n')).length;
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return RangePlus.fromPositions(
+                    this.start.translate(numNewlines, 0),
+                    this.end.translate(numNewlines, 0)
+                );
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_START:
+                return RangePlus.fromPositions(
+                    this.start.translate(numNewlines, endTextLength),
+                    this.end.translate(numNewlines, endTextLength)
+                );
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_AFTER_OUR_END:
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_BEFORE_OUR_END:
+                return RangePlus.fromPositions(
+                    this.start,
+                    this.end.translate(
+                        numNewlines,
+                        endTextLength + this._rangeLength
+                    )
+                );
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
+                const splitRangeLen =
+                    this.end.character - contentChangeRange.start.character;
+                return RangePlus.fromPositions(
+                    this.start,
+                    this.end.translate(
+                        numNewlines,
+                        contentChangeRange.end.character + splitRangeLen
+                    )
+                );
+        }
+        return this;
+    }
+
+    private multiLineAndMultiLineChangeAddition(
+        contentChange: TextDocumentContentChangeEvent,
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
+    ) {
+        const { rangeIntersectionType } = changeContext;
+        const { text } = contentChange;
+        const numNewlines = text.split('\n').length - 1;
+        const endTextLength = text.substring(text.lastIndexOf('\n')).length;
+        switch (rangeIntersectionType) {
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
+                return RangePlus.fromPositions(
+                    this.start.translate(numNewlines, 0),
+                    this.end.translate(numNewlines, 0)
+                );
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END:
+            case RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_START:
+                return RangePlus.fromPositions(
+                    this.start.translate(numNewlines, endTextLength),
+                    this.end.translate(numNewlines, endTextLength)
+                );
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_AFTER_OUR_END:
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_ON_OUR_START_ENDS_BEFORE_OUR_END:
+                return RangePlus.fromPositions(
+                    this.start,
+                    this.end.translate(
+                        numNewlines,
+                        endTextLength + this._rangeLength
+                    )
+                );
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_ON_OUR_END:
+            case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
+                if (this.end.line === contentChangeRange.start.line) {
+                    const translateDif = endTextLength - this.end.character;
+                    return RangePlus.fromPositions(
+                        this.start,
+                        this.end.translate(numNewlines, translateDif)
+                    );
+                } else if (this.end.line === contentChangeRange.end.line) {
+                } else {
+                    return RangePlus.fromPositions(
+                        this.start,
+                        this.end.translate(numNewlines, 0)
+                    );
+                }
+        }
         return this;
     }
 
     private updateWithAddition(
         contentChange: TextDocumentContentChangeEvent,
-        changeContext: ChangeContext
+        contentChangeRange: RangePlus,
+        changeContext: ContentChangeContext
     ): RangePlus {
-        const { range, text } = contentChange;
-        // const context = {
-        //     isOurRangeSingleLine: this.isSingleLine,
-        //     isTheirRangeSingleLine: range.isSingleLine,
-        //     isDeletion
-        // }
-
-        // not impacted
-        if (this.end.isBefore(range.start)) {
-            return this;
-        }
-
-        const numNewlines = text.split('\n').length - 1;
-        if (this.start.isAfter(range.end)) {
-            return RangePlus.fromPositions(
-                this.start.translate(numNewlines, 0),
-                this.end.translate(numNewlines, 0)
+        const { isSingleLineChange } = changeContext;
+        if (this.isSingleLine && isSingleLineChange) {
+            return this.singleLineAndSingleLineChangeAddition(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+        } else if (!this.isSingleLine && isSingleLineChange) {
+            return this.multiLineAndSingleLineChangeAddition(
+                contentChange,
+                contentChangeRange,
+                changeContext
             );
         }
 
-        if (this.doesIntersect(range)) {
-            // return RangePlus.fromPositions(
-            //     this.start.isBefore(range.start) ? this.start : this.start.translate(numNewlines, contentChange.text.length),
+        if (this.isSingleLine && !isSingleLineChange) {
+            // multiline change
+            return this.singleLineAndMultiLineChangeAddition(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+        } else {
+            return this.multiLineAndMultiLineChangeAddition(
+                contentChange,
+                contentChangeRange,
+                changeContext
+            );
+            // multiline change
         }
-        return this;
-    }
-
-    private getCharacterDeltaAddition(
-        contentChange: TextDocumentContentChangeEvent
-    ): number {
-        const { text } = contentChange;
-        const numNewlines = text.split('\n').length - 1;
-        const numChars = numNewlines
-            ? text.substring(text.lastIndexOf('\n')).length
-            : text.length - numNewlines;
-        return numChars;
-    }
-
-    private getCharacterDeltaDeletion(
-        contentChange: TextDocumentContentChangeEvent
-    ): number {
-        const { range } = contentChange;
-        const numNewlines = range.end.line - range.start.line;
-        const numChars = numNewlines
-            ? range.end.character + range.start.character
-            : range.end.character - range.start.character;
-        return numChars;
     }
 }
 
@@ -263,27 +705,14 @@ export const getContentChangeContext = (
     contentChange: TextDocumentContentChangeEvent,
     changeRange: RangePlus,
     ourRange: RangePlus
-) => {
+): ContentChangeContext => {
     return {
         isAddition: contentChange.text.length > 0,
-        isSinglineLineChange: changeRange.isSingleLine,
+        isSingleLineChange: changeRange.isSingleLine,
         rangeIntersectionType: getRangeIntersectionType(changeRange, ourRange),
+        isPaste: contentChange.text.length > 0 && !contentChange.range.isEmpty,
     };
 };
-
-enum RangeIntersectionType {
-    STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME,
-    STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START,
-    STARTS_BEFORE_ENDS_AFTER_OUR_START,
-    STARTS_BEFORE_ENDS_AFTER_OUR_END,
-    STARTS_ON_OUR_START_ENDS_BEFORE_OUR_END,
-    STARTS_ON_OUR_START_ENDS_ON_OUR_END,
-    STARTS_ON_OUR_START_ENDS_AFTER_OUR_END,
-    STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END,
-    STARTS_AFTER_OUR_START_ENDS_ON_OUR_END,
-    STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END,
-    STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END,
-}
 
 const getRangeIntersectionType = (
     changeRange: RangePlus,
@@ -291,6 +720,12 @@ const getRangeIntersectionType = (
 ) => {
     if (ourRange.isBefore(changeRange)) {
         return RangeIntersectionType.STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END;
+    }
+    if (ourRange.isEqual(changeRange)) {
+        return RangeIntersectionType.STARTS_ON_OUR_START_ENDS_ON_OUR_END;
+    }
+    if (changeRange.contains(ourRange)) {
+        return RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END;
     }
     if (ourRange.isAfter(changeRange)) {
         if (ourRange.isAfterNotSameLine(changeRange)) {
@@ -317,16 +752,7 @@ const getRangeIntersectionType = (
             return RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END;
         }
     }
-    // if (changeRange.isBefore(ourRange)) {
-    //     if (changeRange.isBeforeNotSameLine(ourRange)) {
-    //         return RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME;
-    //     } else if (changeRange.isBeforeSameLine(ourRange)) {
-    //         return RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_ON_SAME_LINE_AS_OUR_START;
-    //     }
-    // }
-    // if (changeRange.isAfter(ourRange)) {
-    //     return RangeIntersectionType.STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END;
-    // }
+    return RangeIntersectionType.UNKNOWN;
 };
 
 export default RangePlus;
