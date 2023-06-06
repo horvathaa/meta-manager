@@ -2,7 +2,8 @@
 // it doesn't like the enum name being in all caps
 // but i like my enums like that so shrug
 import * as ts from 'typescript';
-import { ReadableNode } from '../constants/types';
+// import { ReadableNode } from '../constants/types';
+import ReadableNode from './node';
 import { isEqual } from 'lodash';
 
 interface TreeReadableNode<T> {

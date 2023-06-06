@@ -82,8 +82,12 @@
         "prettier": "^2.8.8",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
+        "simple-git": "^3.19.0",
         "timelines-chart": "^2.12.1",
         "tstraverse": "^0.2.0",
         "uuid": "^9.0.0"
-    }
+    },
+    "extensionDependencies": [
+        "vscode.git"
+    ]
 }
