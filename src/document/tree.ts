@@ -118,6 +118,25 @@ export class SimplifiedTree<T> {
         }
     }
 
+    public getPathToNode(data: T): T[] | undefined {
+        if (!this.root) {
+            return undefined;
+        }
+
+        if (isEqual(this.root.data, data)) {
+            return [data];
+        }
+
+        for (const child of this.root.children) {
+            const result = child.getPathToNode(data);
+            if (result) {
+                return [this.root.data, ...result];
+            }
+        }
+
+        return undefined;
+    }
+
     public searchTree(searchFunc: (data: T) => boolean): T | undefined {
         if (!this.root) {
             return undefined;
@@ -135,6 +154,21 @@ export class SimplifiedTree<T> {
         }
 
         return undefined;
+    }
+
+    public swapNodes(node: T, nodeToSwap: T): void {
+        if (!this.root) {
+            return;
+        }
+
+        if (isEqual(this.root.data, node)) {
+            this.root.data = nodeToSwap;
+            return;
+        }
+
+        for (const child of this.root.children) {
+            child.swapNodes(node, nodeToSwap);
+        }
     }
 }
 

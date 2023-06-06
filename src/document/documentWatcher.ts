@@ -24,6 +24,7 @@ import {
     isReadableNode,
     namedDeclarations,
 } from '../constants/types';
+import LocationPlus from './location';
 const tstraverse = require('tstraverse');
 
 interface RangeNodeMap {
@@ -55,7 +56,20 @@ class DocumentWatcher extends Disposable {
         );
         // this._mapNodesInFile = new Map();
         this._mapNodes = [] as RangeNodeMap[];
-        this._nodesInFile = this.traverse();
+        this._nodesInFile = this.initNodes();
+    }
+
+    initNodes() {
+        const tree = this.traverse();
+        const nodes = tree.toArray();
+        const map = nodes.map((node) => {
+            return this.initNode(node, tree);
+        });
+        map.forEach((newNode, i) => {
+            tree.swapNodes(nodes[i], newNode);
+        });
+        console.log('tree', tree);
+        return tree;
     }
 
     // maybe not worth doing this on every keystroke
@@ -138,15 +152,21 @@ class DocumentWatcher extends Disposable {
             // some of the scopes do not use the block node
             // i'm not sure why
             if (ts.isBlock(node)) {
-                const readableNode = makeReadableNode(node, docCopy, true);
                 const readableNodeArrayCopy = nodes.map((n) =>
                     makeReadableNode(n, docCopy)
                 );
+                const name = getSimplifiedTreeName(
+                    readableNodeArrayCopy.reverse()
+                );
+                const readableNode = {
+                    ...makeReadableNode(node, docCopy, true),
+                    id: name,
+                };
 
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
                         readableNode,
-                        getSimplifiedTreeName(readableNodeArrayCopy.reverse())
+                        name
                     )
                 );
             }
@@ -164,6 +184,37 @@ class DocumentWatcher extends Disposable {
 
         // this._mapNodesInFile = map;
         return tree;
+    }
+
+    initNode(
+        node: ReadableNode,
+        tree: SimplifiedTree<ReadableNode>
+    ): ReadableNode {
+        console.log('init', node);
+        if (!isReadableNode(node)) {
+            return node;
+        }
+        const nodeCopy = {
+            ...node,
+            location: LocationPlus.fromLocation(node.location),
+        };
+        nodeCopy.location.onDelete.event((location: LocationPlus) => {
+            console.log('DELETED', location);
+        });
+        nodeCopy.location.onChanged.event((location: LocationPlus) => {
+            console.log('CHANGED', location, 'lol', node);
+        });
+        nodeCopy.location.onSelected.event((location: LocationPlus) => {
+            console.log('SELECTED', location);
+        });
+        const nodeName = tree
+            .getPathToNode(node)
+            ?.map((s) => s.id)
+            .join(':');
+        nodeCopy.location.setId(
+            `${nodeCopy.location.uri.fsPath}${nodeName}` || ''
+        );
+        return nodeCopy;
     }
 }
 

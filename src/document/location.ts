@@ -6,18 +6,33 @@ import {
     Uri,
     Range,
     workspace,
+    window,
     EventEmitter,
+    TextEditor,
+    TextEditorDecorationType,
+    DecorationRenderOptions,
+    TextEditorSelectionChangeEvent,
 } from 'vscode';
 import RangePlus from './range';
+
+export interface LocationPlusOptions {
+    id?: string;
+    textEditorDecoration?: TextEditorDecorationType;
+}
 
 export default class LocationPlus extends Location {
     _disposable: Disposable;
     _range: RangePlus;
+    _content: string;
+    _id?: string;
+    _textEditorDecoration?: TextEditorDecorationType;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
+    onChanged: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
+    onSelected: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     constructor(
         uri: Uri,
         rangeOrPosition: Range | Position,
-        public readonly id?: string
+        opts?: LocationPlusOptions
     ) {
         super(uri, rangeOrPosition);
 
@@ -29,45 +44,136 @@ export default class LocationPlus extends Location {
                 : RangePlus.fromLineNumbers(0, 0, 0, 0); // may just want to throw an error instead
         this._disposable = Disposable.from(
             workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this),
+            window.onDidChangeActiveTextEditor(
+                this.onDidChangeActiveTextEditor,
+                this
+            ),
+            window.onDidChangeVisibleTextEditors(
+                this.onDidChangeVisibleTextEditors,
+                this
+            ),
+            window.onDidChangeTextEditorSelection(
+                this.onDidChangeTextEditorSelection,
+                this
+            ),
             this._range.onDelete.event((range: RangePlus) => {
                 console.log('DELETED', range);
                 this._disposable.dispose();
                 this.onDelete.fire(this);
             })
         );
+        this._content = '';
+        if (opts) {
+            opts.id && this.setId(opts.id);
+            opts.textEditorDecoration &&
+                this.setTextEditorDecoration(opts.textEditorDecoration);
+        }
+    }
+
+    public static fromLocation(location: Location, opts?: LocationPlusOptions) {
+        return new LocationPlus(location.uri, location.range, opts);
+    }
+
+    dispose() {
+        this._disposable.dispose();
+    }
+
+    get content(): string {
+        return this._content;
+    }
+
+    get id(): string | undefined {
+        return this._id;
+    }
+
+    public setId(id: string) {
+        if (!this._id) {
+            this._id = id;
+        } else {
+            throw new Error('Cannot set id more than once');
+        }
+    }
+
+    get textEditorDecoration(): TextEditorDecorationType | undefined {
+        return this._textEditorDecoration;
+    }
+
+    public setTextEditorDecoration(
+        textEditorDecoration: TextEditorDecorationType | undefined
+    ) {
+        this._textEditorDecoration = textEditorDecoration;
+    }
+
+    createTextEditorDecorationType(renderOpts: DecorationRenderOptions) {
+        this._textEditorDecoration =
+            window.createTextEditorDecorationType(renderOpts);
+    }
+
+    private applyDecorations(textEditor: TextEditor) {
+        if (this._textEditorDecoration) {
+            textEditor.setDecorations(this._textEditorDecoration, [
+                this._range,
+            ]);
+        }
+    }
+
+    private updateContent(textEditor: TextEditor) {
+        this._content = textEditor.document.getText(this._range);
     }
 
     onTextDocumentChanged(onTextDocumentChanged: TextDocumentChangeEvent) {
         if (this.uri.fsPath === onTextDocumentChanged.document.uri.fsPath) {
+            const { document } = onTextDocumentChanged;
             for (const change of onTextDocumentChanged.contentChanges) {
-                this._range.updateRangeLength(onTextDocumentChanged.document);
                 const oldRange = this._range.copy();
                 this._range = RangePlus.fromRange(
-                    onTextDocumentChanged.document.validateRange(
-                        this._range.update(change)
-                    )
+                    document.validateRange(this._range.update(change))
                 );
                 const furtherNormalizedStart =
-                    onTextDocumentChanged.document.getWordRangeAtPosition(
-                        this._range.start
-                    ) || this._range;
+                    document.getWordRangeAtPosition(this._range.start) ||
+                    this._range;
                 const furtherNormalizedEnd =
-                    onTextDocumentChanged.document.getWordRangeAtPosition(
-                        this._range.end
-                    ) || this._range;
+                    document.getWordRangeAtPosition(this._range.end) ||
+                    this._range;
                 this._range = RangePlus.fromPositions(
                     furtherNormalizedStart.start,
                     furtherNormalizedEnd.end
                 );
                 if (!this._range.isEqual(oldRange)) {
-                    console.log(
-                        'OLD RANGE',
-                        oldRange,
-                        'NEW RANGE',
-                        this._range
-                    );
+                    this.onChanged.fire(this);
                 }
-                this._range.updateRangeLength(onTextDocumentChanged.document);
+                this.range = this._range;
+                this._range.updateRangeLength(document);
+                this._content = document.getText(this._range);
+            }
+        }
+    }
+
+    onDidChangeActiveTextEditor(textEditor: TextEditor | undefined) {
+        if (textEditor && textEditor.document.uri.fsPath === this.uri.fsPath) {
+            this.updateContent(textEditor);
+            this.applyDecorations(textEditor);
+        }
+    }
+
+    onDidChangeVisibleTextEditors(textEditors: readonly TextEditor[]) {
+        const matchingEditor = textEditors.find(
+            (textEditor) => textEditor.document.uri.fsPath === this.uri.fsPath
+        );
+        if (matchingEditor) {
+            this.updateContent(matchingEditor);
+            this.applyDecorations(matchingEditor);
+        }
+    }
+
+    onDidChangeTextEditorSelection(
+        selectionEvent: TextEditorSelectionChangeEvent
+    ) {
+        if (selectionEvent.textEditor.document.uri.fsPath === this.uri.fsPath) {
+            const { selections } = selectionEvent;
+            const selection = selections[0];
+            if (this._range.contains(selection.active)) {
+                this.onSelected.fire(this);
             }
         }
     }

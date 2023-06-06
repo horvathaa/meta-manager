@@ -8,8 +8,11 @@ import {
     Location,
 } from 'vscode';
 import * as ts from 'typescript';
-import { ReadableNode } from '../constants/types';
-import LocationPlus from './location';
+import {
+    LocationPlusTextEditorDecorationTypeOptions,
+    ReadableNode,
+} from '../constants/types';
+import LocationPlus, { LocationPlusOptions } from './location';
 
 export const getVisiblePath = (
     projectName: string,
@@ -109,15 +112,24 @@ export function makeReadableNode(
     doc: TextDocument,
     useLocationPlus: boolean = false
 ) {
-    let location: Location | LocationPlus;
-    if (useLocationPlus) {
-        location = new LocationPlus(doc.uri, nodeToRange(node, doc.getText()));
-        (location as LocationPlus).onDelete.event((location: LocationPlus) =>
-            console.log('deleted', location)
-        );
-    } else {
-        location = new Location(doc.uri, nodeToRange(node, doc.getText()));
-    }
+    let location: Location | LocationPlus = new Location(
+        doc.uri,
+        nodeToRange(node, doc.getText())
+    );
+    // if (useLocationPlus) {
+    //     location = new LocationPlus(doc.uri, nodeToRange(node, doc.getText()));
+    //     // if (location instanceof LocationPlus) {
+    //     //     location.setId(doc.getText(location.range));
+    //     //     location.createTextEditorDecorationType(
+    //     //         LocationPlusTextEditorDecorationTypeOptions
+    //     //     );
+    //     //     location.onDelete.event((location: LocationPlus) =>
+    //     //         console.log('deleted', location)
+    //     //     );
+    //     // }
+    // } else {
+    //     location = new Location(doc.uri, nodeToRange(node, doc.getText()));
+    // }
     return {
         node: node,
         humanReadableKind: ts.SyntaxKind[node.kind],
