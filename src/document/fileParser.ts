@@ -23,7 +23,7 @@ class FileParser extends Disposable {
         this._docs = new Map();
     }
 
-    public static async createFileParser(
+    public static async create(
         context: ExtensionContext,
         container: Container
     ) {
@@ -46,7 +46,6 @@ class FileParser extends Disposable {
                 .filter((l) => l.trim()[0] !== '#' && l.trim().length) // get rid of headers for sections
                 .map((l) => l.trim().replace(regex, '')) // get rid of slashes and asterisks
         );
-        console.log('files to ignore', this._filesToIgnore);
     }
 
     public isTsJsTsxJsx(document: TextDocument) {
@@ -122,7 +121,6 @@ class FileParser extends Disposable {
                 }
             }
         }
-        // }
     }
 }
 

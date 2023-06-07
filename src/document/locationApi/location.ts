@@ -57,7 +57,6 @@ export default class LocationPlus extends Location {
                 this
             ),
             this._range.onDelete.event((range: RangePlus) => {
-                console.log('DELETED', range);
                 this._disposable.dispose();
                 this.onDelete.fire(this);
             })
@@ -122,9 +121,9 @@ export default class LocationPlus extends Location {
     }
 
     onTextDocumentChanged(onTextDocumentChanged: TextDocumentChangeEvent) {
-        if (this.uri.fsPath === onTextDocumentChanged.document.uri.fsPath) {
-            const { document } = onTextDocumentChanged;
-            for (const change of onTextDocumentChanged.contentChanges) {
+        const { document, contentChanges } = onTextDocumentChanged;
+        if (this.uri.fsPath === document.uri.fsPath) {
+            for (const change of contentChanges) {
                 const oldRange = this._range.copy();
                 this._range = RangePlus.fromRange(
                     document.validateRange(this._range.update(change))

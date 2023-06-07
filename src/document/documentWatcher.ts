@@ -10,6 +10,7 @@ import {
 import { Container } from '../container';
 import { getProjectName, getVisiblePath, makeReadableNode } from './lib';
 import { SimplifiedTree, getSimplifiedTreeName } from '../tree/tree';
+import { v4 as uuidv4 } from 'uuid';
 import * as ts from 'typescript';
 // import { ReadableNode, isReadableNode } from '../constants/types';
 import ReadableNode from '../tree/node';
@@ -83,9 +84,9 @@ class DocumentWatcher extends Disposable {
             // i'm not sure why
             if (ts.isBlock(node)) {
                 const readableNodeArrayCopy = nodes.map((n) => n);
-                const name = getSimplifiedTreeName(
+                const name = `${getSimplifiedTreeName(
                     readableNodeArrayCopy.reverse()
-                );
+                )}:${uuidv4()}`;
                 const readableNode = context.initNode(
                     ReadableNode.create(node, docCopy, name)
                 );

@@ -63,6 +63,7 @@
         "@types/node": "16.x",
         "@types/react": "^18.2.6",
         "@types/react-dom": "^18.2.4",
+        "@types/uuid": "^9.0.1",
         "@types/vscode": "^1.78.0",
         "@typescript-eslint/eslint-plugin": "^5.59.1",
         "@typescript-eslint/parser": "^5.59.1",
@@ -77,6 +78,7 @@
         "webpack-cli": "^5.1.1"
     },
     "dependencies": {
+        "firebase": "^9.22.1",
         "json5": "^2.2.3",
         "lodash": "^4.17.21",
         "prettier": "^2.8.8",
