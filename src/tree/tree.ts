@@ -173,45 +173,46 @@ export class SimplifiedTree<T> {
     }
 }
 
-export function getSimplifiedTreeName(nodes: ReadableNode[]): string {
+// export function getSimplifiedTreeName(nodes: ReadableNode[]): string {
+export function getSimplifiedTreeName(nodes: ts.Node[]): string {
     const copy = [...nodes];
     const first = copy.shift();
     if (!first) {
         return '';
     }
-    if (ts.isIfStatement(first.node)) {
+    if (ts.isIfStatement(first)) {
         return 'If';
     }
-    if (ts.isForStatement(first.node)) {
+    if (ts.isForStatement(first)) {
         return 'For';
     }
-    if (ts.isWhileStatement(first.node)) {
+    if (ts.isWhileStatement(first)) {
         return 'While';
     }
-    if (ts.isDoStatement(first.node)) {
+    if (ts.isDoStatement(first)) {
         return 'Do';
     }
-    if (ts.isSwitchStatement(first.node)) {
+    if (ts.isSwitchStatement(first)) {
         return 'Switch';
     }
-    if (ts.isTryStatement(first.node)) {
+    if (ts.isTryStatement(first)) {
         return 'Try';
     }
-    if (ts.isCatchClause(first.node)) {
+    if (ts.isCatchClause(first)) {
         return 'Catch';
     }
-    if (ts.isConstructorDeclaration(first.node)) {
+    if (ts.isConstructorDeclaration(first)) {
         return 'Constructor';
     }
-    if (first.node.hasOwnProperty('name')) {
-        return (first.node as ts.FunctionDeclaration).name?.getText() || '';
+    if (first.hasOwnProperty('name')) {
+        return (first as ts.FunctionDeclaration).name?.getText() || '';
     }
-    if (ts.isArrowFunction(first.node)) {
+    if (ts.isArrowFunction(first)) {
         if (
             copy.length > 1 &&
-            copy[0].humanReadableKind === 'VariableDeclaration'
+            ts.SyntaxKind[copy[0].kind] === 'VariableDeclaration'
         ) {
-            return (copy[0].node as ts.VariableDeclaration).name.getText();
+            return (copy[0] as ts.VariableDeclaration).name.getText();
         }
         return 'Arrow Function'; // could do something fancier to try and get the name of the function but this is fine for now
         // but this is fine for now

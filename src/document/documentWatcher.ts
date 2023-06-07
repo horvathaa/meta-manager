@@ -47,14 +47,6 @@ class DocumentWatcher extends Disposable {
 
     initNodes() {
         const tree = this.traverse();
-        // const nodes = tree.toArray();
-        // const map = nodes.map((node) => {
-        //     return this.initNode(node, tree);
-        // });
-        // map.forEach((newNode, i) => {
-        //     tree.swapNodes(nodes[i], newNode);
-        // });
-        console.log('tree', tree);
         return tree;
     }
 
@@ -90,19 +82,13 @@ class DocumentWatcher extends Disposable {
             // some of the scopes do not use the block node
             // i'm not sure why
             if (ts.isBlock(node)) {
-                const readableNodeArrayCopy = nodes.map((n) =>
-                    ReadableNode.create(n, docCopy)
-                );
+                const readableNodeArrayCopy = nodes.map((n) => n);
                 const name = getSimplifiedTreeName(
                     readableNodeArrayCopy.reverse()
                 );
-                const readableNode = context.initNode2(
+                const readableNode = context.initNode(
                     ReadableNode.create(node, docCopy, name)
                 );
-                // {
-                //     ...makeReadableNode(node, docCopy),
-                //     id: name,
-                // };
 
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
@@ -127,35 +113,7 @@ class DocumentWatcher extends Disposable {
         return tree;
     }
 
-    initNode(
-        node: ReadableNode,
-        tree: SimplifiedTree<ReadableNode>
-    ): ReadableNode {
-        if (!(node instanceof ReadableNode)) {
-            return node;
-        }
-        const nodeCopy = node.copy();
-
-        nodeCopy.location.onDelete.event((location: LocationPlus) => {
-            console.log('DELETED', location);
-        });
-        nodeCopy.location.onChanged.event((location: LocationPlus) => {
-            console.log('CHANGED', location, 'lol', node);
-        });
-        nodeCopy.location.onSelected.event((location: LocationPlus) => {
-            console.log('SELECTED', location);
-        });
-        const nodeName = tree
-            .getPathToNode(node)
-            ?.map((s) => s.id)
-            .join(':');
-        nodeCopy.location.setId(
-            `${nodeCopy.location.uri.fsPath}${nodeName}` || ''
-        );
-        return nodeCopy;
-    }
-
-    initNode2(node: ReadableNode): ReadableNode {
+    initNode(node: ReadableNode): ReadableNode {
         if (!(node instanceof ReadableNode)) {
             return node;
         }

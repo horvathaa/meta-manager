@@ -173,8 +173,6 @@ export default class LocationPlus extends Location {
             const { selections } = selectionEvent;
             const selection = selections[0];
             if (this._range.contains(selection.active)) {
-                // console.log('selected', this); // seems like there's a lot of junk locations -- probably from
-                // making the array for the names -- can probably forgo that
                 this.onSelected.fire(this);
             }
         }
