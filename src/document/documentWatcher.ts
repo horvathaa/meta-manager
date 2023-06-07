@@ -46,6 +46,10 @@ class DocumentWatcher extends Disposable {
         return this._relativeFilePath;
     }
 
+    get nodesInFile() {
+        return this._nodesInFile;
+    }
+
     initNodes() {
         const tree = this.traverse();
         return tree;
@@ -67,7 +71,9 @@ class DocumentWatcher extends Disposable {
 
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
-        const tree = new SimplifiedTree<ReadableNode>(docCopy.uri.fsPath);
+        const tree = new SimplifiedTree<ReadableNode>({
+            name: docCopy.uri.fsPath,
+        });
         tree.initRoot(); // initialize the root node
         // why do we do this? because if we don't we keep adding to the array (currTreeInstance)
         // instead of the first node because we read from the "top" of the array
@@ -94,7 +100,7 @@ class DocumentWatcher extends Disposable {
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
                         readableNode,
-                        name
+                        { name }
                     )
                 );
             }
@@ -109,6 +115,9 @@ class DocumentWatcher extends Disposable {
         }
 
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
+
+        // tree.serialize();
+        console.log('lol', tree.serialize());
 
         // this._mapNodesInFile = map;
         return tree;
@@ -128,6 +137,7 @@ class DocumentWatcher extends Disposable {
         });
         nodeCopy.location.onSelected.event((location: LocationPlus) => {
             console.log('SELECTED', location);
+            console.log(node.serialize());
         });
         // const nodeName = tree
         //     .getPathToNode(node)

@@ -13,11 +13,18 @@ import {
     DecorationRenderOptions,
     TextEditorSelectionChangeEvent,
 } from 'vscode';
-import RangePlus from './range';
+import RangePlus, { SerializedRangePlus } from './range';
 
 export interface LocationPlusOptions {
     id?: string;
     textEditorDecoration?: TextEditorDecorationType;
+}
+
+export interface SerializedLocationPlus {
+    fsPath: string;
+    range: SerializedRangePlus;
+    content: string;
+    id?: string;
 }
 
 export default class LocationPlus extends Location {
@@ -175,5 +182,23 @@ export default class LocationPlus extends Location {
                 this.onSelected.fire(this);
             }
         }
+    }
+
+    serialize(): SerializedLocationPlus {
+        return {
+            fsPath: this.uri.fsPath,
+            range: this._range.serialize(),
+            content: this._content,
+        };
+    }
+
+    static deserialize(serializedLocationPlus: SerializedLocationPlus) {
+        // tbd what to do with content here
+        const { fsPath, range, content, id } = serializedLocationPlus;
+        return id
+            ? new LocationPlus(Uri.file(fsPath), RangePlus.deserialize(range), {
+                  id,
+              })
+            : new LocationPlus(Uri.file(fsPath), RangePlus.deserialize(range));
     }
 }

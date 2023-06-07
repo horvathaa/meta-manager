@@ -146,7 +146,7 @@ class GitController extends Disposable {
             const result = await this._gitState?.repository.log(opts);
             return result;
         } catch (e) {
-            throw new Error('GitController - API Request Problem: ' + e);
+            throw new Error('GitController: API Request Problem: ' + e);
         }
     }
 

@@ -2,13 +2,25 @@
 // it doesn't like the enum name being in all caps
 // but i like my enums like that so shrug
 import * as ts from 'typescript';
-// import { ReadableNode } from '../constants/types';
-import ReadableNode from './node';
 import { isEqual } from 'lodash';
 
-interface TreeReadableNode<T> {
+export abstract class AbstractTreeReadableNode<T> {
+    data: T;
+
+    constructor() {
+        this.data = {} as T;
+    }
+
+    abstract serialize(): any;
+
+    abstract deserialize(serialized: any): T;
+}
+
+interface TreeReadableNode<T extends AbstractTreeReadableNode<T>> {
     data: T;
     children: SimplifiedTree<T>[];
+    parent?: TreeReadableNode<T>;
+    depth?: number;
 }
 
 export enum Traversals {
@@ -17,33 +29,62 @@ export enum Traversals {
     LEVEL_ORDER,
 }
 
+interface NodeMetadata<T extends AbstractTreeReadableNode<T>> {
+    name: string;
+    parent?: NodeWithChildren<T> | undefined;
+    depth?: number;
+}
+
+export interface NodeWithChildren<T extends AbstractTreeReadableNode<T>> {
+    data: T;
+    children: SimplifiedTree<T>[];
+    parent?: NodeWithChildren<T>;
+    depth?: number;
+}
+
 // https://dtjv.io/the-generic-tree-data-structure/
 // i haven't implemented a tree in eons lmao
-export class SimplifiedTree<T> {
-    root: TreeReadableNode<T> | undefined;
+export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
+    root: NodeWithChildren<T> | undefined;
     name: string;
-    constructor(name: string) {
+    parent?: NodeWithChildren<T>;
+    depth?: number;
+
+    constructor(metadata: NodeMetadata<T>) {
         this.root = undefined;
-        this.name = name;
+        this.name = metadata.name;
+        this.parent = metadata.parent;
+        this.depth = metadata.depth;
     }
 
-    public insert(data: T, name: string): SimplifiedTree<T> {
-        // scenario 1
+    public insert(data: T, metadata: NodeMetadata<T>): SimplifiedTree<T> {
         if (!this.root) {
-            this.root = { children: [], data };
+            this.root = {
+                data,
+                children: [],
+                parent: this.parent,
+                depth: this.depth,
+            };
             return this;
         }
 
-        // scenario 2
-        const child = new SimplifiedTree<T>(name);
+        const newMetadata: NodeMetadata<T> = {
+            ...metadata,
+            parent: this.root,
+            depth: (this.depth || 0) + 1,
+        };
+        const child = new SimplifiedTree<T>(newMetadata);
 
-        this.root.children.push(child.insert({ ...data, children: [] }, name));
+        this.root.children.push(child.insert(data, newMetadata));
         return child;
     }
 
     public initRoot() {
         if (!this.root) {
-            this.root = { children: [], data: {} as T };
+            this.root = {
+                children: [],
+                data: {} as T,
+            };
         }
     }
 
@@ -63,7 +104,10 @@ export class SimplifiedTree<T> {
         this.root.children.forEach((child) => child.remove(data));
     }
 
-    private traverseLevelOrder(root: TreeReadableNode<T> | undefined): T[] {
+    private traverseLevelOrder(
+        root: TreeReadableNode<T> | undefined,
+        serialize?: boolean
+    ): T[] {
         const result: T[] = [];
         const queue: (TreeReadableNode<T> | undefined)[] = [root];
 
@@ -71,7 +115,9 @@ export class SimplifiedTree<T> {
             const node = queue.pop();
 
             if (node) {
-                result.push(node.data);
+                serialize
+                    ? result.push(this.serializeNode(node))
+                    : result.push(node.data);
 
                 for (const child of node.children) {
                     queue.unshift(child.root);
@@ -82,20 +128,42 @@ export class SimplifiedTree<T> {
         return result;
     }
 
-    private traversePreOrder(root: TreeReadableNode<T> | undefined): T[] {
+    private serializeNode(node: TreeReadableNode<T>) {
+        if (node.data.serialize) {
+            const { parent } = node;
+            let parentName = '';
+            if (parent && parent.data.serialize) {
+                parentName = parent.data.serialize().id;
+            }
+            return {
+                ...node.data.serialize(),
+                parent: parentName,
+                depth: node.depth || 0,
+            };
+        }
+        return {};
+    }
+
+    private traversePreOrder(
+        root: TreeReadableNode<T> | undefined,
+        serialize?: boolean
+    ): T[] {
         if (!root) {
             return [];
         }
 
         return [
-            root.data,
+            serialize ? this.serializeNode(root) : root.data,
             ...root.children.flatMap((child) =>
                 child.traversePreOrder(child.root)
             ),
         ];
     }
 
-    private traversePostOrder(root: TreeReadableNode<T> | undefined): T[] {
+    private traversePostOrder(
+        root: TreeReadableNode<T> | undefined,
+        serialize?: boolean
+    ): T[] {
         if (!root) {
             return [];
         }
@@ -104,18 +172,21 @@ export class SimplifiedTree<T> {
             ...root.children.flatMap((child) =>
                 child.traversePostOrder(child.root)
             ),
-            root.data,
+            serialize ? this.serializeNode(root) : root.data,
         ];
     }
 
-    public toArray(traversal: Traversals = Traversals.LEVEL_ORDER): T[] {
+    public toArray(
+        traversal: Traversals = Traversals.LEVEL_ORDER,
+        serialize: boolean = false
+    ): T[] {
         switch (traversal) {
             case Traversals.PRE_ORDER:
-                return this.traversePreOrder(this.root);
+                return this.traversePreOrder(this.root, serialize);
             case Traversals.POST_ORDER:
-                return this.traversePostOrder(this.root);
+                return this.traversePostOrder(this.root, serialize);
             default:
-                return this.traverseLevelOrder(this.root);
+                return this.traverseLevelOrder(this.root, serialize);
         }
     }
 
@@ -170,6 +241,11 @@ export class SimplifiedTree<T> {
         for (const child of this.root.children) {
             child.swapNodes(node, nodeToSwap);
         }
+    }
+
+    public serialize() {
+        // console.log('this', this);
+        return this.toArray(Traversals.LEVEL_ORDER, true);
     }
 }
 

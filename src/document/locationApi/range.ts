@@ -34,6 +34,16 @@ interface ContentChangeContext {
     isPaste?: boolean;
 }
 
+interface SerializedPosition {
+    line: number;
+    character: number;
+}
+
+export interface SerializedRangePlus {
+    start: SerializedPosition;
+    end: SerializedPosition;
+}
+
 class RangePlus extends Range {
     _rangeLength: number;
     onDelete: EventEmitter<RangePlus>;
@@ -210,6 +220,30 @@ class RangePlus extends Range {
 
     public copy(): RangePlus {
         return RangePlus.fromPositions(this.start, this.end);
+    }
+
+    public serialize(): SerializedRangePlus {
+        return {
+            start: {
+                line: this.start.line,
+                character: this.start.character,
+            },
+            end: {
+                line: this.end.line,
+                character: this.end.character,
+            },
+        };
+    }
+
+    public static deserialize(
+        serializedRangePlus: SerializedRangePlus
+    ): RangePlus {
+        return RangePlus.fromLineNumbers(
+            serializedRangePlus.start.line,
+            serializedRangePlus.start.character,
+            serializedRangePlus.end.line,
+            serializedRangePlus.end.character
+        );
     }
 
     public update(contentChange: TextDocumentContentChangeEvent): RangePlus {
