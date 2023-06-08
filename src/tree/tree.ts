@@ -372,6 +372,10 @@ export function getSimplifiedTreeName(nodes: ts.Node[]): string {
     if (!first) {
         return '';
     }
+
+    if (ts.isFunctionDeclaration(first)) {
+        return (first as ts.FunctionDeclaration).name?.getText() || '';
+    }
     if (ts.isIfStatement(first)) {
         return 'If';
     }
