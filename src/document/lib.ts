@@ -116,9 +116,7 @@ export function makeReadableNode(node: ts.Node, doc: TextDocument) {
     };
 }
 
-export function isTextDocument(
-    doc: TextDocument | undefined
-): doc is TextDocument {
+export function isTextDocument(doc: any): doc is TextDocument {
     return (
         doc !== undefined &&
         doc.hasOwnProperty('uri') &&

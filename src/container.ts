@@ -7,6 +7,7 @@ import {
 } from 'vscode';
 import { DataController } from './data/DataController';
 import FileParser from './document/fileParser';
+import FileSystemController from './fs/FileSystemController';
 
 export class Container {
     // https://stackoverflow.com/questions/59641564/what-are-the-differences-between-the-private-keyword-and-private-fields-in-types -- why # sign
@@ -21,6 +22,9 @@ export class Container {
         this._workspaceFolder = workspace.workspaceFolders
             ? workspace.workspaceFolders[0]
             : undefined;
+        this._fileSystemController =
+            this._workspaceFolder &&
+            FileSystemController.create(this._workspaceFolder.uri);
         this._disposables
             .push
             // (this._dataController = new DataController(this))
@@ -48,7 +52,12 @@ export class Container {
         return this._workspaceFolder;
     }
 
-    public get onGitControllerInit() {
+    private _fileSystemController: FileSystemController | undefined;
+    public get fileSystemController(): FileSystemController | undefined {
+        return this._fileSystemController;
+    }
+
+    public get onDataControllerInit() {
         return this._onDataControllerInit.event;
     }
 

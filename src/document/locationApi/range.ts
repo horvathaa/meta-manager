@@ -27,6 +27,11 @@ interface Delta {
     characterDelta: number;
 }
 
+export interface CompareDelta {
+    startDelta: Delta;
+    endDelta: Delta;
+}
+
 interface ContentChangeContext {
     isAddition: boolean;
     isSingleLineChange: boolean;
@@ -244,6 +249,13 @@ class RangePlus extends Range {
             serializedRangePlus.end.line,
             serializedRangePlus.end.character
         );
+    }
+
+    public compare(range: Range): CompareDelta {
+        return {
+            startDelta: this.getDifferenceFromStart(range.start),
+            endDelta: this.getDifferenceFromEnd(range.end),
+        };
     }
 
     public update(contentChange: TextDocumentContentChangeEvent): RangePlus {

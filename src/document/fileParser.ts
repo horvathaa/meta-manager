@@ -5,9 +5,13 @@ import {
     workspace,
     ExtensionContext,
     Disposable,
+    Range,
 } from 'vscode';
 import DocumentWatcher from './documentWatcher';
 import { Container } from '../container';
+import { SimplifiedTree } from '../tree/tree';
+import ReadableNode from '../tree/node';
+import LocationPlus from './locationApi/location';
 
 class FileParser extends Disposable {
     _filesToIgnore: string[];
@@ -31,7 +35,7 @@ class FileParser extends Disposable {
         if (container.workspaceFolder) {
             const uri = container.workspaceFolder.uri;
             const topLevelDir = await workspace.fs.readDirectory(uri);
-            fileParser.recurseThroughFiles(topLevelDir, uri);
+            await fileParser.recurseThroughFiles(topLevelDir, uri);
         }
 
         return fileParser;
@@ -125,3 +129,36 @@ class FileParser extends Disposable {
 }
 
 export default FileParser;
+
+// testing for the tree serialization and deserialization
+
+// next step -- given each of these nodes, find closest match in live file
+// split ID to see if file has entity named after top level node
+// if match, mark it and then look at its children while traversing that part of AST
+// check if it has the suspected matches given higher level node's children
+// continue and apply id to all nodes that match
+
+// container.onDataControllerInit(async (dataController) => {
+//     const serialized = Array.from(
+//         fileParser.docs.values()
+//     )[2].nodesInFile.serialize();
+//     console.log('container.dataController', dataController);
+//     await container.fileSystemController?.writeToFile(serialized);
+
+//     const otherRead =
+//         await container.fileSystemController?.openAndReadTextDocument(
+//             'output.json'
+//         );
+//     console.log('parsed', JSON.parse(otherRead || ''));
+
+//     const tree = new SimplifiedTree<ReadableNode>({
+//         name: 'root',
+//     }).deserialize(
+//         JSON.parse(otherRead || ''),
+//         new ReadableNode(
+//             '',
+//             new LocationPlus(uri, new Range(0, 0, 0, 0))
+//         )
+//     );
+//     console.log('tree', tree);
+// });

@@ -2,18 +2,37 @@
 // it doesn't like the enum name being in all caps
 // but i like my enums like that so shrug
 import * as ts from 'typescript';
-import { isEqual } from 'lodash';
+import { isEmpty, isEqual } from 'lodash';
+
+export enum SummaryStatus {
+    SAME = 'SAME',
+    MODIFIED = 'MODIFIED',
+    REMOVED = 'REMOVED',
+    UNKNOWN = 'UNKNOWN',
+}
+
+export interface CompareSummary<T> {
+    status: SummaryStatus;
+    modifiedNodes?: T;
+    removedNodes?: T;
+}
 
 export abstract class AbstractTreeReadableNode<T> {
     data: T;
+    parent: string;
+    id: string;
 
     constructor() {
         this.data = {} as T;
+        this.parent = '';
+        this.id = '';
     }
 
     abstract serialize(): any;
 
     abstract deserialize(serialized: any): T;
+
+    abstract compare(other: T): CompareSummary<T>;
 }
 
 interface TreeReadableNode<T extends AbstractTreeReadableNode<T>> {
@@ -49,12 +68,14 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
     name: string;
     parent?: NodeWithChildren<T>;
     depth?: number;
+    debug: boolean = false;
 
     constructor(metadata: NodeMetadata<T>) {
         this.root = undefined;
         this.name = metadata.name;
         this.parent = metadata.parent;
         this.depth = metadata.depth;
+        this.debug = false;
     }
 
     public insert(data: T, metadata: NodeMetadata<T>): SimplifiedTree<T> {
@@ -141,7 +162,7 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
                 depth: node.depth || 0,
             };
         }
-        return {};
+        return undefined;
     }
 
     private traversePreOrder(
@@ -182,11 +203,17 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
     ): T[] {
         switch (traversal) {
             case Traversals.PRE_ORDER:
-                return this.traversePreOrder(this.root, serialize);
+                return this.traversePreOrder(this.root, serialize).filter(
+                    (t) => !isEmpty(t)
+                );
             case Traversals.POST_ORDER:
-                return this.traversePostOrder(this.root, serialize);
+                return this.traversePostOrder(this.root, serialize).filter(
+                    (t) => !isEmpty(t)
+                );
             default:
-                return this.traverseLevelOrder(this.root, serialize);
+                return this.traverseLevelOrder(this.root, serialize).filter(
+                    (t) => !isEmpty(t)
+                );
         }
     }
 
@@ -228,6 +255,58 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         return undefined;
     }
 
+    public compareTrees(
+        otherTree: SimplifiedTree<T>
+    ): CompareSummary<AbstractTreeReadableNode<T>[]> {
+        const thisArr = this.toArray();
+        const otherArr = otherTree.toArray();
+        // const match = thisArr.find((n) => {
+
+        // const susNodes = thisArr.filter((n) => {
+
+        //     return otherArr.find(
+        //         (o) =>
+        //             n.compare && n.compare(o).status === SummaryStatus.UNKNOWN
+        //     );
+        // });
+
+        // if (!susNodes.length) {
+        //     return {
+        //         status: SummaryStatus.SAME,
+        //     };
+        // } else {
+        //     return {
+        //         status: SummaryStatus.MODIFIED,
+        //         modifiedNodes: susNodes,
+        //     };
+        // }
+        return {
+            status: SummaryStatus.MODIFIED,
+            modifiedNodes: [],
+        };
+    }
+
+    public getRootNodeWithValue(
+        searchFunc: (data: T) => boolean
+    ): NodeWithChildren<T> | undefined {
+        if (!this.root) {
+            return undefined;
+        }
+
+        if (this.root.data && searchFunc(this.root.data)) {
+            return this.root;
+        }
+
+        for (const child of this.root.children) {
+            const result = child.getRootNodeWithValue(searchFunc);
+            if (result) {
+                return result;
+            }
+        }
+
+        return undefined;
+    }
+
     public swapNodes(node: T, nodeToSwap: T): void {
         if (!this.root) {
             return;
@@ -244,8 +323,45 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
     }
 
     public serialize() {
-        // console.log('this', this);
-        return this.toArray(Traversals.LEVEL_ORDER, true);
+        return this.toArray(Traversals.LEVEL_ORDER, true).filter((d) => d);
+    }
+
+    // UNFORTUNATELY you cannot access static methods from generic types -- stupid
+    // so we need to pass in an argument that can essentially work
+    // as a static method (i.e., access our now non-static deserialize method) :-(
+    // https://stackoverflow.com/questions/41089854/typescript-access-static-attribute-of-generic-type
+    // this is froem 2019 so maybe things have changed but idek
+    public deserialize(serialized: any[], instance: T, name?: string) {
+        const tree = new SimplifiedTree<T>({
+            name: name || 'root',
+        });
+        tree.initRoot();
+        serialized.forEach((node: any) => {
+            const deserialized: T = instance.deserialize(node);
+            if (!deserialized) {
+                return;
+            }
+
+            const metadata: NodeMetadata<T> = {
+                name: deserialized.id,
+            };
+
+            const insertionPoint = tree.getRootNodeWithValue(
+                (d) => d.id === node.parent
+            );
+
+            if (!insertionPoint) {
+                tree.insert(deserialized, metadata);
+                return;
+            }
+            insertionPoint.children.push(
+                new SimplifiedTree<T>({ name: deserialized.id }).insert(
+                    deserialized,
+                    metadata
+                )
+            );
+        });
+        return tree;
     }
 }
 

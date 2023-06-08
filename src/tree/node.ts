@@ -4,7 +4,15 @@ import LocationPlus, {
 } from '../document/locationApi/location';
 import { TextDocument } from 'vscode';
 import { nodeToRange } from '../document/lib';
-import { AbstractTreeReadableNode } from './tree';
+import {
+    AbstractTreeReadableNode,
+    CompareSummary,
+    SummaryStatus,
+} from './tree';
+import {
+    intersectionBetweenStrings,
+    stripNonAlphanumeric,
+} from './helpers/lib';
 
 interface SerializedReadableNode {
     humanReadableKind: string;
@@ -41,7 +49,8 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
                 ? docOrLocation
                 : new LocationPlus(
                       docOrLocation.uri,
-                      nodeToRange(node, docOrLocation.getText())
+                      nodeToRange(node, docOrLocation.getText()),
+                      { doc: docOrLocation, id }
                   );
         return new ReadableNode(ts.SyntaxKind[node.kind], location, node, id);
     }
@@ -75,6 +84,45 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             location,
             undefined, // ugly
             serialized.id
+        );
+    }
+
+    compare(node: ReadableNode): CompareSummary<ReadableNode> {
+        const res = {
+            distanceDelta: this.location.compare(node.location),
+            bagOfWordsScore: this.getBagOfWordsScore(node),
+        };
+
+        if (res.bagOfWordsScore >= 0.9) {
+            return {
+                status: SummaryStatus.SAME,
+            };
+        } else if (
+            res.bagOfWordsScore >= 0.5
+            // ||
+            // 10 > Math.abs(res.distanceDelta.startDelta.lineDelta)
+        ) {
+            return {
+                status: SummaryStatus.MODIFIED,
+                modifiedNodes: this,
+            };
+        } else {
+            console.log('res', res, 'this', this, 'node', node);
+            return {
+                status: SummaryStatus.UNKNOWN,
+            };
+        }
+    }
+
+    // similar approach to this paper
+    // https://dl.acm.org/doi/abs/10.1145/2858036.2858442?casa_token=m_c4cxv1br8AAAAA:JSXZo8OMn9CV3YaYBawsRvZhZFhOsLJurX5qXfckEL_cO1dgBMS1hhbudI9P7JpM0F015wEzrJMf
+    private getBagOfWordsScore(node: ReadableNode) {
+        const contentWords = stripNonAlphanumeric(this.location.content);
+        const otherContentWords = stripNonAlphanumeric(node.location.content);
+        return (
+            0.5 *
+            intersectionBetweenStrings(contentWords, otherContentWords) *
+            (1 / contentWords.length + 1 / otherContentWords.length)
         );
     }
 }

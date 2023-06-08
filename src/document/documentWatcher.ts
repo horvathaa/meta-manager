@@ -60,6 +60,11 @@ class DocumentWatcher extends Disposable {
         const range = new Range(selection.start, selection.end);
     }
 
+    // next step -- given each of these nodes, find closest match in live file
+    // split ID to see if file has entity named after top level node
+    // if match, mark it and then look at its children while traversing that part of AST
+    // check if it has the suspected matches given higher level node's children
+    // continue and apply id to all nodes that match
     traverse() {
         // traverse the document and find the code anchors
         const sourceFile = ts.createSourceFile(
@@ -78,6 +83,9 @@ class DocumentWatcher extends Disposable {
         // why do we do this? because if we don't we keep adding to the array (currTreeInstance)
         // instead of the first node because we read from the "top" of the array
         // it's hard to explain
+        const newTree = new SimplifiedTree<ReadableNode>({
+            name: `${docCopy.uri.fsPath}-2`,
+        });
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
 
@@ -117,7 +125,22 @@ class DocumentWatcher extends Disposable {
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
 
         // tree.serialize();
-        console.log('lol', tree.serialize());
+        const serialized = tree.serialize();
+
+        // tree.name.includes('functions.ts') &&
+        //     console.log('serialized...', serialized);
+        const deserialized = newTree.deserialize(
+            serialized,
+            new ReadableNode(
+                '',
+                new LocationPlus(this.document.uri, new Range(0, 0, 0, 0))
+            ),
+            tree.name
+        );
+        // tree.name.includes('functions.ts') &&
+        //     console.log('deserialized...', deserialized);
+
+        // console.log('compare', tree.compareTrees(deserialized));
 
         // this._mapNodesInFile = map;
         return tree;

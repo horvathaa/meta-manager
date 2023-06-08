@@ -12,12 +12,15 @@ import {
     TextEditorDecorationType,
     DecorationRenderOptions,
     TextEditorSelectionChangeEvent,
+    TextDocument,
 } from 'vscode';
 import RangePlus, { SerializedRangePlus } from './range';
+import { isTextDocument } from '../lib';
 
 export interface LocationPlusOptions {
     id?: string;
     textEditorDecoration?: TextEditorDecorationType;
+    doc?: TextDocument;
 }
 
 export interface SerializedLocationPlus {
@@ -73,6 +76,7 @@ export default class LocationPlus extends Location {
             opts.id && this.setId(opts.id);
             opts.textEditorDecoration &&
                 this.setTextEditorDecoration(opts.textEditorDecoration);
+            opts.doc && this.updateContent(opts.doc);
         }
     }
 
@@ -123,8 +127,10 @@ export default class LocationPlus extends Location {
         }
     }
 
-    private updateContent(textEditor: TextEditor) {
-        this._content = textEditor.document.getText(this._range);
+    private updateContent(textEditorOrDocument: TextEditor | TextDocument) {
+        this._content = isTextDocument(textEditorOrDocument)
+            ? textEditorOrDocument.getText(this._range)
+            : textEditorOrDocument.document.getText(this._range);
     }
 
     onTextDocumentChanged(onTextDocumentChanged: TextDocumentChangeEvent) {
@@ -200,5 +206,10 @@ export default class LocationPlus extends Location {
                   id,
               })
             : new LocationPlus(Uri.file(fsPath), RangePlus.deserialize(range));
+    }
+
+    // assume same file
+    compare(other: LocationPlus) {
+        return this._range.compare(other._range);
     }
 }

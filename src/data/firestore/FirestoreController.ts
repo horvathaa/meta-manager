@@ -61,7 +61,7 @@ class FirestoreController extends Disposable {
 
     public static async create(container: Container) {
         const firestoreController = new FirestoreController(container);
-        const event = firestoreController.container.onGitControllerInit(
+        const event = firestoreController.container.onDataControllerInit(
             async (dataController) => {
                 const gitController = dataController.gitController;
                 if (gitController && gitController.authSession) {
