@@ -54,10 +54,10 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         this.location = location;
         this.id = id || '';
         this.visited = false;
-        if (container) {
-            this._container = container;
-            this._dataController = DataController.create(container);
-        }
+        // if (container) {
+        //     this._container = container;
+        //     this._dataController = DataController.create();
+        // }
     }
 
     static create(
@@ -128,13 +128,13 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         );
         const changedDisposable = this.location.onChanged.event(
             (location: LocationPlus) => {
-                console.log('CHANGED', location, 'lol', this);
+                // console.log('CHANGED', location, 'lol', this);
                 this.state = NodeState.MODIFIED;
             }
         );
         const selectedDisposable = this.location.onSelected.event(
             async (location: LocationPlus) => {
-                console.log('SELECTED', location);
+                // console.log('SELECTED', location);
                 console.log(this.serialize());
                 console.log(
                     await this._container?.gitController?.gitLog(location)

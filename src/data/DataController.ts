@@ -1,87 +1,66 @@
-import { Disposable, EventEmitter, TextEditor, window } from 'vscode';
+import { Uri, Range } from 'vscode';
 import { Container } from '../container';
-import GitController from './git/GitController';
-import FirestoreController from './firestore/FirestoreController';
-import { AbstractTreeReadableNode } from '../tree/tree';
+import { AbstractTreeReadableNode, CompareSummary } from '../tree/tree';
 import ReadableNode from '../tree/node';
+import LocationPlus from '../document/locationApi/location';
+import { ListLogLine, DefaultLogFields } from 'simple-git';
+import { DocumentData } from 'firebase/firestore';
+import TimelineEvent from './timeline/TimelineEvent';
 
-export class DataController extends AbstractTreeReadableNode<DataController> {
-    // private readonly container: Container;
-    // _disposable: Disposable[];
-    // _gitController: GitController | undefined;
-    // _firestoreController: FirestoreController | undefined;
-    // _onGitControllerInit: EventEmitter<GitController> =
-    //     new EventEmitter<GitController>();
+export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
+
+export class DataController extends AbstractTreeReadableNode<ReadableNode> {
+    _gitData: TimelineEvent[] | undefined;
+    _firestoreData: TimelineEvent[] | undefined;
     _readableNode: ReadableNode;
 
     // this can be accessed anywhere in the class with the "this" keyword -- TIL
-    constructor(readableNode: ReadableNode) {
+    constructor(
+        readableNode: ReadableNode,
+        private readonly container: Container
+    ) {
         super();
         this._readableNode = readableNode;
-        // this._disposable = [
-        //     Disposable
-        //         .from
-        //         // window.onDidChangeActiveTextEditor(
-        //         //     this.onActiveEditorChanged,
-        //         //     this
-        //         // )
-        //         // (this._gitController = new GitController(container))
-        //         // (this._firestoreController = FirestoreController.create(container))
-        //         (),
-        // ];
+        this.initListeners();
     }
 
-    get gitController() {
-        return this._gitController;
+    get readableNode() {
+        return this._readableNode;
     }
 
-    get firestoreController() {
-        return this._firestoreController;
+    serialize() {
+        return {
+            readableNode: this._readableNode.serialize(),
+        };
     }
 
-    get onGitControllerInit() {
-        return this._onGitControllerInit.event;
+    deserialize(data: any) {
+        this._readableNode = new ReadableNode(
+            '',
+            new LocationPlus(Uri.file(''), new Range(0, 0, 0, 0))
+        ).deserialize(data.readableNode);
+        return this._readableNode;
     }
 
-    // async onActiveEditorChanged(editor: TextEditor | undefined) {
-    //     if (editor && this.container.fileParser) {
-    //         console.log('editor changed', editor.document.fileName);
-    //         const document = this.container.fileParser.docs.get(
-    //             editor.document.uri.fsPath
-    //         );
-    //         if (
-    //             !document &&
-    //             this.container.fileParser.isTsJsTsxJsx(editor.document)
-    //         ) {
-    //             throw new Error(
-    //                 `Data Controller: ${editor.document.fileName} not found`
-    //             );
-    //         }
-    //         if (document) {
-    //             console.log('document found', document);
-    //             console.log(
-    //                 'log',
-    //                 await this._gitController?.gitLog(document.document)
-    //             );
-    //             // this.container.fileParser.getFilesToIgnore(editor.document);
-    //             // this.container.fileParser.docs.push(document);
-    //             // th
-    //         }
-    //     }
-    // }
-
-    public static create() {
-        const dataController = new DataController();
-        // const gitController = await GitController.create(container);
-        // const firestoreController = await FirestoreController.create(container); // event for this too?
-        // dataController._gitController = gitController;
-        // dataController._firestoreController = firestoreController;
-        // dataController._disposable.push(gitController, firestoreController);
-        // dataController._onGitControllerInit.fire(gitController);
-        return dataController;
+    compare(other: ReadableNode): CompareSummary<ReadableNode> {
+        return this._readableNode.compare(other);
     }
 
-    dispose() {
-        this._disposable.forEach((d) => d.dispose());
+    initListeners() {
+        this._readableNode.location.onSelected.event(async (location) => {
+            const res = await this.container.gitController?.gitLog(location);
+            if (res) {
+                this._gitData = res.all.map((r) => new TimelineEvent(r));
+                console.log('this', this);
+            }
+
+            // this._firestoreData = this.getFirestoreData();
+        });
+    }
+
+    getGitData() {
+        return this.container.gitController?.gitLog(
+            this._readableNode.location
+        );
     }
 }

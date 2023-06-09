@@ -1,3 +1,4 @@
+// https://www.npmjs.com/package/timelines-chart
 import TimelinesChart from 'timelines-chart';
 const el = document.getElementById('root');
 if (el) {
@@ -16,6 +17,19 @@ if (el) {
                         {
                             timeRange: [1685541199925, 1685541200925],
                             val: 'str2',
+                        },
+                    ],
+                },
+                {
+                    label: 'label2name',
+                    data: [
+                        {
+                            timeRange: [1685541200925, 1685541234757],
+                            val: 'str3',
+                        },
+                        {
+                            timeRange: [1685541199925, 1685541200925],
+                            val: 'str4',
                         },
                     ],
                 },

@@ -138,8 +138,10 @@ export default class LocationPlus extends Location {
         if (this.uri.fsPath === document.uri.fsPath) {
             for (const change of contentChanges) {
                 const oldRange = this._range.copy();
+                const oldContent = this._content;
+                const updated = this._range.update(change);
                 this._range = RangePlus.fromRange(
-                    document.validateRange(this._range.update(change))
+                    document.validateRange(updated)
                 );
                 const furtherNormalizedStart =
                     document.getWordRangeAtPosition(this._range.start) ||
@@ -151,12 +153,15 @@ export default class LocationPlus extends Location {
                     furtherNormalizedStart.start,
                     furtherNormalizedEnd.end
                 );
-                if (!this._range.isEqual(oldRange)) {
+                this._content = document.getText(this._range);
+                if (
+                    !this._range.isEqual(oldRange) ||
+                    this._content !== oldContent
+                ) {
                     this.onChanged.fire(this);
                 }
                 this.range = this._range;
                 this._range.updateRangeLength(document);
-                this._content = document.getText(this._range);
             }
         }
     }

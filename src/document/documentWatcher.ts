@@ -20,6 +20,7 @@ import * as ts from 'typescript';
 import ReadableNode from '../tree/node';
 import LocationPlus from './locationApi/location';
 import { FileParsedEvent } from '../fs/FileSystemController';
+import { DataController } from '../data/DataController';
 const tstraverse = require('tstraverse');
 
 class DocumentWatcher extends Disposable {
@@ -117,12 +118,21 @@ class DocumentWatcher extends Disposable {
                     readableNodeArrayCopy.reverse()
                 )}`;
                 const readableNode = // context.initNode(
-                    ReadableNode.create(node, docCopy, context.container, name);
+                    new DataController(
+                        ReadableNode.create(
+                            node,
+                            docCopy,
+                            context.container,
+                            name
+                        ),
+                        context.container
+                    );
                 // );
-                readableNode.location.updateContent(docCopy);
+                readableNode.readableNode.location.updateContent(docCopy);
                 if (otherTreeInstance && oldTree) {
-                    const matchInfo =
-                        otherTreeInstance.getNodeOfBestMatch(readableNode);
+                    const matchInfo = otherTreeInstance.getNodeOfBestMatch(
+                        readableNode.readableNode
+                    );
                     if (
                         matchInfo.status === SummaryStatus.SAME &&
                         matchInfo.bestMatch
@@ -130,8 +140,9 @@ class DocumentWatcher extends Disposable {
                         name = matchInfo.bestMatch.id;
                         otherTreeInstance = matchInfo.subtree; // any :-(
                     } else {
-                        const matchInfo =
-                            oldTree.getNodeOfBestMatch(readableNode);
+                        const matchInfo = oldTree.getNodeOfBestMatch(
+                            readableNode.readableNode
+                        );
                         if (
                             matchInfo.status === SummaryStatus.SAME &&
                             matchInfo.bestMatch
@@ -144,11 +155,11 @@ class DocumentWatcher extends Disposable {
                     }
                 }
 
-                readableNode.setId(name);
-                readableNode.registerListeners();
+                readableNode.readableNode.setId(name);
+                readableNode.readableNode.registerListeners();
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
-                        readableNode,
+                        readableNode.readableNode,
                         { name }
                     )
                 );

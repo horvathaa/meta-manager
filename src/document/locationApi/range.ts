@@ -258,7 +258,10 @@ class RangePlus extends Range {
         };
     }
 
-    public update(contentChange: TextDocumentContentChangeEvent): RangePlus {
+    public update(
+        contentChange: TextDocumentContentChangeEvent,
+        debug = false
+    ): RangePlus {
         const contentChangeRange =
             RangePlus.fromTextDocumentContentChangeEvent(contentChange);
         const changeContext = getContentChangeContext(
@@ -266,6 +269,15 @@ class RangePlus extends Range {
             contentChangeRange,
             this
         );
+        debug &&
+            console.log(
+                'changeContext',
+                changeContext,
+                'contentChangeRange',
+                contentChangeRange,
+                'our range',
+                this
+            );
         if (
             changeContext.rangeIntersectionType ===
                 RangeIntersectionType.UNKNOWN ||
@@ -698,7 +710,6 @@ class RangePlus extends Range {
                         this.start,
                         this.end.translate(numNewlines, translateDif)
                     );
-                } else if (this.end.line === contentChangeRange.end.line) {
                 } else {
                     return RangePlus.fromPositions(
                         this.start,
