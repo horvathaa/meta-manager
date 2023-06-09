@@ -132,12 +132,6 @@ export default FileParser;
 
 // testing for the tree serialization and deserialization
 
-// next step -- given each of these nodes, find closest match in live file
-// split ID to see if file has entity named after top level node
-// if match, mark it and then look at its children while traversing that part of AST
-// check if it has the suspected matches given higher level node's children
-// continue and apply id to all nodes that match
-
 // container.onDataControllerInit(async (dataController) => {
 //     const serialized = Array.from(
 //         fileParser.docs.values()

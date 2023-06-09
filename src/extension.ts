@@ -21,6 +21,7 @@ export async function activate(context: ExtensionContext) {
 
     // const lol = new Container(context);
     const lol = await Container.create(context);
+    lol.initNodes();
     console.log('lol', lol);
 }
 

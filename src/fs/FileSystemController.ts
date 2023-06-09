@@ -1,17 +1,29 @@
-import { Disposable, Uri, workspace } from 'vscode';
+import { Disposable, EventEmitter, Uri, workspace } from 'vscode';
+import { v4 as uuidv4 } from 'uuid';
+
+export interface FileParsedEvent {
+    filename: string;
+    data: any;
+}
 
 class FileSystemController extends Disposable {
-    readonly _output: Uri;
+    readonly _extensionDir: Uri;
+    _onFileParsed: EventEmitter<FileParsedEvent> =
+        new EventEmitter<FileParsedEvent>();
     constructor(private readonly uri: Uri) {
         super(() => this.dispose());
-        this._output = Uri.joinPath(uri, '.metamanager');
+        this._extensionDir = Uri.joinPath(uri, '.metamanager');
+    }
+
+    get onFileParsed() {
+        return this._onFileParsed.event;
     }
 
     checkIfOutputExists() {
-        if (!this._output) {
+        if (!this._extensionDir) {
             throw new Error('FileSystemController: No workspace folder found');
         }
-        return this._output;
+        return this._extensionDir;
     }
 
     public static create(uri: Uri) {
@@ -19,16 +31,11 @@ class FileSystemController extends Disposable {
         return fileSystemController;
     }
 
-    public async writeToFile(data: string | {}, filename?: string) {
+    public async writeToFile(data: {}, filename: string) {
         if (this.checkIfOutputExists()) {
-            const toWrite =
-                typeof data === 'string' ? data : JSON.stringify(data);
-            console.log('toWrite', toWrite);
-            const path = Uri.joinPath(
-                this._output,
-                filename ? filename : 'output.json'
-            );
-            console.log('writing to file', path);
+            const obj = { data, filename };
+            const toWrite = JSON.stringify(obj);
+            const path = Uri.joinPath(this._extensionDir, `${uuidv4()}.json`);
             await workspace.fs.writeFile(
                 path,
                 new TextEncoder().encode(toWrite)
@@ -37,20 +44,31 @@ class FileSystemController extends Disposable {
     }
 
     public async readFromFile(filename: string) {
-        const path = Uri.joinPath(this._output, filename);
-        console.log('reading from file', path);
+        const path = Uri.joinPath(this._extensionDir, filename);
         return await workspace.fs.readFile(path);
     }
 
     public async openTextDocument(filename: string) {
-        const path = Uri.joinPath(this._output, filename);
-        console.log('opening text document', path);
+        const path = Uri.joinPath(this._extensionDir, filename);
         return await workspace.openTextDocument(path);
     }
 
     public async openAndReadTextDocument(filename: string) {
         const doc = await this.openTextDocument(filename);
         return doc.getText();
+    }
+
+    public async readExtensionDirectory() {
+        const files = await workspace.fs.readDirectory(this._extensionDir);
+        for (const file of files) {
+            const filename = file[0];
+            const content = await this.openAndReadTextDocument(filename);
+            const parsed = JSON.parse(content);
+            this._onFileParsed.fire({
+                filename: parsed.filename,
+                data: parsed,
+            });
+        }
     }
 }
 

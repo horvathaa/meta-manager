@@ -9,18 +9,23 @@ import {
 } from 'vscode';
 import { Container } from '../container';
 import { getProjectName, getVisiblePath, makeReadableNode } from './lib';
-import { SimplifiedTree, getSimplifiedTreeName } from '../tree/tree';
+import {
+    SimplifiedTree,
+    SummaryStatus,
+    getSimplifiedTreeName,
+} from '../tree/tree';
 import { v4 as uuidv4 } from 'uuid';
 import * as ts from 'typescript';
 // import { ReadableNode, isReadableNode } from '../constants/types';
 import ReadableNode from '../tree/node';
 import LocationPlus from './locationApi/location';
+import { FileParsedEvent } from '../fs/FileSystemController';
 const tstraverse = require('tstraverse');
 
 class DocumentWatcher extends Disposable {
     _disposable: Disposable;
     readonly _relativeFilePath: string;
-    _nodesInFile: SimplifiedTree<ReadableNode>;
+    _nodesInFile: SimplifiedTree<ReadableNode> | undefined;
 
     constructor(
         readonly document: TextDocument,
@@ -28,7 +33,6 @@ class DocumentWatcher extends Disposable {
     ) {
         super(() => this.dispose());
         this._disposable = Disposable.from(
-            // workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this),
             window.onDidChangeTextEditorSelection(
                 this.onTextEditorSelectionChanged,
                 this
@@ -39,7 +43,28 @@ class DocumentWatcher extends Disposable {
             this.document.uri.fsPath
         );
 
-        this._nodesInFile = this.initNodes();
+        this._nodesInFile = undefined;
+        container.fileSystemController?.onFileParsed(
+            (event: FileParsedEvent) => {
+                const { filename, data } = event;
+                if (filename === this._relativeFilePath) {
+                    const tree = new SimplifiedTree<ReadableNode>({
+                        name: this._relativeFilePath,
+                    }).deserialize(
+                        data.data,
+                        new ReadableNode(
+                            '',
+                            new LocationPlus(
+                                this.document.uri,
+                                new Range(0, 0, 0, 0)
+                            )
+                        ),
+                        this._relativeFilePath
+                    );
+                    this._nodesInFile = this.initNodes(tree);
+                }
+            }
+        );
     }
 
     get relativeFilePath() {
@@ -50,8 +75,8 @@ class DocumentWatcher extends Disposable {
         return this._nodesInFile;
     }
 
-    initNodes() {
-        const tree = this.traverse();
+    initNodes(oldTree?: SimplifiedTree<ReadableNode>) {
+        const tree = this.traverse(oldTree);
         return tree;
     }
 
@@ -60,12 +85,7 @@ class DocumentWatcher extends Disposable {
         const range = new Range(selection.start, selection.end);
     }
 
-    // next step -- given each of these nodes, find closest match in live file
-    // split ID to see if file has entity named after top level node
-    // if match, mark it and then look at its children while traversing that part of AST
-    // check if it has the suspected matches given higher level node's children
-    // continue and apply id to all nodes that match
-    traverse() {
+    traverse(oldTree?: SimplifiedTree<ReadableNode>) {
         // traverse the document and find the code anchors
         const sourceFile = ts.createSourceFile(
             this.document.fileName,
@@ -77,18 +97,13 @@ class DocumentWatcher extends Disposable {
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
         const tree = new SimplifiedTree<ReadableNode>({
-            name: docCopy.uri.fsPath,
+            name: this._relativeFilePath,
         });
         tree.initRoot(); // initialize the root node
-        // why do we do this? because if we don't we keep adding to the array (currTreeInstance)
-        // instead of the first node because we read from the "top" of the array
-        // it's hard to explain
-        const newTree = new SimplifiedTree<ReadableNode>({
-            name: `${docCopy.uri.fsPath}-2`,
-        });
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
-
+        let otherTreeInstance: SimplifiedTree<ReadableNode> | undefined =
+            oldTree;
         // Enter function will be executed as each node is first interacted with
         function enter(node: ts.Node) {
             nodes.push(node);
@@ -98,13 +113,38 @@ class DocumentWatcher extends Disposable {
             // i'm not sure why
             if (ts.isBlock(node)) {
                 const readableNodeArrayCopy = nodes.map((n) => n);
-                const name = `${getSimplifiedTreeName(
+                let name = `${getSimplifiedTreeName(
                     readableNodeArrayCopy.reverse()
-                )}:${uuidv4()}`;
+                )}`;
                 const readableNode = context.initNode(
                     ReadableNode.create(node, docCopy, name)
                 );
+                readableNode.location.updateContent(docCopy);
+                if (otherTreeInstance && oldTree) {
+                    const matchInfo =
+                        otherTreeInstance.getNodeOfBestMatch(readableNode);
+                    if (
+                        matchInfo.status === SummaryStatus.SAME &&
+                        matchInfo.bestMatch
+                    ) {
+                        name = matchInfo.bestMatch.id;
+                        otherTreeInstance = matchInfo.subtree; // any :-(
+                    } else {
+                        const matchInfo =
+                            oldTree.getNodeOfBestMatch(readableNode);
+                        if (
+                            matchInfo.status === SummaryStatus.SAME &&
+                            matchInfo.bestMatch
+                        ) {
+                            name = matchInfo.bestMatch.id;
+                            otherTreeInstance = matchInfo.subtree; // any :-(
+                        } else {
+                            otherTreeInstance = oldTree; // set back to top for future search
+                        }
+                    }
+                }
 
+                readableNode.setId(name);
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
                         readableNode,
@@ -124,25 +164,7 @@ class DocumentWatcher extends Disposable {
 
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
 
-        // tree.serialize();
-        const serialized = tree.serialize();
-
-        // tree.name.includes('functions.ts') &&
-        //     console.log('serialized...', serialized);
-        const deserialized = newTree.deserialize(
-            serialized,
-            new ReadableNode(
-                '',
-                new LocationPlus(this.document.uri, new Range(0, 0, 0, 0))
-            ),
-            tree.name
-        );
-        // tree.name.includes('functions.ts') &&
-        //     console.log('deserialized...', deserialized);
-
-        // console.log('compare', tree.compareTrees(deserialized));
-
-        // this._mapNodesInFile = map;
+        console.log('old tree', oldTree, 'newTree', tree);
         return tree;
     }
 
@@ -162,13 +184,7 @@ class DocumentWatcher extends Disposable {
             console.log('SELECTED', location);
             console.log(node.serialize());
         });
-        // const nodeName = tree
-        //     .getPathToNode(node)
-        //     ?.map((s) => s.id)
-        //     .join(':');
-        // nodeCopy.location.setId(
-        //     `${nodeCopy.location.uri.fsPath}${nodeName}` || ''
-        // );
+
         return nodeCopy;
     }
 }

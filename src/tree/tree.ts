@@ -13,6 +13,8 @@ export enum SummaryStatus {
 
 export interface CompareSummary<T> {
     status: SummaryStatus;
+    subtree?: any;
+    bestMatch?: T;
     modifiedNodes?: T;
     removedNodes?: T;
 }
@@ -255,6 +257,37 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         return undefined;
     }
 
+    public getNodeOfBestMatch(
+        node: T
+    ): CompareSummary<AbstractTreeReadableNode<T>> {
+        if (!this.root) {
+            return {
+                status: SummaryStatus.UNKNOWN,
+            };
+        }
+
+        if (this.root.data && this.root.data.compare) {
+            const result = this.root.data.compare(node);
+            if (result.status === SummaryStatus.SAME) {
+                return { ...result, subtree: this };
+            }
+        }
+
+        for (const child of this.root.children) {
+            const result = child.getNodeOfBestMatch(node);
+            if (result.status === SummaryStatus.SAME) {
+                return {
+                    ...result,
+                    subtree: this,
+                };
+            }
+        }
+
+        return {
+            status: SummaryStatus.UNKNOWN,
+        };
+    }
+
     public compareTrees(
         otherTree: SimplifiedTree<T>
     ): CompareSummary<AbstractTreeReadableNode<T>[]> {
@@ -284,6 +317,27 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
             status: SummaryStatus.MODIFIED,
             modifiedNodes: [],
         };
+    }
+
+    public getTreeWithValue(
+        searchFunc: (data: T) => boolean
+    ): SimplifiedTree<T> | undefined {
+        if (!this.root) {
+            return undefined;
+        }
+
+        if (this.root.data && searchFunc(this.root.data)) {
+            return this;
+        }
+
+        for (const child of this.root.children) {
+            const result = child.getTreeWithValue(searchFunc);
+            if (result) {
+                return result;
+            }
+        }
+
+        return undefined;
     }
 
     public getRootNodeWithValue(
@@ -361,6 +415,7 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
                 )
             );
         });
+
         return tree;
     }
 }

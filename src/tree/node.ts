@@ -18,6 +18,7 @@ interface SerializedReadableNode {
     humanReadableKind: string;
     location: SerializedLocationPlus;
     id: string;
+    // content: string;
     // parentId: string; // tree handles this
 }
 
@@ -26,6 +27,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     readonly humanReadableKind: string;
     location: LocationPlus;
     id: string;
+    visited?: boolean;
     constructor(
         humanReadableKind: string,
         location: LocationPlus,
@@ -37,6 +39,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         this.humanReadableKind = humanReadableKind;
         this.location = location;
         this.id = id || '';
+        this.visited = false;
     }
 
     static create(
@@ -52,7 +55,12 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
                       nodeToRange(node, docOrLocation.getText()),
                       { doc: docOrLocation, id }
                   );
-        return new ReadableNode(ts.SyntaxKind[node.kind], location, node, id);
+        return new ReadableNode(
+            ts.SyntaxKind[node.parent.kind],
+            location,
+            node,
+            id
+        );
     }
 
     setId(id: string) {
@@ -88,26 +96,36 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     }
 
     compare(node: ReadableNode): CompareSummary<ReadableNode> {
+        if (this.visited) {
+            return {
+                status: SummaryStatus.UNKNOWN,
+            };
+        }
         const res = {
             distanceDelta: this.location.compare(node.location),
             bagOfWordsScore: this.getBagOfWordsScore(node),
+            isSameType: this.humanReadableKind === node.humanReadableKind,
         };
 
-        if (res.bagOfWordsScore >= 0.9) {
+        if (res.bagOfWordsScore >= 0.9 && res.isSameType) {
+            this.visited = true;
             return {
                 status: SummaryStatus.SAME,
+                bestMatch: this,
             };
         } else if (
-            res.bagOfWordsScore >= 0.5
+            res.bagOfWordsScore >= 0.5 &&
+            res.isSameType
             // ||
             // 10 > Math.abs(res.distanceDelta.startDelta.lineDelta)
         ) {
+            this.visited = true; // ?
             return {
                 status: SummaryStatus.MODIFIED,
                 modifiedNodes: this,
             };
         } else {
-            console.log('res', res, 'this', this, 'node', node);
+            // console.log('res', res, 'this', this, 'node', node);
             return {
                 status: SummaryStatus.UNKNOWN,
             };
@@ -118,11 +136,16 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     // https://dl.acm.org/doi/abs/10.1145/2858036.2858442?casa_token=m_c4cxv1br8AAAAA:JSXZo8OMn9CV3YaYBawsRvZhZFhOsLJurX5qXfckEL_cO1dgBMS1hhbudI9P7JpM0F015wEzrJMf
     private getBagOfWordsScore(node: ReadableNode) {
         const contentWords = stripNonAlphanumeric(this.location.content);
+        const thisWordLengthProportion =
+            contentWords.length > 0 ? 1 / contentWords.length : 0;
+
         const otherContentWords = stripNonAlphanumeric(node.location.content);
+        const otherWordLengthProportion =
+            otherContentWords.length > 0 ? 1 / otherContentWords.length : 0;
         return (
             0.5 *
             intersectionBetweenStrings(contentWords, otherContentWords) *
-            (1 / contentWords.length + 1 / otherContentWords.length)
+            (thisWordLengthProportion + otherWordLengthProportion)
         );
     }
 }

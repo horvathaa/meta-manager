@@ -2,7 +2,6 @@ import { Disposable, EventEmitter, TextEditor, window } from 'vscode';
 import { Container } from '../container';
 import GitController from './git/GitController';
 import FirestoreController from './firestore/FirestoreController';
-import FileSystemController from '../fs/FileSystemController';
 
 export class DataController extends Disposable {
     // private readonly container: Container;

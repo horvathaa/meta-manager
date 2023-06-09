@@ -81,4 +81,10 @@ export class Container {
         return newContainer;
         // return (Container.#instance = new Container(context));
     }
+
+    async initNodes() {
+        if (this._fileSystemController) {
+            await this._fileSystemController.readExtensionDirectory();
+        }
+    }
 }

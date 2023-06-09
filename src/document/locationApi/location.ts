@@ -127,7 +127,7 @@ export default class LocationPlus extends Location {
         }
     }
 
-    private updateContent(textEditorOrDocument: TextEditor | TextDocument) {
+    updateContent(textEditorOrDocument: TextEditor | TextDocument) {
         this._content = isTextDocument(textEditorOrDocument)
             ? textEditorOrDocument.getText(this._range)
             : textEditorOrDocument.document.getText(this._range);
@@ -201,11 +201,13 @@ export default class LocationPlus extends Location {
     static deserialize(serializedLocationPlus: SerializedLocationPlus) {
         // tbd what to do with content here
         const { fsPath, range, content, id } = serializedLocationPlus;
-        return id
+        const newLocationPlus = id
             ? new LocationPlus(Uri.file(fsPath), RangePlus.deserialize(range), {
                   id,
               })
             : new LocationPlus(Uri.file(fsPath), RangePlus.deserialize(range));
+        newLocationPlus._content = content;
+        return newLocationPlus;
     }
 
     // assume same file
