@@ -116,9 +116,9 @@ class DocumentWatcher extends Disposable {
                 let name = `${getSimplifiedTreeName(
                     readableNodeArrayCopy.reverse()
                 )}`;
-                const readableNode = context.initNode(
-                    ReadableNode.create(node, docCopy, name)
-                );
+                const readableNode = // context.initNode(
+                    ReadableNode.create(node, docCopy, context.container, name);
+                // );
                 readableNode.location.updateContent(docCopy);
                 if (otherTreeInstance && oldTree) {
                     const matchInfo =
@@ -145,6 +145,7 @@ class DocumentWatcher extends Disposable {
                 }
 
                 readableNode.setId(name);
+                readableNode.registerListeners();
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
                         readableNode,
@@ -166,26 +167,6 @@ class DocumentWatcher extends Disposable {
 
         console.log('old tree', oldTree, 'newTree', tree);
         return tree;
-    }
-
-    initNode(node: ReadableNode): ReadableNode {
-        if (!(node instanceof ReadableNode)) {
-            return node;
-        }
-        const nodeCopy = node.copy();
-
-        nodeCopy.location.onDelete.event((location: LocationPlus) => {
-            console.log('DELETED', location);
-        });
-        nodeCopy.location.onChanged.event((location: LocationPlus) => {
-            console.log('CHANGED', location, 'lol', node);
-        });
-        nodeCopy.location.onSelected.event((location: LocationPlus) => {
-            console.log('SELECTED', location);
-            console.log(node.serialize());
-        });
-
-        return nodeCopy;
     }
 }
 

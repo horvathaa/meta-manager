@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import * as ts from 'typescript';
 import LocationPlus, {
     SerializedLocationPlus,
@@ -13,24 +14,37 @@ import {
     intersectionBetweenStrings,
     stripNonAlphanumeric,
 } from './helpers/lib';
+import { Container } from '../container';
+import { DataController } from '../data/DataController';
 
 interface SerializedReadableNode {
     humanReadableKind: string;
     location: SerializedLocationPlus;
     id: string;
-    // content: string;
-    // parentId: string; // tree handles this
+}
+
+export enum NodeState {
+    UNCHANGED = 'UNCHANGED',
+    MODIFIED = 'MODIFIED',
+    DELETED = 'DELETED',
+    ADDED = 'ADDED',
 }
 
 class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     readonly node: ts.Node | undefined;
     readonly humanReadableKind: string;
+    readonly _container: Container | undefined;
+    _dataController: DataController | undefined;
     location: LocationPlus;
     id: string;
+
     visited?: boolean;
+    state?: NodeState;
     constructor(
+        // private readonly container: Container,
         humanReadableKind: string,
         location: LocationPlus,
+        container?: Container,
         node?: ts.Node,
         id?: string
     ) {
@@ -40,11 +54,16 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         this.location = location;
         this.id = id || '';
         this.visited = false;
+        if (container) {
+            this._container = container;
+            this._dataController = DataController.create(container);
+        }
     }
 
     static create(
         node: ts.Node,
         docOrLocation: TextDocument | LocationPlus,
+        container?: Container,
         id?: string
     ) {
         const location =
@@ -58,6 +77,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         return new ReadableNode(
             ts.SyntaxKind[node.parent.kind],
             location,
+            container,
             node,
             id
         );
@@ -71,6 +91,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         return new ReadableNode(
             this.humanReadableKind,
             this.location,
+            this._container,
             this.node,
             this.id
         );
@@ -90,9 +111,42 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             // serialized.node,
             serialized.humanReadableKind,
             location,
+            undefined, // double uggo
             undefined, // ugly
             serialized.id
         );
+    }
+
+    registerListeners() {
+        const deleteDisposable = this.location.onDelete.event(
+            (location: LocationPlus) => {
+                console.log('DELETED', location);
+                this.state = NodeState.DELETED;
+                changedDisposable.dispose();
+                selectedDisposable.dispose();
+            }
+        );
+        const changedDisposable = this.location.onChanged.event(
+            (location: LocationPlus) => {
+                console.log('CHANGED', location, 'lol', this);
+                this.state = NodeState.MODIFIED;
+            }
+        );
+        const selectedDisposable = this.location.onSelected.event(
+            async (location: LocationPlus) => {
+                console.log('SELECTED', location);
+                console.log(this.serialize());
+                console.log(
+                    await this._container?.gitController?.gitLog(location)
+                );
+            }
+        );
+
+        return () => {
+            deleteDisposable.dispose();
+            changedDisposable.dispose();
+            selectedDisposable.dispose();
+        };
     }
 
     compare(node: ReadableNode): CompareSummary<ReadableNode> {

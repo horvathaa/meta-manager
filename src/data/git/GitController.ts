@@ -111,39 +111,30 @@ class GitController extends Disposable {
     }
 
     async gitLog(input: Location | TextDocument) {
-        let opts: LogOptions = {};
+        const opts = [];
         if (input instanceof Location) {
-            opts = {
-                path: `${input.range.start.line + 1},${
-                    input.range.end.line + 1
-                }:${input.uri.fsPath}`,
-            };
-            // opts.push(
-            //     ...[
-            //         // `--pretty=format:%s`,
-            //         `-L ${input.range.start.line + 1},${
-            //             input.range.end.line + 1
-            //         }:${input.uri.fsPath}`,
-            //     ]
-            // );
+            opts.push(
+                ...[
+                    // `--pretty=format:%s`,
+                    `-L ${input.range.start.line + 1},${
+                        input.range.end.line + 1
+                    }:${input.uri.fsPath}`,
+                ]
+            );
         } else if (isTextDocument(input)) {
-            opts = {
-                // path: `1,${input.lineCount}:${input.uri.fsPath}`,
-                path: `${input.uri.fsPath}`,
-            };
-            // opts.push(
-            //     ...[
-            //         // `--pretty=format:%s`,
-            //         `-L 1,${input.lineCount}:${input.uri.fsPath}`,
-            //     ]
-            // );
+            opts.push(
+                ...[
+                    // `--pretty=format:%s`,
+                    `-L 1,${input.lineCount}:${input.uri.fsPath}`,
+                ]
+            );
         }
         if (opts === undefined) {
             throw new Error(`GitController: Invalid input`);
         }
         try {
-            // const result = await this._simpleGit.log(opts);
-            const result = await this._gitState?.repository.log(opts);
+            const result = await this._simpleGit.log(opts);
+            // const result = await this._gitState?.repository.log(opts); // doesnt have line-level API! annoying!
             return result;
         } catch (e) {
             throw new Error('GitController: API Request Problem: ' + e);

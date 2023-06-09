@@ -8,13 +8,14 @@ import {
 import { DataController } from './data/DataController';
 import FileParser from './document/fileParser';
 import FileSystemController from './fs/FileSystemController';
+import GitController from './data/git/GitController';
+import FirestoreController from './data/firestore/FirestoreController';
 
 export class Container {
     // https://stackoverflow.com/questions/59641564/what-are-the-differences-between-the-private-keyword-and-private-fields-in-types -- why # sign
     static #instance: Container;
     _disposables: Disposable[];
-    _onDataControllerInit: EventEmitter<DataController> =
-        new EventEmitter<DataController>();
+    _onInitComplete: EventEmitter<Container> = new EventEmitter<Container>();
 
     private readonly _context: ExtensionContext;
     constructor(context: ExtensionContext) {
@@ -38,10 +39,10 @@ export class Container {
         return this._fileParser;
     }
 
-    private _dataController: DataController | undefined;
-    public get dataController(): DataController | undefined {
-        return this._dataController;
-    }
+    // private _dataController: DataController | undefined;
+    // public get dataController(): DataController | undefined {
+    //     return this._dataController;
+    // }
 
     public get context(): ExtensionContext {
         return this._context;
@@ -57,18 +58,38 @@ export class Container {
         return this._fileSystemController;
     }
 
-    public get onDataControllerInit() {
-        return this._onDataControllerInit.event;
+    private _gitController: GitController | undefined;
+    public get gitController(): GitController | undefined {
+        return this._gitController;
+    }
+
+    private _firestoreController: FirestoreController | undefined;
+    public get firestoreController(): FirestoreController | undefined {
+        return this._firestoreController;
+    }
+
+    public get onInitComplete() {
+        return this._onInitComplete.event;
     }
 
     static async create(context: ExtensionContext) {
         const newContainer = new Container(context);
         const newFileParser = await FileParser.create(context, newContainer);
         newContainer._fileParser = newFileParser;
-        const newDataController = await DataController.create(newContainer);
-        newContainer._dataController = newDataController;
+        const newGitController = await GitController.create(newContainer);
+        newContainer._gitController = newGitController;
+        const newFirestoreController = await FirestoreController.create(
+            newContainer
+        );
+        newContainer._firestoreController = newFirestoreController;
+        // const newDataController = await DataController.create(newContainer);
+        // newContainer._dataController = newDataController;
 
-        newContainer._disposables.push(newFileParser, newDataController);
+        newContainer._disposables.push(
+            newFileParser,
+            newGitController,
+            newFirestoreController
+        );
         context.subscriptions.push({
             dispose: () =>
                 newContainer._disposables
@@ -77,7 +98,7 @@ export class Container {
         });
 
         // on init, fire events
-        newContainer._onDataControllerInit.fire(newDataController);
+        newContainer._onInitComplete.fire(newContainer);
         return newContainer;
         // return (Container.#instance = new Container(context));
     }
