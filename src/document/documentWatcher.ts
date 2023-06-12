@@ -14,7 +14,6 @@ import {
     SummaryStatus,
     getSimplifiedTreeName,
 } from '../tree/tree';
-import { v4 as uuidv4 } from 'uuid';
 import * as ts from 'typescript';
 // import { ReadableNode, isReadableNode } from '../constants/types';
 import ReadableNode from '../tree/node';

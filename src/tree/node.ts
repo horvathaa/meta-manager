@@ -135,10 +135,10 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         const selectedDisposable = this.location.onSelected.event(
             async (location: LocationPlus) => {
                 // console.log('SELECTED', location);
-                console.log(this.serialize());
-                console.log(
-                    await this._container?.gitController?.gitLog(location)
-                );
+                // console.log(this.serialize());
+                // console.log(
+                //     await this._container?.gitController?.gitLog(location)
+                // );
             }
         );
 

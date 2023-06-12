@@ -18,13 +18,15 @@ export type DB_REFS =
     | 'users'
     | 'annotations'
     | 'vscode-annotations'
-    | 'commits';
+    | 'commits'
+    | 'web-meta';
 
 export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
     USERS: 'users',
     WEB_ANNOTATIONS: 'annotations',
     CODE_ANNOTATIONS: 'vscode-annotations',
     COMMITS: 'commits',
+    WEB_META: 'web-meta',
 };
 
 class FirestoreController extends Disposable {
@@ -133,6 +135,10 @@ class FirestoreController extends Disposable {
         } else {
             return signInWithGithubCredential(this, data);
         }
+    }
+
+    public query(id: string) {
+        return [];
     }
 
     dispose() {

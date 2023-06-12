@@ -7,6 +7,7 @@ import { TS } from 'timelines-chart';
 interface TimelineData {
     timeRange: [TS, TS];
     val: string;
+    labelVal?: string;
 }
 
 enum DataSourceType {
@@ -44,11 +45,12 @@ class TimelineEvent extends Disposable {
                 return {
                     timeRange: [
                         new Date(data.date).getTime(),
-                        new Date(data.date).getTime(),
+                        new Date(data.date).getTime() + 10000000,
                     ],
-                    val: `${data.hash || ''} ${data.message} by ${
-                        data.author_name
-                    } at ${data.date}`,
+                    val: DataSourceType.GIT,
+                    labelVal: `${data.hash.slice(0, 6) || ''} ${
+                        data.message
+                    } by ${data.author_name} at ${data.date}`,
                 };
             }
             default: {

@@ -9,9 +9,6 @@ import {
 } from 'vscode';
 import DocumentWatcher from './documentWatcher';
 import { Container } from '../container';
-import { SimplifiedTree } from '../tree/tree';
-import ReadableNode from '../tree/node';
-import LocationPlus from './locationApi/location';
 
 class FileParser extends Disposable {
     _filesToIgnore: string[];

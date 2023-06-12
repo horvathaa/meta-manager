@@ -51,10 +51,6 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
             const res = await this.getGitData();
             if (res) {
                 this._gitData = res.all.map((r) => new TimelineEvent(r));
-                // this.container.timelineController?.updateTimeline(
-                //     this.readableNode.id,
-                //     this._gitData
-                // );
                 this.container.webviewController?.postMessage({
                     command: 'updateTimeline',
                     data: {
@@ -65,7 +61,7 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
                 console.log('this', this);
             }
 
-            // this._firestoreData = this.getFirestoreData();
+            this._firestoreData = this.getFirestoreData();
         });
     }
 
@@ -73,5 +69,9 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
         return this.container.gitController?.gitLog(
             this._readableNode.location
         );
+    }
+
+    getFirestoreData() {
+        return this.container.firestoreController.query(this._readableNode.id);
     }
 }
