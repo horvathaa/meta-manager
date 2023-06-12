@@ -10,6 +10,7 @@ const config = {
     mode: 'production', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 
     entry: {
+        // index: './src/view/src/timeline/TimelineController.ts',
         index: './src/view/src/index.ts',
         // index: './src/view2/src/index.ts',
         // filename: path.resolve(__dirname, 'dist/[name].js') ,

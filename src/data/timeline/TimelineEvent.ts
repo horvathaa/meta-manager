@@ -2,9 +2,10 @@
 import { Disposable } from 'vscode';
 import { LegalDataType } from '../DataController';
 import { DefaultLogFields, ListLogLine } from 'simple-git';
+import { TS } from 'timelines-chart';
 
 interface TimelineData {
-    timeRange: number[];
+    timeRange: [TS, TS];
     val: string;
 }
 
@@ -35,7 +36,7 @@ class TimelineEvent extends Disposable {
         return DataSourceType.FIRESTORE; // will need more of these probably later
     }
 
-    formatData() {
+    formatData(): TimelineData {
         switch (this._dataSourceType) {
             case DataSourceType.GIT: {
                 const data = this.originalData as DefaultLogFields &

@@ -6,11 +6,11 @@ interface VSCodeApi {
     postMessage: (message: any) => void;
 }
 
-// declare global {
-//   interface Window {
-//     acquireVsCodeApi(): VSCodeApi
-//   }
-// }
+declare global {
+    interface Window {
+        acquireVsCodeApi(): VSCodeApi;
+    }
+}
 
 class VSCodeWrapper {
     private readonly vscodeApi: VSCodeApi = acquireVsCodeApi();
@@ -36,5 +36,6 @@ class VSCodeWrapper {
     }
 }
 
+export { VSCodeWrapper };
 // Singleton to prevent multiple fetches of VsCodeAPI.
 export const VS_CODE_API: VSCodeWrapper = new VSCodeWrapper();

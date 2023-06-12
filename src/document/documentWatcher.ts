@@ -176,7 +176,7 @@ class DocumentWatcher extends Disposable {
 
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
 
-        console.log('old tree', oldTree, 'newTree', tree);
+        // console.log('old tree', oldTree, 'newTree', tree);
         return tree;
     }
 }

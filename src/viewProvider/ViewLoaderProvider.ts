@@ -1,12 +1,13 @@
 import {
     CancellationToken,
+    EventEmitter,
     Uri,
     WebviewView,
     WebviewViewProvider,
     WebviewViewResolveContext,
 } from 'vscode';
 import { getNonce } from '../lib';
-import TimelinesChart from 'timelines-chart';
+// import TimelinesChart from 'timelines-chart';
 
 class ViewLoaderProvider implements WebviewViewProvider {
     // public static readonly viewType = 'meta-manager-view'; // THIS IS THE NAME OF THE VIEW CONTAINER -- THERE IS A DIFFERENCE, STUPIDLY ENOUGH
@@ -15,6 +16,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
     public static readonly viewType = 'meta-manager.webview';
     private _view?: WebviewView;
     private _localUri?: Uri;
+    private _onDidCreateView: EventEmitter<void> = new EventEmitter<void>();
 
     constructor(private readonly _extensionUri: Uri) {
         this._localUri = Uri.joinPath(
@@ -23,6 +25,14 @@ class ViewLoaderProvider implements WebviewViewProvider {
             // 'view',
             'index.js'
         );
+    }
+
+    get onDidCreateView() {
+        return this._onDidCreateView.event;
+    }
+
+    get view() {
+        return this._view;
     }
 
     public resolveWebviewView(
@@ -38,6 +48,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
             // localResourceRoots: [this._extensionUri],
         };
         webviewView.webview.html = this.getWebviewContent();
+        this._onDidCreateView.fire();
     }
 
     private getWebviewContent(): string {
@@ -53,61 +64,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
         );
 
         const nonce = getNonce();
-        const testStr = `
-        import TimelinesChart from 'timelines-chart';
-        const el = document.getElementById('root');
-        const chart = TimelinesChart(); 
-        chart.data([
-            {
-                group: 'group1name',
-                data: [
-                    {
-                        label: 'label1name',
-                        data: [
-                            {
-                                timeRange: [1685541200925, 1685541234757],
-                                val: 'str1',
-                            },
-                            {
-                                timeRange: [1685541199925, 1685541200925],
-                                val: 'str2',
-                            },
-                        ],
-                    },
-                ],
-            },
-        ])(el);
-        `;
-        // const chart = TimelinesChart();
-        // chart.data([
-        //     {
-        //         group: 'group1name',
-        //         data: [
-        //             {
-        //                 label: 'label1name',
-        //                 data: [
-        //                     {
-        //                         timeRange: [1685541200925, 1685541234757],
-        //                         val: 'str1',
-        //                     },
-        //                     {
-        //                         timeRange: [1685541199925, 1685541200925],
-        //                         val: 'str2',
-        //                     },
-        //                 ],
-        //             },
-        //         ],
-        //     },
-        // ])(`<div id="root"></div>`);
 
-        // <div id="root"></div>
-        //     <script nonce="${nonce}" src="${reactAppPathOnDisk}"></script>
-        // <script nonce="${nonce}">${testStr}</script>
-
-        // const testStr = ''
-        // unsafe eval?
-        // <script nonce="${nonce}">${testStr}</script>
-        // 'nonce-${nonce}'
         let webviewContent = `<!DOCTYPE html>
         <html lang="en">
         <head>

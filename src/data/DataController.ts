@@ -47,10 +47,21 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
     }
 
     initListeners() {
-        this._readableNode.location.onSelected.event(async (location) => {
-            const res = await this.container.gitController?.gitLog(location);
+        this._readableNode.location.onSelected.event(async () => {
+            const res = await this.getGitData();
             if (res) {
                 this._gitData = res.all.map((r) => new TimelineEvent(r));
+                // this.container.timelineController?.updateTimeline(
+                //     this.readableNode.id,
+                //     this._gitData
+                // );
+                this.container.webviewController?.postMessage({
+                    command: 'updateTimeline',
+                    data: {
+                        id: this.readableNode.id,
+                        timelineData: this._gitData,
+                    },
+                });
                 console.log('this', this);
             }
 

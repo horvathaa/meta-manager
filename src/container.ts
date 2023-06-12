@@ -2,6 +2,7 @@ import {
     Disposable,
     EventEmitter,
     ExtensionContext,
+    Webview,
     WorkspaceFolder,
     workspace,
 } from 'vscode';
@@ -10,6 +11,7 @@ import FileParser from './document/fileParser';
 import FileSystemController from './fs/FileSystemController';
 import GitController from './data/git/GitController';
 import FirestoreController from './data/firestore/FirestoreController';
+import TimelineController from './view/src/timeline/TimelineController';
 
 export class Container {
     // https://stackoverflow.com/questions/59641564/what-are-the-differences-between-the-private-keyword-and-private-fields-in-types -- why # sign
@@ -68,6 +70,11 @@ export class Container {
         return this._firestoreController;
     }
 
+    private _webviewController: Webview | undefined;
+    public get webviewController(): Webview | undefined {
+        return this._webviewController;
+    }
+
     public get onInitComplete() {
         return this._onInitComplete.event;
     }
@@ -83,7 +90,7 @@ export class Container {
         );
         newContainer._firestoreController = newFirestoreController;
         // const newDataController = await DataController.create(newContainer);
-        // newContainer._dataController = newDataController;
+        // // newContainer._dataController = newDataController;
 
         newContainer._disposables.push(
             newFileParser,
@@ -102,6 +109,15 @@ export class Container {
         return newContainer;
         // return (Container.#instance = new Container(context));
     }
+
+    public setWebviewController(webviewController: Webview) {
+        this._webviewController = webviewController;
+    }
+
+    // public createViewController() {
+    //     const newTimelineController = TimelineController.create();
+    //     this._timelineController = newTimelineController;
+    // }
 
     async initNodes() {
         if (this._fileSystemController) {
