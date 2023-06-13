@@ -12,7 +12,7 @@ class FileSystemController extends Disposable {
         new EventEmitter<FileParsedEvent>();
     constructor(private readonly uri: Uri) {
         super(() => this.dispose());
-        this._extensionDir = Uri.joinPath(uri, '.metamanager');
+        this._extensionDir = Uri.joinPath(this.uri, '.metamanager');
     }
 
     get onFileParsed() {

@@ -41,11 +41,6 @@ export class Container {
         return this._fileParser;
     }
 
-    // private _dataController: DataController | undefined;
-    // public get dataController(): DataController | undefined {
-    //     return this._dataController;
-    // }
-
     public get context(): ExtensionContext {
         return this._context;
     }
@@ -89,8 +84,6 @@ export class Container {
             newContainer
         );
         newContainer._firestoreController = newFirestoreController;
-        // const newDataController = await DataController.create(newContainer);
-        // // newContainer._dataController = newDataController;
 
         newContainer._disposables.push(
             newFileParser,
@@ -107,17 +100,11 @@ export class Container {
         // on init, fire events
         newContainer._onInitComplete.fire(newContainer);
         return newContainer;
-        // return (Container.#instance = new Container(context));
     }
 
     public setWebviewController(webviewController: Webview) {
         this._webviewController = webviewController;
     }
-
-    // public createViewController() {
-    //     const newTimelineController = TimelineController.create();
-    //     this._timelineController = newTimelineController;
-    // }
 
     async initNodes() {
         if (this._fileSystemController) {
