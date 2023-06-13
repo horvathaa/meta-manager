@@ -23,7 +23,7 @@ import { DataController } from '../data/DataController';
 const tstraverse = require('tstraverse');
 
 class DocumentWatcher extends Disposable {
-    _disposable: Disposable;
+    _disposable: Disposable | undefined;
     readonly _relativeFilePath: string;
     _nodesInFile: SimplifiedTree<ReadableNode> | undefined;
 
@@ -32,19 +32,13 @@ class DocumentWatcher extends Disposable {
         private readonly container: Container
     ) {
         super(() => this.dispose());
-        this._disposable = Disposable.from(
-            window.onDidChangeTextEditorSelection(
-                this.onTextEditorSelectionChanged,
-                this
-            )
-        );
         this._relativeFilePath = getVisiblePath(
             workspace.name || getProjectName(this.document.uri.toString()),
             this.document.uri.fsPath
         );
 
         this._nodesInFile = undefined;
-        container.fileSystemController?.onFileParsed(
+        const listener = container.fileSystemController?.onFileParsed(
             (event: FileParsedEvent) => {
                 const { filename, data } = event;
                 if (filename === this._relativeFilePath) {
@@ -65,6 +59,9 @@ class DocumentWatcher extends Disposable {
                 }
             }
         );
+        if (listener) {
+            this._disposable = Disposable.from(listener);
+        }
     }
 
     get relativeFilePath() {
@@ -78,11 +75,6 @@ class DocumentWatcher extends Disposable {
     initNodes(oldTree?: SimplifiedTree<ReadableNode>) {
         const tree = this.traverse(oldTree);
         return tree;
-    }
-
-    onTextEditorSelectionChanged(e: TextEditorSelectionChangeEvent) {
-        const selection = e.selections[0];
-        const range = new Range(selection.start, selection.end);
     }
 
     traverse(oldTree?: SimplifiedTree<ReadableNode>) {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import { AuthenticationSession, Disposable, Uri } from 'vscode';
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import {
@@ -6,6 +5,10 @@ import {
     Firestore,
     collection,
     getFirestore,
+    query,
+    where,
+    getDocs,
+    DocumentData,
 } from 'firebase/firestore';
 import { Functions, getFunctions } from 'firebase/functions';
 import { Auth, User, getAuth } from 'firebase/auth';
@@ -13,6 +16,7 @@ import { Container } from '../../container';
 import * as dotenv from 'dotenv';
 import { getUserGithubData } from './functions/cloudFunctions';
 import { signInWithGithubCredential } from './functions/authFunctions';
+import { DataSourceType } from '../timeline/TimelineEvent';
 
 export type DB_REFS =
     | 'users'
@@ -137,8 +141,28 @@ class FirestoreController extends Disposable {
         }
     }
 
-    public query(id: string) {
-        return [];
+    public async query(id: string) {
+        if (!this._refs) {
+            return [];
+        }
+        const arr = (
+            await Promise.all(
+                Array.from(this._refs).map(async (refMap) => {
+                    const [refName, ref] = refMap;
+                    const docRefs = query(ref, where('codeId', '==', id));
+                    const docs = await getDocs(docRefs);
+                    const formattedArr = docs.docs.map((doc) => {
+                        return {
+                            ...doc.data(),
+                            refType: refName,
+                            refSource: DataSourceType.FIRESTORE,
+                        };
+                    });
+                    return formattedArr;
+                })
+            )
+        ).flat();
+        return arr;
     }
 
     dispose() {

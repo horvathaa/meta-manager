@@ -1,4 +1,4 @@
-import { Uri, Range } from 'vscode';
+import { Uri, Range, Disposable } from 'vscode';
 import { Container } from '../container';
 import { AbstractTreeReadableNode, CompareSummary } from '../tree/tree';
 import ReadableNode from '../tree/node';
@@ -13,8 +13,8 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
     _gitData: TimelineEvent[] | undefined;
     _firestoreData: TimelineEvent[] | undefined;
     _readableNode: ReadableNode;
+    _disposable: Disposable | undefined;
 
-    // this can be accessed anywhere in the class with the "this" keyword -- TIL
     constructor(
         readableNode: ReadableNode,
         private readonly container: Container
@@ -35,6 +35,7 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
     }
 
     deserialize(data: any) {
+        // would be better if deserialize was static
         this._readableNode = new ReadableNode(
             '',
             new LocationPlus(Uri.file(''), new Range(0, 0, 0, 0))
@@ -47,22 +48,35 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
     }
 
     initListeners() {
-        this._readableNode.location.onSelected.event(async () => {
-            const res = await this.getGitData();
-            if (res) {
-                this._gitData = res.all.map((r) => new TimelineEvent(r));
+        this._disposable = this._readableNode.location.onSelected.event(
+            async (location: LocationPlus) => {
+                // can probably break these out into their own pages
+                const gitRes = (await this.getGitData())?.all || [];
+                if (gitRes.length > 0) {
+                    this._gitData = gitRes.map((r) => new TimelineEvent(r));
+                } else {
+                    this._gitData = [];
+                }
+                const fireStoreRes = (await this.getFirestoreData()) || [];
+                if (fireStoreRes.length > 0) {
+                    this._firestoreData = fireStoreRes.map(
+                        (r) => new TimelineEvent(r)
+                    );
+                } else {
+                    this._firestoreData = [];
+                }
+                const allData = [...this._firestoreData, ...this._gitData];
                 this.container.webviewController?.postMessage({
                     command: 'updateTimeline',
                     data: {
                         id: this.readableNode.id,
-                        timelineData: this._gitData,
+                        timelineData: allData,
                     },
                 });
-                console.log('this', this);
+                console.log('this', this, 'location', location);
             }
-
-            this._firestoreData = this.getFirestoreData();
-        });
+        );
+        return () => this.dispose();
     }
 
     getGitData() {
@@ -71,7 +85,13 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
         );
     }
 
-    getFirestoreData() {
-        return this.container.firestoreController.query(this._readableNode.id);
+    async getFirestoreData() {
+        return await this.container.firestoreController?.query(
+            this._readableNode.id
+        );
+    }
+
+    dispose() {
+        this._disposable?.dispose();
     }
 }

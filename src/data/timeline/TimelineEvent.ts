@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import { Disposable } from 'vscode';
 import { LegalDataType } from '../DataController';
 import { DefaultLogFields, ListLogLine } from 'simple-git';
 import { TS } from 'timelines-chart';
+import { DocumentData } from 'firebase/firestore';
 
 interface TimelineData {
     timeRange: [TS, TS];
@@ -10,7 +10,7 @@ interface TimelineData {
     labelVal?: string;
 }
 
-enum DataSourceType {
+export enum DataSourceType {
     GIT = 'git',
     FIRESTORE = 'firestore',
 }
@@ -51,6 +51,20 @@ class TimelineEvent extends Disposable {
                     labelVal: `${data.hash.slice(0, 6) || ''} ${
                         data.message
                     } by ${data.author_name} at ${data.date}`,
+                };
+            }
+            case DataSourceType.FIRESTORE: {
+                const data = this.originalData as DocumentData;
+                const endTimestamp = data.deletedTimestamp
+                    ? data.deletedTimestamp
+                    : data.editedTimestamp || data.createdTimestamp;
+                return {
+                    timeRange: [
+                        new Date(data.createdTimestamp).getTime(),
+                        new Date(endTimestamp).getTime(),
+                    ],
+                    val: DataSourceType.FIRESTORE,
+                    labelVal: `${data.createdTimestamp} - ${endTimestamp}`,
                 };
             }
             default: {

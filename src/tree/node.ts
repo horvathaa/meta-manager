@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import * as ts from 'typescript';
 import LocationPlus, {
     SerializedLocationPlus,
@@ -54,10 +53,6 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         this.location = location;
         this.id = id || '';
         this.visited = false;
-        // if (container) {
-        //     this._container = container;
-        //     this._dataController = DataController.create();
-        // }
     }
 
     static create(
@@ -120,25 +115,20 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     registerListeners() {
         const deleteDisposable = this.location.onDelete.event(
             (location: LocationPlus) => {
-                console.log('DELETED', location);
-                this.state = NodeState.DELETED;
+                this.state = NodeState.DELETED; // should let tree know to remove this node
+                // mark as event for code
                 changedDisposable.dispose();
                 selectedDisposable.dispose();
             }
         );
         const changedDisposable = this.location.onChanged.event(
             (location: LocationPlus) => {
-                // console.log('CHANGED', location, 'lol', this);
                 this.state = NodeState.MODIFIED;
             }
         );
         const selectedDisposable = this.location.onSelected.event(
             async (location: LocationPlus) => {
-                // console.log('SELECTED', location);
-                // console.log(this.serialize());
-                // console.log(
-                //     await this._container?.gitController?.gitLog(location)
-                // );
+                // placeholder
             }
         );
 
@@ -161,25 +151,20 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             isSameType: this.humanReadableKind === node.humanReadableKind,
         };
 
+        // paper said .9 or above pretty much meant it is the same
         if (res.bagOfWordsScore >= 0.9 && res.isSameType) {
             this.visited = true;
             return {
                 status: SummaryStatus.SAME,
                 bestMatch: this,
             };
-        } else if (
-            res.bagOfWordsScore >= 0.5 &&
-            res.isSameType
-            // ||
-            // 10 > Math.abs(res.distanceDelta.startDelta.lineDelta)
-        ) {
+        } else if (res.bagOfWordsScore >= 0.5 && res.isSameType) {
             this.visited = true; // ?
             return {
                 status: SummaryStatus.MODIFIED,
                 modifiedNodes: this,
             };
         } else {
-            // console.log('res', res, 'this', this, 'node', node);
             return {
                 status: SummaryStatus.UNKNOWN,
             };

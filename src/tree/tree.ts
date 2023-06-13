@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-// it doesn't like the enum name being in all caps
-// but i like my enums like that so shrug
 import * as ts from 'typescript';
 import { isEmpty, isEqual } from 'lodash';
 
@@ -285,37 +282,6 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
 
         return {
             status: SummaryStatus.UNKNOWN,
-        };
-    }
-
-    public compareTrees(
-        otherTree: SimplifiedTree<T>
-    ): CompareSummary<AbstractTreeReadableNode<T>[]> {
-        const thisArr = this.toArray();
-        const otherArr = otherTree.toArray();
-        // const match = thisArr.find((n) => {
-
-        // const susNodes = thisArr.filter((n) => {
-
-        //     return otherArr.find(
-        //         (o) =>
-        //             n.compare && n.compare(o).status === SummaryStatus.UNKNOWN
-        //     );
-        // });
-
-        // if (!susNodes.length) {
-        //     return {
-        //         status: SummaryStatus.SAME,
-        //     };
-        // } else {
-        //     return {
-        //         status: SummaryStatus.MODIFIED,
-        //         modifiedNodes: susNodes,
-        //     };
-        // }
-        return {
-            status: SummaryStatus.MODIFIED,
-            modifiedNodes: [],
         };
     }
 

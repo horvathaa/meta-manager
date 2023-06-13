@@ -35,7 +35,6 @@ export const namedDeclarations = [
     'FunctionDeclaration',
 ];
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const LocationPlusTextEditorDecorationTypeOptions: DecorationRenderOptions =
     {
         overviewRulerLane: OverviewRulerLane.Right,
