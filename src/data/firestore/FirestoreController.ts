@@ -88,7 +88,7 @@ class FirestoreController extends Disposable {
         try {
             if (this.container.workspaceFolder) {
                 const path = Uri.joinPath(
-                    this.container.workspaceFolder?.uri,
+                    this.container.context.extensionUri,
                     '.env.local'
                 );
                 const env = dotenv.config({ path: path.fsPath });

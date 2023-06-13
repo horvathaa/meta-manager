@@ -18,6 +18,7 @@ export class Container {
     static #instance: Container;
     _disposables: Disposable[];
     _onInitComplete: EventEmitter<Container> = new EventEmitter<Container>();
+    _onNodesComplete: EventEmitter<Container> = new EventEmitter<Container>();
 
     private readonly _context: ExtensionContext;
     constructor(context: ExtensionContext) {
@@ -74,6 +75,10 @@ export class Container {
         return this._onInitComplete.event;
     }
 
+    public get onNodesComplete() {
+        return this._onNodesComplete.event;
+    }
+
     static async create(context: ExtensionContext) {
         const newContainer = new Container(context);
         const newFileParser = await FileParser.create(context, newContainer);
@@ -109,6 +114,7 @@ export class Container {
     async initNodes() {
         if (this._fileSystemController) {
             await this._fileSystemController.readExtensionDirectory();
+            this._onNodesComplete.fire(this);
         }
     }
 }

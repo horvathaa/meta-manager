@@ -59,15 +59,24 @@ class FileSystemController extends Disposable {
     }
 
     public async readExtensionDirectory() {
-        const files = await workspace.fs.readDirectory(this._extensionDir);
-        for (const file of files) {
-            const filename = file[0];
-            const content = await this.openAndReadTextDocument(filename);
-            const parsed = JSON.parse(content);
-            this._onFileParsed.fire({
-                filename: parsed.filename,
-                data: parsed,
-            });
+        try {
+            const files = await workspace.fs.readDirectory(this._extensionDir);
+            for (const file of files) {
+                const filename = file[0];
+                const content = await this.openAndReadTextDocument(filename);
+                const parsed = JSON.parse(content);
+                this._onFileParsed.fire({
+                    filename: parsed.filename,
+                    data: parsed,
+                });
+            }
+        } catch (err: any) {
+            if (err.code === 'FileNotFound') {
+                // no metamanager directory exists so we will create one
+                return;
+            } else {
+                console.error('error reading directory', err);
+            }
         }
     }
 }

@@ -20,6 +20,7 @@ import ReadableNode from '../tree/node';
 import LocationPlus from './locationApi/location';
 import { FileParsedEvent } from '../fs/FileSystemController';
 import { DataController } from '../data/DataController';
+import { v4 as uuidv4 } from 'uuid';
 const tstraverse = require('tstraverse');
 
 class DocumentWatcher extends Disposable {
@@ -59,8 +60,16 @@ class DocumentWatcher extends Disposable {
                 }
             }
         );
+        const otherListener = container.onNodesComplete(() => {
+            if (!this._nodesInFile) {
+                this._nodesInFile = this.initNodes();
+            }
+        });
+        // listener should always exist but just in case!
         if (listener) {
-            this._disposable = Disposable.from(listener);
+            this._disposable = Disposable.from(listener, otherListener);
+        } else {
+            this._disposable = Disposable.from(otherListener);
         }
     }
 
@@ -120,6 +129,7 @@ class DocumentWatcher extends Disposable {
                     );
                 // );
                 readableNode.readableNode.location.updateContent(docCopy);
+                // we have a point of comparison
                 if (otherTreeInstance && oldTree) {
                     const matchInfo = otherTreeInstance.getNodeOfBestMatch(
                         readableNode.readableNode
@@ -145,6 +155,10 @@ class DocumentWatcher extends Disposable {
                         }
                     }
                 }
+                // we do not have a point of comparison so we init new nodes
+                else {
+                    name = `${name}:${uuidv4()}}`;
+                }
 
                 readableNode.readableNode.setId(name);
                 readableNode.readableNode.registerListeners();
@@ -166,6 +180,12 @@ class DocumentWatcher extends Disposable {
         }
 
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
+        if (!oldTree) {
+            this.container.fileSystemController?.writeToFile(
+                tree.serialize(),
+                tree.name
+            );
+        }
 
         // console.log('old tree', oldTree, 'newTree', tree);
         return tree;
