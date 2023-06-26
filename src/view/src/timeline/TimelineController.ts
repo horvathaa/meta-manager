@@ -20,6 +20,7 @@ class TimelineController {
         this._formattedData = [{ group: 'currentCode', data: [] }];
         this._vscode = vscodeApi;
         this._chart = TimelinesChart().zQualitative(true);
+        // renderTooltip function: The renderTooltip function is declared within the class, but it is not bound to the class instance. As a result, when it's passed to segmentTooltipContent, the this context will be lost. To fix this, you can bind the function in the constructor or use an arrow function to automatically bind it to the class instance.
         // this._chart.segmentTooltipContent(this.renderTooltip);
         this.initListeners();
     }

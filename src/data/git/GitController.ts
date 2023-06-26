@@ -10,7 +10,7 @@ import {
 import { SimpleGit, simpleGit } from 'simple-git';
 import { Container } from '../../container';
 import { isTextDocument } from '../../document/lib';
-import { API, APIState, LogOptions, Repository } from './gitApi/git';
+import { API, APIState, Repository } from './gitApi/git';
 
 interface CurrentGitState {
     repo: string;

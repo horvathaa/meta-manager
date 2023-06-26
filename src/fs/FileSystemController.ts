@@ -75,7 +75,10 @@ class FileSystemController extends Disposable {
                 // no metamanager directory exists so we will create one
                 return;
             } else {
-                console.error('error reading directory', err);
+                console.error(
+                    'FileSystemController: unable to read directory',
+                    err
+                );
             }
         }
     }
