@@ -73,7 +73,7 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
                         timelineData: allData,
                     },
                 });
-                console.log('this', this, 'location', location);
+                // console.log('this', this, 'location', location);
             }
         );
         return () => this.dispose();

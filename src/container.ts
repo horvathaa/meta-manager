@@ -12,6 +12,7 @@ import FileSystemController from './fs/FileSystemController';
 import GitController from './data/git/GitController';
 import FirestoreController from './data/firestore/FirestoreController';
 import TimelineController from './view/src/timeline/TimelineController';
+import DebugController from './debug/debug';
 
 export class Container {
     // https://stackoverflow.com/questions/59641564/what-are-the-differences-between-the-private-keyword-and-private-fields-in-types -- why # sign
@@ -71,6 +72,11 @@ export class Container {
         return this._webviewController;
     }
 
+    private _debugController: DebugController | undefined;
+    public get debugController(): DebugController | undefined {
+        return this._debugController;
+    }
+
     public get onInitComplete() {
         return this._onInitComplete.event;
     }
@@ -89,11 +95,14 @@ export class Container {
             newContainer
         );
         newContainer._firestoreController = newFirestoreController;
+        const newDebugController = DebugController.create(newContainer);
+        newContainer._debugController = newDebugController;
 
         newContainer._disposables.push(
             newFileParser,
             newGitController,
-            newFirestoreController
+            newFirestoreController,
+            newDebugController
         );
         context.subscriptions.push({
             dispose: () =>

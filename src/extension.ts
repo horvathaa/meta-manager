@@ -25,7 +25,32 @@ export async function activate(context: ExtensionContext) {
         }
     });
 
+    // const originalLog = console.log;
+    // console.log = function () {
+    //     console.log('custom console log....');
+    //     const stack = new Error().stack?.split('\n');
+    //     const lineNumber = (stack && stack[2].split(':')[1]) || '';
+    //     const values = Array.from(arguments);
+    //     console.log('lol what', lineNumber, values);
+    //     // Perform actions with the values and lineNumber
+
+    //     Function.prototype.apply.call(originalLog, console, arguments);
+    // };
+    const terminal = container.debugController?.terminal;
+    console.log = function (...args) {
+        const message = args.map((arg) => String(arg)).join(' ');
+        terminal?.sendText(message + '\n');
+    };
+
+    console.error = function (...args) {
+        const message = args.map((arg) => String(arg)).join(' ');
+        terminal?.sendText(`[ERROR] ${message}\n`);
+    };
+
     console.log('lol', container);
+    return () => {
+        terminal?.dispose();
+    };
 }
 
 // This method is called when your extension is deactivated
