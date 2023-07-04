@@ -47,6 +47,7 @@ class DebugController extends Disposable {
 
     createPty() {
         const eventEmitter = new EventEmitter<string>();
+        // try {
         const pseudoTerminal: ProcessPseudoterminal = {
             onDidWrite: eventEmitter.event,
             open: () => {
@@ -58,20 +59,24 @@ class DebugController extends Disposable {
             handleInput: (data: string) => {
                 console.log('handleInput', data);
             },
-            ptyProcess: spawn('meta-manager', [], {
+            ptyProcess: spawn('powershell.exe', [], {
                 name: 'xterm-color',
                 cols: 80,
                 rows: 30,
-                cwd: this.container.workspaceFolder?.uri.fsPath || '',
+                cwd: process.cwd(),
                 env: process.env,
             }),
         };
+        console.log('ptyProcess', pseudoTerminal);
         pseudoTerminal.ptyProcess.onData((data: any) => {
             const message = data.toString();
             console.log('message', message);
             eventEmitter.fire(message);
         });
         return pseudoTerminal;
+        // } catch (e) {
+        //     console.error('e', e);
+        // }
     }
 
     initListeners() {
