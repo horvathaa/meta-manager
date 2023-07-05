@@ -97,6 +97,12 @@ class DocumentWatcher extends Disposable {
 
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
+        const nodeMetadata =
+            this.container.languageServiceProvider.parseCodeBlock(
+                docCopy.getText(),
+                // readableNode.readableNode.location.content,
+                docCopy
+            );
         const tree = new SimplifiedTree<ReadableNode>({
             name: this._relativeFilePath,
         });
@@ -162,6 +168,22 @@ class DocumentWatcher extends Disposable {
 
                 readableNode.readableNode.setId(name);
                 readableNode.readableNode.registerListeners();
+                const nodeInfo = nodeMetadata.filter((n) =>
+                    readableNode.readableNode.location.range.contains(
+                        n.location.range
+                    )
+                );
+                // const nodeInfo =
+                //     context.container.languageServiceProvider.parseCodeBlock(
+                //         readableNode.readableNode.location.content,
+                //         docCopy
+                //     );
+                console.log(
+                    'readableNode',
+                    readableNode,
+                    'nodeInfo???',
+                    nodeInfo
+                );
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
                         readableNode.readableNode,

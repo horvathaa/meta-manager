@@ -9,6 +9,7 @@ import ViewLoaderProvider from './viewProvider/ViewLoaderProvider';
 import { Container } from './container';
 import * as ts from 'typescript';
 import { readFileSync } from 'fs';
+// import moduleTest from './findUnusedMembers';
 // import TimelineController from './view/src/timeline/TimelineController';
 // import ViewHandler from './view/src';
 
@@ -17,7 +18,7 @@ import { readFileSync } from 'fs';
 export async function activate(context: ExtensionContext) {
     // Use the console to output diagnostic information (console.log) and errors (console.error)
     // This line of code will only be executed once when your extension is activated
-    console.log('hewwo???');
+    // console.log('hewwo???', moduleTest);
     const view = new ViewLoaderProvider(context.extensionUri);
     context.subscriptions.push(
         window.registerWebviewViewProvider(ViewLoaderProvider.viewType, view, {
@@ -58,28 +59,28 @@ export async function activate(context: ExtensionContext) {
     window.onDidWriteTerminalData((e) => {
         console.log('TERMINAL DATA E', e);
     });
-    console.log('vscode.languages', languages);
-    const service = new MyLanguageServiceHost(`
-    const message: string = 'Hello, world!';
-    console.log(message);
-  `);
-    const languageService = ts.createLanguageService(
-        service,
-        ts.createDocumentRegistry()
-    );
-    console.log('lang', languageService);
-    const def = languageService.getDefinitionAtPosition(
-        `${service.getCurrentDirectory()}\\source\\utils\\utils.ts`,
-        30105
-    );
-    console.log(
-        'def',
-        def,
-        'languageService',
-        languageService,
-        'service',
-        service
-    );
+    //     console.log('vscode.languages', languages);
+    //     const service = new MyLanguageServiceHost(`
+    //     const message: string = 'Hello, world!';
+    //     console.log(message);
+    //   `);
+    //     const languageService = ts.createLanguageService(
+    //         service,
+    //         ts.createDocumentRegistry()
+    //     );
+    //     console.log('lang', languageService);
+    //     const def = languageService.getDefinitionAtPosition(
+    //         `${service.getCurrentDirectory()}\\source\\utils\\utils.ts`,
+    //         30105
+    //     );
+    //     console.log(
+    //         'def',
+    //         def,
+    //         'languageService',
+    //         languageService,
+    //         'service',
+    //         service
+    //     );
 
     console.log('lol', container);
     // return () => {

@@ -13,6 +13,7 @@ import GitController from './data/git/GitController';
 import FirestoreController from './data/firestore/FirestoreController';
 import TimelineController from './view/src/timeline/TimelineController';
 import DebugController from './debug/debug';
+import LanguageServiceProvider from './document/languageServiceProvider/LanguageServiceProvider';
 
 export class Container {
     // https://stackoverflow.com/questions/59641564/what-are-the-differences-between-the-private-keyword-and-private-fields-in-types -- why # sign
@@ -30,6 +31,7 @@ export class Container {
         this._fileSystemController =
             this._workspaceFolder &&
             FileSystemController.create(this._workspaceFolder.uri);
+        this._languageServiceProvider = LanguageServiceProvider.create(this);
         this._disposables
             .push
             // (this._dataController = new DataController(this))
@@ -75,6 +77,11 @@ export class Container {
     private _debugController: DebugController | undefined;
     public get debugController(): DebugController | undefined {
         return this._debugController;
+    }
+
+    private _languageServiceProvider: LanguageServiceProvider;
+    public get languageServiceProvider(): LanguageServiceProvider {
+        return this._languageServiceProvider;
     }
 
     public get onInitComplete() {
