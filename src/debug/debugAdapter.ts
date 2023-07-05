@@ -34,6 +34,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class DebugAdapter implements DebugAdapterTracker {
     private readonly messagingService: MessagingService;
     private debugSession: DebugSession;
+
     // private debugCommunicationService: DebuggerCommunicationService
     constructor(
         debugSession: DebugSession,
@@ -54,31 +55,54 @@ export class DebugAdapter implements DebugAdapterTracker {
 
     // @override
     onWillReceiveMessage(message: any): void {
-        console.log('will receive message', message);
+        // console.log('will receive message', message);
+        if (message.type === 'event' && message.event === 'output') {
+            // console.log('RECEIVING!!!!!!!!!!!!!!', message);
+            const outputEvent = message as DebugProtocol.OutputEvent;
+            if (outputEvent.body.category !== 'telemetry') {
+                console.log('NOW WE ARE COOKING - RECEIVE', outputEvent);
+            }
+        }
         if (message.command) {
             // Only send pertinent debug messages
             switch ((message as DebugProtocol.Request).command as string) {
-                case 'continue':
-                    this.messagingService.sendStartMessage(message);
-                    break;
-                case 'stackTrace':
-                    this.messagingService.sendPauseMessage(message);
-                    break;
+                // case 'continue':
+                //     this.messagingService.sendStartMessage(message);
+                //     break;
+                // case 'stackTrace':
+                //     this.messagingService.sendPauseMessage(message);
+                //     break;
                 case 'variables':
+                    console.log('VARIABLES REQUEST', message);
                     this.onVariablesRequest(message);
                     break;
+                // case 'output': {
+                //     console.log('got a output??', message);
+                //     break;
+                // }
             }
         }
     }
 
     // @override
     onDidSendMessage(message: any) {
+        if (message.type === 'event' && message.event === 'output') {
+            // console.log('RECEIVING!!!!!!!!!!!!!!', message);
+            const outputEvent = message as DebugProtocol.OutputEvent;
+            if (outputEvent.body.category !== 'telemetry') {
+                console.log('NOW WE ARE COOKING - SEND', outputEvent);
+                const { body } = outputEvent;
+                if (body.variablesReference) {
+                }
+            }
+        }
         if (message.command) {
             // Only send pertinent debug messages
             switch ((message as DebugProtocol.Request).command as string) {
                 case 'stackTrace':
                     break;
                 case 'variables':
+                    console.log('VARIABLES SENDING', message);
                     break;
             }
         }

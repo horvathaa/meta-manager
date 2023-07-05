@@ -96,5 +96,8 @@
     },
     "extensionDependencies": [
         "vscode.git"
+    ],
+    "enabledApiProposals": [
+        "terminalDataWriteEvent"
     ]
 }

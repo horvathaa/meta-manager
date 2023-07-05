@@ -12,6 +12,7 @@ export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // 
 export class DataController extends AbstractTreeReadableNode<ReadableNode> {
     _gitData: TimelineEvent[] | undefined;
     _firestoreData: TimelineEvent[] | undefined;
+    _outputData: OutputDataController | undefined;
     _readableNode: ReadableNode;
     _disposable: Disposable | undefined;
 

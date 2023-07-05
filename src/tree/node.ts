@@ -15,6 +15,7 @@ import {
 } from './helpers/lib';
 import { Container } from '../container';
 import { DataController } from '../data/DataController';
+import { debounce } from '../lib';
 
 interface SerializedReadableNode {
     humanReadableKind: string;
@@ -124,6 +125,10 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         const changedDisposable = this.location.onChanged.event(
             (location: LocationPlus) => {
                 this.state = NodeState.MODIFIED;
+                debounce(() => {
+                    const newContent = this.location.content;
+                    const numConsoleLogs = newContent.split('console.');
+                });
             }
         );
         const selectedDisposable = this.location.onSelected.event(
