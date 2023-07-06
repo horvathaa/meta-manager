@@ -11,6 +11,7 @@ export const getUserGithubData = async (
     if (!firestoreController.functions) {
         throw new Error('FirestoreController: functions not initialized');
     }
+    console.log('githubData', githubData);
     return await httpsCallable(
         firestoreController.functions,
         'getUserGithubData'

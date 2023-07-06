@@ -137,6 +137,7 @@ export default class LocationPlus extends Location {
         const { document, contentChanges } = onTextDocumentChanged;
         if (this.uri.fsPath === document.uri.fsPath) {
             for (const change of contentChanges) {
+                console.log('this is being called', this);
                 const oldRange = this._range.copy();
                 const oldContent = this._content;
                 const updated = this._range.update(change);
@@ -158,6 +159,7 @@ export default class LocationPlus extends Location {
                     !this._range.isEqual(oldRange) ||
                     this._content !== oldContent
                 ) {
+                    console.log('this is firing', this);
                     this.onChanged.fire(this);
                 }
                 this.range = this._range;

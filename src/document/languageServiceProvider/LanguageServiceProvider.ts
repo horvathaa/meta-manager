@@ -12,7 +12,7 @@ const tstraverse = require('tstraverse');
 //     kind: string;
 // }
 
-interface VscodeTsNodeMetadata {
+export interface VscodeTsNodeMetadata {
     references: ts.ReferenceEntry[] | undefined;
     definition: readonly ts.DefinitionInfo[] | undefined;
     node: ts.Identifier;
@@ -29,22 +29,35 @@ class LanguageServiceProvider {
         if (!container.workspaceFolder) {
             throw new Error('LanguageServiceProvider: No root project path');
         }
-        const basePath = container.workspaceFolder.uri.fsPath;
-        const configPath = `${basePath}/tsconfig.json`.replace('\\', '/');
-        const parseJsonResult = ts.parseConfigFileTextToJson(
-            // tsconfigPath,
-            configPath,
-            // fs.readFileSync(tsconfigPath, { encoding: 'utf8' })
-            fs.readFileSync(configPath, { encoding: 'utf8' })
-        );
-        this._tsConfig = ts.parseJsonConfigFileContent(
-            parseJsonResult.config,
-            ts.sys,
-            basePath
-        );
-        this._languageService = this.getLanguageService();
-        this._filenames = this.initFilenames();
-        this._docNodeMap = new Map();
+        try {
+            const basePath = container.workspaceFolder.uri.fsPath;
+            const configPath = `${basePath}/tsconfig.json`.replace('\\', '/');
+            const parseJsonResult = ts.parseConfigFileTextToJson(
+                // tsconfigPath,
+                configPath,
+                // fs.readFileSync(tsconfigPath, { encoding: 'utf8' })
+                fs.readFileSync(configPath, { encoding: 'utf8' })
+            );
+            this._tsConfig = ts.parseJsonConfigFileContent(
+                parseJsonResult.config,
+                ts.sys,
+                basePath
+            );
+            this._languageService = this.getLanguageService();
+            this._filenames = this.initFilenames();
+            this._docNodeMap = new Map();
+        } catch (e) {
+            console.log('no tsconfig.json');
+            this._tsConfig = ts.parseJsonConfigFileContent(
+                {},
+                ts.sys,
+                container.workspaceFolder.uri.fsPath
+            );
+            console.log('this tsconfig', this._tsConfig);
+            this._languageService = this.getLanguageService();
+            this._filenames = this.initFilenames();
+            this._docNodeMap = new Map();
+        }
     }
 
     static create(container: Container) {
@@ -190,7 +203,6 @@ class LanguageServiceProvider {
             );
         }
 
-        // const nodeMap: Map<VscodeTsNode, VscodeTsNodeMetadata> = new Map();
         const context = this;
         const source = ts.createSourceFile(
             tsFilename,
@@ -208,21 +220,9 @@ class LanguageServiceProvider {
                         nodes[nodes.length - 1],
                         doc
                     ),
-
                     references: context.getReferences(node, doc),
                     definition: context.getDefinition(node, doc),
                 });
-                // nodeMap.set(
-                //     context.makeVscodeTsNode(
-                //         node,
-                //         nodes[nodes.length - 1],
-                //         doc
-                //     ),
-                //     {
-                //         references: context.getReferences(node, doc),
-                //         definition: context.getDefinition(node, doc),
-                //     }
-                // );
             }
             nodes.push(node);
         }

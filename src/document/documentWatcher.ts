@@ -57,10 +57,12 @@ class DocumentWatcher extends Disposable {
                         this._relativeFilePath
                     );
                     this._nodesInFile = this.initNodes(tree);
+                    console.log('file parsed complete', this);
                 }
             }
         );
         const otherListener = container.onNodesComplete(() => {
+            console.log('nodes complete', this);
             if (!this._nodesInFile) {
                 this._nodesInFile = this.initNodes();
             }
@@ -178,12 +180,13 @@ class DocumentWatcher extends Disposable {
                 //         readableNode.readableNode.location.content,
                 //         docCopy
                 //     );
-                console.log(
-                    'readableNode',
-                    readableNode,
-                    'nodeInfo???',
-                    nodeInfo
-                );
+                // console.log(
+                //     'readableNode',
+                //     readableNode,
+                //     'nodeInfo???',
+                //     nodeInfo
+                // );
+                readableNode.vscNodeMetadata = nodeInfo;
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
                         readableNode.readableNode,

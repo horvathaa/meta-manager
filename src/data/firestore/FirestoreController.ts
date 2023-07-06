@@ -71,10 +71,28 @@ class FirestoreController extends Disposable {
             async (container) => {
                 const gitController = container.gitController;
                 if (gitController && gitController.authSession) {
-                    firestoreController._user =
-                        await firestoreController.initAuth(
-                            gitController.authSession
-                        );
+                    console.log(
+                        'init complete.., auth session',
+                        gitController.authSession
+                    );
+                    try {
+                        firestoreController._user =
+                            await firestoreController.initAuth(
+                                gitController.authSession
+                            );
+                    } catch (e) {
+                        console.log('error signing in', e);
+                        // maybe just took too long so try again
+                        if (gitController.authSession) {
+                            setTimeout(async () => {
+                                firestoreController._user =
+                                    await firestoreController.initAuth(
+                                        // @ts-ignore
+                                        gitController.authSession // idk why it's saying this may be undefined
+                                    );
+                            }, 5000);
+                        }
+                    }
                 }
             }
         );
@@ -127,11 +145,13 @@ class FirestoreController extends Disposable {
     private async initAuth(authSession: AuthenticationSession) {
         const { accessToken, account } = authSession;
         const { id } = account;
+        console.log('calling this function', this, 'id', id);
         const result = await getUserGithubData(this, {
             id,
             oauth: accessToken,
         });
         const { data } = result;
+        console.log('data', data, 'this', this);
         if (!data) {
             throw new Error(
                 'Firestore Controller: could not retrieve user data'
