@@ -25,15 +25,15 @@ VS_CODE_API.postMessage({
     command: 'refreshState',
 });
 
-window.addEventListener('message', (e) => {
-    // @ts-ignore
-    const message = e.data;
-    if (message.command === 'updateState') {
-        console.log('updateState', message.state);
-    } else if (message.command === 'updateFiles') {
-        console.log('updateFiles', message.state);
-    }
-});
+// window.addEventListener('message', (e) => {
+//     // @ts-ignore
+//     const message = e.data;
+//     if (message.command === 'updateState') {
+//         console.log('updateState', message.state);
+//     } else if (message.command === 'updateFiles') {
+//         console.log('updateFiles', message.state);
+//     }
+// });
 
 ReactDOM.render(
     <React.StrictMode>

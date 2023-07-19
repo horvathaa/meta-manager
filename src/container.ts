@@ -16,7 +16,7 @@ import FileParser from './document/fileParser';
 import FileSystemController from './fs/FileSystemController';
 import GitController from './data/git/GitController';
 import FirestoreController from './data/firestore/FirestoreController';
-import TimelineController from './view/src/timeline/TimelineController';
+// import TimelineController from './view/src/timeline/TimelineController';
 import DebugController from './debug/debug';
 import LanguageServiceProvider from './document/languageServiceProvider/LanguageServiceProvider';
 import { CopyBuffer } from './constants/types';

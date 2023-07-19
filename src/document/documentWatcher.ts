@@ -73,6 +73,8 @@ class DocumentWatcher extends Disposable {
 
         const docChangeListener = workspace.onDidChangeTextDocument(
             debounce((event: TextDocumentChangeEvent) => {
+                event.document === this.document &&
+                    console.log('container', container);
                 if (event.document === this.document && container.copyBuffer) {
                     for (const change of event.contentChanges) {
                         console.log('change', change, 'container', container);
@@ -87,6 +89,7 @@ class DocumentWatcher extends Disposable {
                                 'copy buffer',
                                 container.copyBuffer
                             );
+
                             const path = this._nodesInFile?.getAllPathsToNodes(
                                 (d: ReadableNode) =>
                                     d.state ===
@@ -114,6 +117,14 @@ class DocumentWatcher extends Disposable {
                                         }
                                     );
                                 console.log('n', n);
+                                n.dataController?.chatGptData &&
+                                    this.container.webviewController?.postMessage(
+                                        {
+                                            command: 'renderChatGptHistory',
+                                            payload:
+                                                n.dataController.chatGptData[0],
+                                        }
+                                    );
                             });
                         }
                     }

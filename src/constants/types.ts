@@ -5,6 +5,7 @@ import {
     Location,
     OverviewRulerLane,
 } from 'vscode';
+import LocationPlus from '../document/locationApi/location';
 
 export type LegalDataSource = 'github' | 'firestore' | 'git' | 'code' | 'web';
 
@@ -63,7 +64,20 @@ interface CodeBlock {
     parentId: string;
 }
 
-interface ThreadPair {
+export interface ChatGptThread {
+    _observer: MutationObserver | null;
+    _threadItems: ThreadPair[];
+    _botRef: HTMLElement | null;
+    _userRef: HTMLElement | null;
+    _tempUserMessage: string | null;
+    _tempPair: ThreadPair | null;
+    _lastEditedTime: NodeJS.Timeout | null;
+    _botObserver: MutationObserver | null;
+    readonly _id: string;
+    readonly _title: string;
+}
+
+export interface ThreadPair {
     id: string;
     time: number;
     userMessage: string;
@@ -75,5 +89,11 @@ export interface CopyBuffer {
     id: string;
     code: string;
     messageCopied: ThreadPair;
-    thread: any;
+    thread: ChatGptThread;
+}
+
+export interface VscodeChatGptData extends CopyBuffer {
+    location: LocationPlus;
+    pasteTime: number;
+    gitMetadata: any;
 }

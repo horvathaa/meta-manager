@@ -28,13 +28,17 @@ export async function activate(context: ExtensionContext) {
     container.initNodes();
     view.onDidCreateView(() => {
         if (view.view) {
+            console.log('view???', view);
             container.setWebviewController(view.view.webview);
         }
+        setTimeout(() => {
+            container.webviewController?.postMessage({ command: 'hi' });
+        }, 10000);
     });
 
-    window.onDidWriteTerminalData((e) => {
-        console.log('TERMINAL DATA E', e);
-    });
+    // window.onDidWriteTerminalData((e) => {
+    //     console.log('TERMINAL DATA E', e);
+    // });
 
     console.log('lol', container);
     // return () => {

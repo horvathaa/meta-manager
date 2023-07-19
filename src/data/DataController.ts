@@ -15,14 +15,9 @@ import { DocumentData } from 'firebase/firestore';
 import TimelineEvent from './timeline/TimelineEvent';
 import { VscodeTsNodeMetadata } from '../document/languageServiceProvider/LanguageServiceProvider';
 import { debounce } from '../lib';
-import { CopyBuffer } from '../constants/types';
+import { CopyBuffer, VscodeChatGptData } from '../constants/types';
 
 export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
-interface VscodeChatGptData extends CopyBuffer {
-    location: LocationPlus;
-    pasteTime: number;
-    gitMetadata: any;
-}
 
 interface InitChatGptData {
     uri: Uri;
@@ -157,7 +152,8 @@ export class DataController {
                 }
             ),
             pasteTime: Date.now(),
-            gitMetadata: this.container.gitController?.gitState,
+            // gitMetadata: this.container.gitController?.gitState,
+            gitMetadata: null,
         });
         this._debug = true;
     }
@@ -182,5 +178,9 @@ export class DataController {
 
     get vscodeNodeMetadata() {
         return this._vscNodeMetadata;
+    }
+
+    get chatGptData() {
+        return this._chatGptData;
     }
 }

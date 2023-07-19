@@ -150,9 +150,9 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         const changedDisposable = this.location.onChanged.event(
             (changeEvent: ChangeEvent) => {
                 this.state = this.getNodeState(changeEvent.typeOfChange);
-                if (this.state === NodeState.MODIFIED_RANGE_AND_CONTENT) {
-                    console.log('this!!!!!!!!!!!!!', this);
-                }
+                // if (this.state === NodeState.MODIFIED_RANGE_AND_CONTENT) {
+                //     console.log('this!!!!!!!!!!!!!', this);
+                // }
                 debounce(() => {
                     const newContent = this.location.content;
                     const numConsoleLogs = newContent.split('console.');
