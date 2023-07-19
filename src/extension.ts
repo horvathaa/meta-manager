@@ -44,3 +44,16 @@ export async function activate(context: ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {}
+
+// function getRangeFromLineNumbers(
+//     startLine: number,
+//     endLine: number,
+//     document: any
+// ) {
+//     const startPosition = new Position(startLine, 0);
+//     const endPosition = new Position(endLine, 0);
+//     const range = document.validateRange(
+//         new Range(startPosition, endPosition)
+//     );
+//     return range;
+// }

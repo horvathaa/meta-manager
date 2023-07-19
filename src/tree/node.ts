@@ -1,6 +1,8 @@
 import * as ts from 'typescript';
 import LocationPlus, {
+    ChangeEvent,
     SerializedLocationPlus,
+    TypeOfChange,
 } from '../document/locationApi/location';
 import { TextDocument } from 'vscode';
 import { nodeToRange } from '../document/lib';
@@ -25,7 +27,9 @@ interface SerializedReadableNode {
 
 export enum NodeState {
     UNCHANGED = 'UNCHANGED',
-    MODIFIED = 'MODIFIED',
+    MODIFIED_RANGE = 'MODIFIED_RANGE',
+    MODIFIED_CONTENT = 'MODIFIED_CONTENT',
+    MODIFIED_RANGE_AND_CONTENT = 'MODIFIED_RANGE_AND_CONTENT',
     DELETED = 'DELETED',
     ADDED = 'ADDED',
 }
@@ -83,6 +87,14 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         this.id = id;
     }
 
+    get dataController() {
+        return this._dataController;
+    }
+
+    set dataController(dataController: DataController | undefined) {
+        this._dataController = dataController;
+    }
+
     copy() {
         return new ReadableNode(
             this.humanReadableKind,
@@ -113,6 +125,19 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         );
     }
 
+    getNodeState(typeOfChange: TypeOfChange) {
+        switch (typeOfChange) {
+            case TypeOfChange.CONTENT_ONLY:
+                return NodeState.MODIFIED_CONTENT;
+            case TypeOfChange.RANGE_ONLY:
+                return NodeState.MODIFIED_RANGE;
+            case TypeOfChange.RANGE_AND_CONTENT:
+                return NodeState.MODIFIED_RANGE_AND_CONTENT;
+            default:
+                return NodeState.UNCHANGED;
+        }
+    }
+
     registerListeners() {
         const deleteDisposable = this.location.onDelete.event(
             (location: LocationPlus) => {
@@ -123,8 +148,11 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             }
         );
         const changedDisposable = this.location.onChanged.event(
-            (location: LocationPlus) => {
-                this.state = NodeState.MODIFIED;
+            (changeEvent: ChangeEvent) => {
+                this.state = this.getNodeState(changeEvent.typeOfChange);
+                if (this.state === NodeState.MODIFIED_RANGE_AND_CONTENT) {
+                    console.log('this!!!!!!!!!!!!!', this);
+                }
                 debounce(() => {
                     const newContent = this.location.content;
                     const numConsoleLogs = newContent.split('console.');

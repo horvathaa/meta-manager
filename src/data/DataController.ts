@@ -1,70 +1,94 @@
-import { Uri, Range, Disposable, window, workspace } from 'vscode';
+import {
+    Uri,
+    Range,
+    Disposable,
+    window,
+    workspace,
+    TextDocumentContentChangeEvent,
+} from 'vscode';
 import { Container } from '../container';
 import { AbstractTreeReadableNode, CompareSummary } from '../tree/tree';
 import ReadableNode from '../tree/node';
-import LocationPlus from '../document/locationApi/location';
+import LocationPlus, { ChangeEvent } from '../document/locationApi/location';
 import { ListLogLine, DefaultLogFields } from 'simple-git';
 import { DocumentData } from 'firebase/firestore';
 import TimelineEvent from './timeline/TimelineEvent';
 import { VscodeTsNodeMetadata } from '../document/languageServiceProvider/LanguageServiceProvider';
 import { debounce } from '../lib';
+import { CopyBuffer } from '../constants/types';
 
 export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
+interface VscodeChatGptData extends CopyBuffer {
+    location: LocationPlus;
+    pasteTime: number;
+    gitMetadata: any;
+}
 
-export class DataController extends AbstractTreeReadableNode<ReadableNode> {
+interface InitChatGptData {
+    uri: Uri;
+    textDocumentContentChangeEvent: TextDocumentContentChangeEvent;
+}
+
+export class DataController {
+    // extends AbstractTreeReadableNode<ReadableNode> {
     _gitData: TimelineEvent[] | undefined;
     _firestoreData: TimelineEvent[] | undefined;
     _outputData: OutputDataController | undefined;
-    _readableNode: ReadableNode;
+    // _readableNode: ReadableNode;
+    _chatGptData: VscodeChatGptData[] | undefined = [];
     _vscNodeMetadata: VscodeTsNodeMetadata[];
     _disposable: Disposable | undefined;
+    _debug: boolean = false;
 
     constructor(
-        readableNode: ReadableNode,
+        private readonly readableNode: ReadableNode,
         private readonly container: Container
     ) {
-        super();
-        this._readableNode = readableNode;
+        // super();
+        // this._readableNode = readableNode;
         this._vscNodeMetadata = [];
         this.initListeners();
     }
 
-    get readableNode() {
-        return this._readableNode;
-    }
+    // get readableNode() {
+    //     return this._readableNode;
+    // }
 
-    serialize() {
-        return {
-            readableNode: this._readableNode.serialize(),
-        };
-    }
+    // serialize() {
+    //     return {
+    //         readableNode: this.readableNode.serialize(),
+    //     };
+    // }
 
-    deserialize(data: any) {
-        // would be better if deserialize was static
-        this._readableNode = new ReadableNode(
-            '',
-            new LocationPlus(Uri.file(''), new Range(0, 0, 0, 0))
-        ).deserialize(data.readableNode);
-        return this._readableNode;
-    }
+    // deserialize(data: any) {
+    //     // would be better if deserialize was static
+    //     this.readableNode = new ReadableNode(
+    //         '',
+    //         new LocationPlus(Uri.file(''), new Range(0, 0, 0, 0))
+    //     ).deserialize(data.readableNode);
+    //     return this.readableNode;
+    // }
 
     compare(other: ReadableNode): CompareSummary<ReadableNode> {
-        return this._readableNode.compare(other);
+        return this.readableNode.compare(other);
     }
 
     initListeners() {
         this._disposable = Disposable.from(
-            this._readableNode.location.onChanged.event(
-                debounce(async (location: LocationPlus) => {
-                    console.log('hewwo???', location);
+            this.readableNode.location.onChanged.event(
+                debounce(async (changeEvent: ChangeEvent) => {
+                    // console.log('hewwo???', location);
+                    const location = changeEvent.location;
                     const newContent = location.content;
-                    const oldContent = this._readableNode.location.content;
-                    console.log(
-                        'newContent',
-                        newContent.replace(/\s/g, ''),
-                        'oldContent',
-                        oldContent.replace(/\s/g, '')
-                    );
+                    const oldContent = this.readableNode.location.content;
+                    this._debug &&
+                        console.log(
+                            'newContent',
+                            newContent.replace(/\s/g, ''),
+                            'oldContent',
+                            oldContent.replace(/\s/g, '')
+                        );
+                    this._debug && console.log('chatgpt', this._chatGptData);
                     if (
                         newContent.replace(/\s/g, '') ===
                         oldContent.replace(/\s/g, '')
@@ -76,23 +100,18 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
                     const doc =
                         editor.document.uri.fsPath === location.uri.fsPath
                             ? editor.document
-                            : await workspace.openTextDocument(location.uri);
+                            : await workspace.openTextDocument(location.uri); // idk when this would ever happen??? maybe in a git pull where a whole bunch of docs are being updated
 
                     const newNodeMetadata =
                         this.container.languageServiceProvider.parseCodeBlock(
                             newContent,
                             doc
                         );
-                    console.log(
-                        'old',
-                        this.vscNodeMetadata,
-                        'newNodeMetadata',
-                        newNodeMetadata
-                    );
+
                     this.vscNodeMetadata = newNodeMetadata;
                 })
             ),
-            this._readableNode.location.onSelected.event(
+            this.readableNode.location.onSelected.event(
                 async (location: LocationPlus) => {
                     // can probably break these out into their own pages
                     const gitRes = (await this.getGitData())?.all || [];
@@ -124,15 +143,32 @@ export class DataController extends AbstractTreeReadableNode<ReadableNode> {
         return () => this.dispose();
     }
 
+    addChatGptData(data: CopyBuffer, initChatGptData: InitChatGptData) {
+        const { uri, textDocumentContentChangeEvent } = initChatGptData;
+        console.log('gitcontroller', this.container.gitController);
+        this._chatGptData?.push({
+            ...data,
+            location: new LocationPlus(
+                uri,
+                initChatGptData.textDocumentContentChangeEvent.range,
+                {
+                    rangeFromTextDocumentContentChangeEvent:
+                        textDocumentContentChangeEvent,
+                }
+            ),
+            pasteTime: Date.now(),
+            gitMetadata: this.container.gitController?.gitState,
+        });
+        this._debug = true;
+    }
+
     getGitData() {
-        return this.container.gitController?.gitLog(
-            this._readableNode.location
-        );
+        return this.container.gitController?.gitLog(this.readableNode.location);
     }
 
     async getFirestoreData() {
         return await this.container.firestoreController?.query(
-            this._readableNode.id
+            this.readableNode.id
         );
     }
 

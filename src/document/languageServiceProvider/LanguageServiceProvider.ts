@@ -49,7 +49,7 @@ class LanguageServiceProvider {
         } catch (e) {
             console.log('no tsconfig.json');
             this._tsConfig = ts.parseJsonConfigFileContent(
-                {},
+                {}, // doesn't work for JS files very well -- need to figure out how to get the compiler options
                 ts.sys,
                 container.workspaceFolder.uri.fsPath
             );

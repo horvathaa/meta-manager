@@ -13,14 +13,23 @@ import {
     DecorationRenderOptions,
     TextEditorSelectionChangeEvent,
     TextDocument,
+    TextDocumentContentChangeEvent,
 } from 'vscode';
 import RangePlus, { SerializedRangePlus } from './range';
 import { isTextDocument } from '../lib';
+
+export enum TypeOfChange {
+    RANGE_ONLY,
+    CONTENT_ONLY,
+    RANGE_AND_CONTENT,
+    NO_CHANGE,
+}
 
 export interface LocationPlusOptions {
     id?: string;
     textEditorDecoration?: TextEditorDecorationType;
     doc?: TextDocument;
+    rangeFromTextDocumentContentChangeEvent?: TextDocumentContentChangeEvent;
 }
 
 export interface SerializedLocationPlus {
@@ -30,6 +39,11 @@ export interface SerializedLocationPlus {
     id?: string;
 }
 
+export interface ChangeEvent {
+    location: LocationPlus;
+    typeOfChange: TypeOfChange;
+}
+
 export default class LocationPlus extends Location {
     _disposable: Disposable;
     _range: RangePlus;
@@ -37,7 +51,7 @@ export default class LocationPlus extends Location {
     _id?: string;
     _textEditorDecoration?: TextEditorDecorationType;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
-    onChanged: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
+    onChanged: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
     onSelected: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     constructor(
         uri: Uri,
@@ -77,6 +91,10 @@ export default class LocationPlus extends Location {
             opts.textEditorDecoration &&
                 this.setTextEditorDecoration(opts.textEditorDecoration);
             opts.doc && this.updateContent(opts.doc);
+            opts.rangeFromTextDocumentContentChangeEvent &&
+                (this._range = RangePlus.fromTextDocumentContentChangeEvent(
+                    opts.rangeFromTextDocumentContentChangeEvent
+                ));
         }
     }
 
@@ -133,11 +151,25 @@ export default class LocationPlus extends Location {
             : textEditorOrDocument.document.getText(this._range);
     }
 
+    private getTypeOfChange(oldRange: RangePlus, oldContent: string) {
+        const newRange = this._range;
+        const newContent = this._content;
+        if (oldRange.isEqual(newRange) && oldContent === newContent) {
+            return TypeOfChange.NO_CHANGE;
+        } else if (oldRange.isEqual(newRange)) {
+            return TypeOfChange.CONTENT_ONLY;
+        } else if (oldContent === newContent) {
+            return TypeOfChange.RANGE_ONLY;
+        } else {
+            return TypeOfChange.RANGE_AND_CONTENT;
+        }
+    }
+
     onTextDocumentChanged(onTextDocumentChanged: TextDocumentChangeEvent) {
         const { document, contentChanges } = onTextDocumentChanged;
         if (this.uri.fsPath === document.uri.fsPath) {
             for (const change of contentChanges) {
-                console.log('this is being called', this);
+                // console.log('this is being called', this);
                 const oldRange = this._range.copy();
                 const oldContent = this._content;
                 const updated = this._range.update(change);
@@ -155,13 +187,14 @@ export default class LocationPlus extends Location {
                     furtherNormalizedEnd.end
                 );
                 this._content = document.getText(this._range);
-                if (
-                    !this._range.isEqual(oldRange) ||
-                    this._content !== oldContent
-                ) {
-                    console.log('this is firing', this);
-                    this.onChanged.fire(this);
-                }
+                // if (
+                //     !this._range.isEqual(oldRange) ||
+                //     this._content !== oldContent
+                // ) {
+                const typeOfChange = this.getTypeOfChange(oldRange, oldContent);
+                // console.log('this is firing', this);
+                this.onChanged.fire({ location: this, typeOfChange });
+                // }
                 this.range = this._range;
                 this._range.updateRangeLength(document);
             }

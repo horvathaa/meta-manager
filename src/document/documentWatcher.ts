@@ -6,6 +6,8 @@ import {
     window,
     Range,
     TextEditorSelectionChangeEvent,
+    TextDocumentContentChangeEvent,
+    TextDocumentChangeEvent,
 } from 'vscode';
 import { Container } from '../container';
 import { getProjectName, getVisiblePath, makeReadableNode } from './lib';
@@ -16,11 +18,13 @@ import {
 } from '../tree/tree';
 import * as ts from 'typescript';
 // import { ReadableNode, isReadableNode } from '../constants/types';
-import ReadableNode from '../tree/node';
+import ReadableNode, { NodeState } from '../tree/node';
 import LocationPlus from './locationApi/location';
 import { FileParsedEvent } from '../fs/FileSystemController';
 import { DataController } from '../data/DataController';
 import { v4 as uuidv4 } from 'uuid';
+import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
+import { debounce } from '../lib';
 const tstraverse = require('tstraverse');
 
 class DocumentWatcher extends Disposable {
@@ -62,17 +66,65 @@ class DocumentWatcher extends Disposable {
             }
         );
         const otherListener = container.onNodesComplete(() => {
-            console.log('nodes complete', this);
             if (!this._nodesInFile) {
                 this._nodesInFile = this.initNodes();
             }
         });
+
+        const docChangeListener = workspace.onDidChangeTextDocument(
+            debounce((event: TextDocumentChangeEvent) => {
+                if (event.document === this.document && container.copyBuffer) {
+                    for (const change of event.contentChanges) {
+                        console.log('change', change, 'container', container);
+                        if (
+                            change.text.replace(/\s/g, '') ===
+                            container.copyBuffer.code.replace(/\s/g, '')
+                        ) {
+                            console.log(
+                                'SAME!!!!!!!!!!!!!!',
+                                'change',
+                                change,
+                                'copy buffer',
+                                container.copyBuffer
+                            );
+                            const path = this._nodesInFile?.getAllPathsToNodes(
+                                (d: ReadableNode) =>
+                                    d.state ===
+                                    NodeState.MODIFIED_RANGE_AND_CONTENT
+                            ); //.forEach((n) => {
+                            console.log('path', path);
+                            if (!path) {
+                                console.error(
+                                    'could not get path',
+                                    change,
+                                    'copy buffer',
+                                    container.copyBuffer
+                                );
+                                return;
+                            }
+                            const mostAccuratePath = path[path.length - 1];
+                            mostAccuratePath.forEach((n) => {
+                                container.copyBuffer &&
+                                    n.dataController?.addChatGptData(
+                                        container.copyBuffer,
+                                        {
+                                            uri: this.document.uri,
+                                            textDocumentContentChangeEvent:
+                                                change,
+                                        }
+                                    );
+                                console.log('n', n);
+                            });
+                        }
+                    }
+                }
+            }, 1000)
+        );
         // listener should always exist but just in case!
-        if (listener) {
-            this._disposable = Disposable.from(listener, otherListener);
-        } else {
-            this._disposable = Disposable.from(otherListener);
-        }
+        const disposables = listener
+            ? [listener, otherListener, docChangeListener]
+            : [otherListener, docChangeListener];
+        this._disposable = Disposable.from(...disposables);
     }
 
     get relativeFilePath() {
@@ -99,16 +151,17 @@ class DocumentWatcher extends Disposable {
 
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
-        const nodeMetadata =
-            this.container.languageServiceProvider.parseCodeBlock(
-                docCopy.getText(),
-                // readableNode.readableNode.location.content,
-                docCopy
-            );
+        // const nodeMetadata =
+        //     this.container.languageServiceProvider.parseCodeBlock(
+        //         docCopy.getText(),
+        //         // readableNode.readableNode.location.content,
+        //         docCopy
+        //     );
         const tree = new SimplifiedTree<ReadableNode>({
             name: this._relativeFilePath,
         });
         tree.initRoot(); // initialize the root node
+        // let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
         let otherTreeInstance: SimplifiedTree<ReadableNode> | undefined =
@@ -126,21 +179,20 @@ class DocumentWatcher extends Disposable {
                     readableNodeArrayCopy.reverse()
                 )}`;
                 const readableNode = // context.initNode(
-                    new DataController(
-                        ReadableNode.create(
-                            node,
-                            docCopy,
-                            context.container,
-                            name
-                        ),
-                        context.container
-                    );
+                    // new DataController(
+                    ReadableNode.create(node, docCopy, context.container, name);
+                // context.container
                 // );
-                readableNode.readableNode.location.updateContent(docCopy);
+                // );
+                readableNode.dataController = new DataController(
+                    readableNode,
+                    context.container
+                );
+                readableNode.location.updateContent(docCopy);
                 // we have a point of comparison
                 if (otherTreeInstance && oldTree) {
                     const matchInfo = otherTreeInstance.getNodeOfBestMatch(
-                        readableNode.readableNode
+                        readableNode // .readableNode
                     );
                     if (
                         matchInfo.status === SummaryStatus.SAME &&
@@ -150,7 +202,7 @@ class DocumentWatcher extends Disposable {
                         otherTreeInstance = matchInfo.subtree; // any :-(
                     } else {
                         const matchInfo = oldTree.getNodeOfBestMatch(
-                            readableNode.readableNode
+                            readableNode // .readableNode
                         );
                         if (
                             matchInfo.status === SummaryStatus.SAME &&
@@ -168,28 +220,21 @@ class DocumentWatcher extends Disposable {
                     name = `${name}:${uuidv4()}}`;
                 }
 
-                readableNode.readableNode.setId(name);
-                readableNode.readableNode.registerListeners();
-                const nodeInfo = nodeMetadata.filter((n) =>
-                    readableNode.readableNode.location.range.contains(
-                        n.location.range
-                    )
-                );
-                // const nodeInfo =
-                //     context.container.languageServiceProvider.parseCodeBlock(
-                //         readableNode.readableNode.location.content,
-                //         docCopy
-                //     );
-                // console.log(
-                //     'readableNode',
-                //     readableNode,
-                //     'nodeInfo???',
-                //     nodeInfo
+                readableNode.setId(name);
+                readableNode.registerListeners();
+                // v expensive to compute all this metadata
+                // tbd whether/how to speed it up
+                const nodeInfo: VscodeTsNodeMetadata[] = [];
+                //  nodeMetadata.filter((n) =>
+                //     readableNode.readableNode.location.range.contains(
+                //         n.location.range
+                //     )
                 // );
-                readableNode.vscNodeMetadata = nodeInfo;
+
+                readableNode.dataController.vscNodeMetadata = nodeInfo;
                 currTreeInstance.push(
                     currTreeInstance[currTreeInstance.length - 1].insert(
-                        readableNode.readableNode,
+                        readableNode, // .readableNode,
                         { name }
                     )
                 );

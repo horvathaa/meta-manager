@@ -53,3 +53,27 @@ export const LocationPlusTextEditorDecorationTypeOptions: DecorationRenderOption
         backgroundColor: '#93c0ff1c',
         rangeBehavior: DecorationRangeBehavior.ClosedClosed,
     };
+
+interface CodeBlock {
+    code: string;
+    codeRef: HTMLElement;
+    copied: boolean;
+    surroundingText: string;
+    language: string;
+    parentId: string;
+}
+
+interface ThreadPair {
+    id: string;
+    time: number;
+    userMessage: string;
+    botResponse: string;
+    codeBlocks: CodeBlock[];
+}
+
+export interface CopyBuffer {
+    id: string;
+    code: string;
+    messageCopied: ThreadPair;
+    thread: any;
+}
