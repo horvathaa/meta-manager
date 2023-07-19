@@ -10,7 +10,7 @@ import {
 import { SimpleGit, simpleGit } from 'simple-git';
 import { Container } from '../../container';
 import { isTextDocument } from '../../document/lib';
-import { API, APIState, LogOptions, Repository } from './gitApi/git';
+import { API, APIState, Repository } from './gitApi/git';
 
 interface CurrentGitState {
     repo: string;
@@ -32,18 +32,12 @@ class GitController extends Disposable {
     constructor(private readonly container: Container) {
         super(() => this.dispose());
         this._gitApi = extensions.getExtension('vscode.git')?.exports.getAPI(1);
-        // this._repository = undefined;
         this._gitState = undefined;
         this._simpleGit = simpleGit(container.workspaceFolder?.uri.fsPath, {
             binary: 'git',
         });
-        this._disposable = Disposable.from(
-            this._gitApi.onDidChangeState((state: APIState) => {
-                if (state === 'initialized') {
-                    this.listenForRepositoryChanges();
-                }
-            })
-        ); // dispose git listeners? idk
+        const subscription = this.listenForRepositoryChanges();
+        this._disposable = Disposable.from(...subscription); // dispose git listeners? idk
         //this.listenForRepositoryChanges();
     }
 
@@ -73,41 +67,51 @@ class GitController extends Disposable {
         return this._authSession;
     }
 
+    get gitState() {
+        return this._gitState;
+    }
+
+    initGitState(r: Repository) {
+        return {
+            repo: r?.state?.remotes[0]?.fetchUrl
+                ? r?.state?.remotes[0]?.fetchUrl
+                : r?.state?.remotes[0]?.pushUrl
+                ? r?.state?.remotes[0]?.pushUrl
+                : '',
+            branch: r?.state?.HEAD?.name ? r?.state?.HEAD?.name : '',
+            commit: r?.state?.HEAD?.commit ? r?.state?.HEAD?.commit : '',
+            repository: r,
+        };
+    }
+
     listenForRepositoryChanges() {
+        const subscriptions: Disposable[] = [];
         this._gitApi.repositories.forEach((r: Repository) => {
-            r?.state?.onDidChange(() => {
-                // const currentProjectName: string = getProjectName(r?.rootUri?.path)
-                if (!this._gitState) {
-                    this._gitState = {
-                        repo: r?.state?.remotes[0]?.fetchUrl
-                            ? r?.state?.remotes[0]?.fetchUrl
-                            : r?.state?.remotes[0]?.pushUrl
-                            ? r?.state?.remotes[0]?.pushUrl
-                            : '',
-                        branch: r?.state?.HEAD?.name
-                            ? r?.state?.HEAD?.name
-                            : '',
-                        commit: r?.state?.HEAD?.commit
-                            ? r?.state?.HEAD?.commit
-                            : '',
-                        repository: r,
-                    };
-                }
+            if (!this._gitState) {
+                this._gitState = this.initGitState(r);
+            }
+            subscriptions.push(
+                r?.state?.onDidChange(() => {
+                    // const currentProjectName: string = getProjectName(r?.rootUri?.path)
+                    if (!this._gitState) {
+                        this._gitState = this.initGitState(r);
+                    }
+                    if (
+                        this._gitState.commit !== r.state.HEAD?.commit ||
+                        this._gitState.branch !== r.state.HEAD?.name
+                    ) {
+                        this._gitState = {
+                            ...this._gitState,
+                            branch: r?.state?.HEAD?.name || '',
+                            commit: r?.state?.HEAD?.commit || '',
+                        };
 
-                if (
-                    this._gitState.commit !== r.state.HEAD?.commit ||
-                    this._gitState.branch !== r.state.HEAD?.name
-                ) {
-                    this._gitState = {
-                        ...this._gitState,
-                        branch: r?.state?.HEAD?.name || '',
-                        commit: r?.state?.HEAD?.commit || '',
-                    };
-
-                    this._onDidChangeCurrentGitState.fire(this._gitState);
-                }
-            });
+                        this._onDidChangeCurrentGitState.fire(this._gitState);
+                    }
+                })
+            );
         });
+        return subscriptions;
     }
 
     async gitLog(input: Location | TextDocument) {

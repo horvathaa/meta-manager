@@ -7,3 +7,12 @@ export function getNonce() {
     }
     return text;
 }
+
+export function debounce(func: Function, timeout = 300) {
+    let timer: ReturnType<typeof setTimeout>;
+    return (...args: [args: any]) => {
+        clearTimeout(timer);
+        // @ts-ignore
+        timer = setTimeout(() => func.apply(this, args), timeout);
+    };
+}

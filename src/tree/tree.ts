@@ -216,23 +216,60 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         }
     }
 
-    public getPathToNode(data: T): T[] | undefined {
+    public getPathToNode(
+        // data: T,
+        searchFunc: (data: T) => boolean
+    ): T[] | undefined {
         if (!this.root) {
             return undefined;
         }
 
-        if (isEqual(this.root.data, data)) {
-            return [data];
+        const func = searchFunc; //  || isEqual;
+        if (func(this.root.data)) {
+            return [this.root.data];
         }
 
         for (const child of this.root.children) {
-            const result = child.getPathToNode(data);
+            const result = child.getPathToNode(searchFunc);
             if (result) {
                 return [this.root.data, ...result];
             }
         }
 
         return undefined;
+    }
+
+    public getAllPathsToNodes(searchFunc: (data: T) => boolean): T[][] {
+        const paths: T[][] = [];
+
+        if (this.root) {
+            this.collectPathsToNodes(searchFunc, [], paths);
+        }
+
+        return paths;
+    }
+
+    private collectPathsToNodes(
+        searchFunc: (data: T) => boolean,
+        currentPath: T[],
+        allPaths: T[][]
+    ): void {
+        if (!this.root) {
+            return undefined;
+        }
+
+        const func = searchFunc;
+        if (func(this.root.data)) {
+            allPaths.push([...currentPath, this.root.data]);
+        }
+
+        for (const child of this.root.children) {
+            child.collectPathsToNodes(
+                searchFunc,
+                [...currentPath, this.root.data],
+                allPaths
+            );
+        }
     }
 
     public searchTree(searchFunc: (data: T) => boolean): T | undefined {

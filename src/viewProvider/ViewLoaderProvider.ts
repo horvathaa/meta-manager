@@ -7,6 +7,7 @@ import {
     WebviewViewResolveContext,
 } from 'vscode';
 import { getNonce } from '../lib';
+import { VS_CODE_API } from '../view2/src/VSCodeApi';
 // import TimelinesChart from 'timelines-chart';
 
 class ViewLoaderProvider implements WebviewViewProvider {
@@ -92,6 +93,12 @@ class ViewLoaderProvider implements WebviewViewProvider {
 
         return webviewContent;
     }
+
+    // public sendHi() {
+    //     VS_CODE_API.postMessage({
+    //         command: 'hi',
+    //     });
+    // }
 }
 
 export default ViewLoaderProvider;

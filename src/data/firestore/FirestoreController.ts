@@ -1,4 +1,4 @@
-import { AuthenticationSession, Disposable, Uri } from 'vscode';
+import { AuthenticationSession, Disposable, Uri, EventEmitter } from 'vscode';
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import {
     CollectionReference,
@@ -8,6 +8,7 @@ import {
     query,
     where,
     getDocs,
+    onSnapshot,
     DocumentData,
 } from 'firebase/firestore';
 import { Functions, getFunctions } from 'firebase/functions';
@@ -17,6 +18,7 @@ import * as dotenv from 'dotenv';
 import { getUserGithubData } from './functions/cloudFunctions';
 import { signInWithGithubCredential } from './functions/authFunctions';
 import { DataSourceType } from '../timeline/TimelineEvent';
+import { CopyBuffer } from '../../constants/types';
 
 export type DB_REFS =
     | 'users'
@@ -41,6 +43,7 @@ class FirestoreController extends Disposable {
     readonly _auth: Auth | undefined;
     _user: User | undefined;
     readonly _refs: Map<DB_REFS, CollectionReference> | undefined;
+    _onCopy: EventEmitter<CopyBuffer> = new EventEmitter<CopyBuffer>();
     constructor(private readonly container: Container) {
         super(() => this.dispose());
         this._disposable = Disposable.from();
@@ -65,16 +68,51 @@ class FirestoreController extends Disposable {
         return this._auth;
     }
 
+    get onCopy() {
+        return this._onCopy.event;
+    }
+
+    private async setUpUser(
+        firestoreController: FirestoreController,
+        authSession: AuthenticationSession
+    ) {
+        try {
+            firestoreController._user = await firestoreController.initAuth(
+                authSession
+            );
+            if (firestoreController._user) {
+                console.log('user', firestoreController._user);
+                firestoreController.listenForCopy();
+            }
+        } catch (e) {
+            console.log('error signing in', e);
+            // maybe just took too long so try again
+            if (authSession) {
+                setTimeout(async () => {
+                    firestoreController._user =
+                        await firestoreController.initAuth(
+                            // @ts-ignore
+                            gitController.authSession // idk why it's saying this may be undefined
+                        );
+                    if (firestoreController._user) {
+                        console.log('user', firestoreController._user);
+                        firestoreController.listenForCopy();
+                    }
+                }, 5000);
+            }
+        }
+    }
+
     public static async create(container: Container) {
         const firestoreController = new FirestoreController(container);
         const event = firestoreController.container.onInitComplete(
             async (container) => {
                 const gitController = container.gitController;
                 if (gitController && gitController.authSession) {
-                    firestoreController._user =
-                        await firestoreController.initAuth(
-                            gitController.authSession
-                        );
+                    firestoreController.setUpUser(
+                        firestoreController,
+                        gitController.authSession
+                    );
                 }
             }
         );
@@ -127,11 +165,13 @@ class FirestoreController extends Disposable {
     private async initAuth(authSession: AuthenticationSession) {
         const { accessToken, account } = authSession;
         const { id } = account;
+        // console.log('calling this function', this, 'id', id);
         const result = await getUserGithubData(this, {
             id,
             oauth: accessToken,
         });
         const { data } = result;
+        // console.log('data', data, 'this', this);
         if (!data) {
             throw new Error(
                 'Firestore Controller: could not retrieve user data'
@@ -163,6 +203,36 @@ class FirestoreController extends Disposable {
             )
         ).flat();
         return arr;
+    }
+
+    listenForCopy() {
+        const collectionRef = this._refs?.get(DB_COLLECTIONS.WEB_META);
+        if (collectionRef === undefined) {
+            throw new Error(
+                'FirestoreController: Could not set up listener for copy -- no collection reference'
+            );
+        }
+        if (this._user === undefined) {
+            throw new Error(
+                'FirestoreController: Could not set up listener for copy -- no user'
+            );
+        }
+        const q = query(collectionRef, where('user', '==', this._user.uid));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === 'added') {
+                    console.log('New copy: ', change.doc.data());
+                    this._onCopy.fire(change.doc.data() as CopyBuffer);
+                }
+                if (change.type === 'modified') {
+                    console.log('Modified copy: ', change.doc.data());
+                }
+                if (change.type === 'removed') {
+                    console.log('Removed copy: ', change.doc.data());
+                }
+            });
+        });
+        return () => unsubscribe();
     }
 
     dispose() {

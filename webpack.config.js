@@ -26,7 +26,14 @@ const extensionConfig = {
     },
     resolve: {
         // support reading TypeScript and JavaScript files, 📖 -> https://github.com/TypeStrong/ts-loader
-        extensions: ['.ts', '.js', '.tsx'],
+        // alias: {
+        //     // Adjust the path to match the actual location of your ".node" files
+        //     'node-pty': path.resolve(
+        //         __dirname,
+        //         'node_modules/node-pty/build/Release/pty.node'
+        //     ),
+        // },
+        extensions: ['.ts', '.js', '.tsx', '.node'],
     },
     module: {
         rules: [
@@ -39,6 +46,26 @@ const extensionConfig = {
                     },
                 ],
             },
+            // {
+            //     test: /\.(dll|exe|bin)$/,
+            //     use: [
+            //         {
+            //             loader: 'raw-loader',
+            //         },
+            //     ],
+            // },
+            // https://github.com/microsoft/vscode/blob/d4d02122bec716c1a86bdb02fe4b69a29c94629c/src/vscode-dts/vscode.proposed.terminalDataWriteEvent.d.ts#L1-L30
+            // maybe skip allllll of this and use the proposed api?
+            // https://github.com/microsoft/node-pty/issues/582 -- maybe don't do this
+            // {
+            //     test: /\.node$/,
+            //     exclude: /src/,
+            //     use: [
+            //         {
+            //             loader: 'node-loader',
+            //         },
+            //     ],
+            // },
         ],
     },
     devtool: 'nosources-source-map',
