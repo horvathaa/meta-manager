@@ -24,7 +24,7 @@ import { FileParsedEvent } from '../fs/FileSystemController';
 import { DataController } from '../data/DataController';
 import { v4 as uuidv4 } from 'uuid';
 import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
-import { debounce } from '../lib';
+// import { debounce } from '../lib';
 const tstraverse = require('tstraverse');
 
 class DocumentWatcher extends Disposable {
@@ -71,65 +71,8 @@ class DocumentWatcher extends Disposable {
             }
         });
 
-        const docChangeListener = workspace.onDidChangeTextDocument(
-            debounce((event: TextDocumentChangeEvent) => {
-                event.document === this.document &&
-                    console.log('container', container);
-                if (event.document === this.document && container.copyBuffer) {
-                    for (const change of event.contentChanges) {
-                        console.log('change', change, 'container', container);
-                        if (
-                            change.text.replace(/\s/g, '') ===
-                            container.copyBuffer.code.replace(/\s/g, '')
-                        ) {
-                            console.log(
-                                'SAME!!!!!!!!!!!!!!',
-                                'change',
-                                change,
-                                'copy buffer',
-                                container.copyBuffer
-                            );
-
-                            const path = this._nodesInFile?.getAllPathsToNodes(
-                                (d: ReadableNode) =>
-                                    d.state ===
-                                    NodeState.MODIFIED_RANGE_AND_CONTENT
-                            ); //.forEach((n) => {
-                            console.log('path', path);
-                            if (!path) {
-                                console.error(
-                                    'could not get path',
-                                    change,
-                                    'copy buffer',
-                                    container.copyBuffer
-                                );
-                                return;
-                            }
-                            const mostAccuratePath = path[path.length - 1];
-                            mostAccuratePath.forEach((n) => {
-                                container.copyBuffer &&
-                                    n.dataController?.addChatGptData(
-                                        container.copyBuffer,
-                                        {
-                                            uri: this.document.uri,
-                                            textDocumentContentChangeEvent:
-                                                change,
-                                        }
-                                    );
-                                console.log('n', n);
-                                n.dataController?.chatGptData &&
-                                    this.container.webviewController?.postMessage(
-                                        {
-                                            command: 'renderChatGptHistory',
-                                            payload:
-                                                n.dataController.chatGptData[0],
-                                        }
-                                    );
-                            });
-                        }
-                    }
-                }
-            }, 1000)
+        const docChangeListener = workspace.onDidChangeTextDocument((e) =>
+            this.handleDocumentChange(e)
         );
         // listener should always exist but just in case!
         const disposables = listener
@@ -144,6 +87,74 @@ class DocumentWatcher extends Disposable {
 
     get nodesInFile() {
         return this._nodesInFile;
+    }
+
+    handleDocumentChange(event: TextDocumentChangeEvent) {
+        event.document === this.document &&
+            console.log('container', this.container, 'event', event);
+        if (event.document === this.document && this.container.copyBuffer) {
+            for (const change of event.contentChanges) {
+                console.log('change', change, 'container', this.container);
+                if (
+                    change.text.replace(/\s/g, '') ===
+                    this.container.copyBuffer.code.replace(/\s/g, '')
+                ) {
+                    // console.log(
+                    //     'SAME!!!!!!!!!!!!!!',
+                    //     'change',
+                    //     change,
+                    //     'copy buffer',
+                    //     container.copyBuffer
+                    // );
+
+                    const path = this._nodesInFile?.getAllPathsToNodes(
+                        (d: ReadableNode) =>
+                            d.state === NodeState.MODIFIED_RANGE_AND_CONTENT
+                    ); //.forEach((n) => {
+                    console.log(
+                        'path',
+                        path,
+                        'nopdes in file',
+                        this._nodesInFile
+                    );
+                    if (!path) {
+                        console.error(
+                            'could not get path -- doc change',
+                            change,
+                            'copy buffer',
+                            this.container.copyBuffer
+                        );
+                        return;
+                    }
+                    if (!path.length) {
+                        console.error(
+                            'path length is 0 -- probably top level change',
+                            change,
+                            'copy buffer',
+                            this.container.copyBuffer
+                        );
+                        return;
+                    }
+                    const mostAccuratePath = path[path.length - 1];
+                    mostAccuratePath.forEach((n) => {
+                        this.container.copyBuffer &&
+                            n.dataController?.addChatGptData(
+                                this.container.copyBuffer,
+                                {
+                                    uri: this.document.uri,
+                                    textDocumentContentChangeEvent: change,
+                                }
+                            );
+                        console.log('n', n);
+                        n.dataController?.chatGptData &&
+                            this.container.webviewController?.postMessage({
+                                command: 'renderChatGptHistory',
+                                payload: n.dataController.chatGptData[0],
+                            });
+                    });
+                }
+            }
+        }
     }
 
     initNodes(oldTree?: SimplifiedTree<ReadableNode>) {

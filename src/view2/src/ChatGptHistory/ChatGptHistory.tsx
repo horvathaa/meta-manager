@@ -4,6 +4,11 @@ import styles from '../styles/chatGptStyle.module.css';
 import ChatGptMessage from './ChatGptMessage';
 import CodeBlock from './components/CodeBlock';
 
+const CopyText = {
+    copy: 'Copy code',
+    copied: 'Copied!',
+};
+
 export function ChatGptHistory() {
     const [gptData, setGptData] = React.useState<VscodeChatGptData>();
     React.useEffect(() => {
@@ -26,7 +31,10 @@ export function ChatGptHistory() {
         codeBlocks.forEach((c) => {
             const temp = strCopy.split(c.code);
             jsx.push(<div className={styles['message']}>{temp[0]}</div>);
-            jsx.push(<CodeBlock codeString={c.code} />);
+            const code = c.code.includes('Copy code') // change to match on CopyText's
+                ? c.code.split('Copy code')[1]
+                : c.code;
+            jsx.push(<CodeBlock codeString={code} />);
             strCopy = temp[1];
         });
         jsx.push(<div className={styles['message']}>{strCopy}</div>);
@@ -53,7 +61,9 @@ export function ChatGptHistory() {
                 return <ChatGptMessage gptData={item} />;
             })} */}
         </div>
-    ) : null;
+    ) : (
+        <div>Paste some code from ChatGPT for it to be tracked</div>
+    );
 }
 
 export default ChatGptHistory;
