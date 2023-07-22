@@ -1,5 +1,6 @@
 import * as ts from 'typescript';
 import { isEmpty, isEqual } from 'lodash';
+import { TextDocumentChangeEvent } from 'vscode';
 
 export enum SummaryStatus {
     SAME = 'SAME',
@@ -68,13 +69,13 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
     parent?: NodeWithChildren<T>;
     depth?: number;
     debug: boolean = false;
+    isLeaf: boolean = true;
 
     constructor(metadata: NodeMetadata<T>) {
         this.root = undefined;
         this.name = metadata.name;
         this.parent = metadata.parent;
         this.depth = metadata.depth;
-        this.debug = false;
     }
 
     public insert(data: T, metadata: NodeMetadata<T>): SimplifiedTree<T> {
@@ -96,6 +97,7 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         const child = new SimplifiedTree<T>(newMetadata);
 
         this.root.children.push(child.insert(data, newMetadata));
+        this.isLeaf = false;
         return child;
     }
 
@@ -122,6 +124,7 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
             (child) => !isEqual(child.root?.data, data)
         );
         this.root.children.forEach((child) => child.remove(data));
+        this.isLeaf = this.root.children.length === 0;
     }
 
     private traverseLevelOrder(

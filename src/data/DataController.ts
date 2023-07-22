@@ -7,7 +7,11 @@ import {
     TextDocumentContentChangeEvent,
 } from 'vscode';
 import { Container } from '../container';
-import { AbstractTreeReadableNode, CompareSummary } from '../tree/tree';
+import {
+    AbstractTreeReadableNode,
+    CompareSummary,
+    SimplifiedTree,
+} from '../tree/tree';
 import ReadableNode from '../tree/node';
 import LocationPlus, { ChangeEvent } from '../document/locationApi/location';
 import { ListLogLine, DefaultLogFields } from 'simple-git';
@@ -29,6 +33,7 @@ export class DataController {
     _gitData: TimelineEvent[] | undefined;
     _firestoreData: TimelineEvent[] | undefined;
     _outputData: OutputDataController | undefined;
+    _tree: SimplifiedTree<ReadableNode> | undefined;
     // _readableNode: ReadableNode;
     _chatGptData: VscodeChatGptData[] | undefined = [];
     _vscNodeMetadata: VscodeTsNodeMetadata[];
@@ -73,6 +78,7 @@ export class DataController {
             this.readableNode.location.onChanged.event(
                 debounce(async (changeEvent: ChangeEvent) => {
                     // console.log('hewwo???', location);
+                    console.log('this', this);
                     const location = changeEvent.location;
                     const newContent = location.content;
                     const oldContent = this.readableNode.location.content;
@@ -84,12 +90,12 @@ export class DataController {
                             oldContent.replace(/\s/g, '')
                         );
                     this._debug && console.log('chatgpt', this._chatGptData);
-                    if (
-                        newContent.replace(/\s/g, '') ===
-                        oldContent.replace(/\s/g, '')
-                    ) {
-                        return;
-                    }
+                    // if (
+                    //     newContent.replace(/\s/g, '') ===
+                    //     oldContent.replace(/\s/g, '')
+                    // ) {
+                    //     return;
+                    // }
                     const editor =
                         window.activeTextEditor || window.visibleTextEditors[0];
                     const doc =
@@ -102,13 +108,14 @@ export class DataController {
                             newContent,
                             doc
                         );
-
+                    console.log('newNodeMetadata', newNodeMetadata);
                     this.vscNodeMetadata = newNodeMetadata;
                 })
             ),
             this.readableNode.location.onSelected.event(
                 async (location: LocationPlus) => {
                     // can probably break these out into their own pages
+                    this._debug = true;
                     const gitRes = (await this.getGitData())?.all || [];
                     if (gitRes.length > 0) {
                         this._gitData = gitRes.map((r) => new TimelineEvent(r));
@@ -182,5 +189,13 @@ export class DataController {
 
     get chatGptData() {
         return this._chatGptData;
+    }
+
+    set tree(newTree: SimplifiedTree<ReadableNode> | undefined) {
+        this._tree = newTree;
+    }
+
+    get tree() {
+        return this._tree;
     }
 }

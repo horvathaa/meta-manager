@@ -90,23 +90,12 @@ class DocumentWatcher extends Disposable {
     }
 
     handleDocumentChange(event: TextDocumentChangeEvent) {
-        event.document === this.document &&
-            console.log('container', this.container, 'event', event);
         if (event.document === this.document && this.container.copyBuffer) {
             for (const change of event.contentChanges) {
-                console.log('change', change, 'container', this.container);
                 if (
                     change.text.replace(/\s/g, '') ===
                     this.container.copyBuffer.code.replace(/\s/g, '')
                 ) {
-                    // console.log(
-                    //     'SAME!!!!!!!!!!!!!!',
-                    //     'change',
-                    //     change,
-                    //     'copy buffer',
-                    //     container.copyBuffer
-                    // );
-
                     const path = this._nodesInFile?.getAllPathsToNodes(
                         (d: ReadableNode) =>
                             d.state === NodeState.MODIFIED_RANGE_AND_CONTENT
@@ -254,12 +243,14 @@ class DocumentWatcher extends Disposable {
                 // );
 
                 readableNode.dataController.vscNodeMetadata = nodeInfo;
-                currTreeInstance.push(
-                    currTreeInstance[currTreeInstance.length - 1].insert(
-                        readableNode, // .readableNode,
-                        { name }
-                    )
+                const treeRef = currTreeInstance[
+                    currTreeInstance.length - 1
+                ].insert(
+                    readableNode, // .readableNode,
+                    { name }
                 );
+                // readableNode.dataController.tree = treeRef; // this is wrong lol
+                currTreeInstance.push(treeRef);
             }
         }
 
@@ -267,6 +258,7 @@ class DocumentWatcher extends Disposable {
         function leave(node: ts.Node) {
             const topNode = nodes.pop();
             if (topNode && ts.isBlock(topNode)) {
+                // console.log('currTreeInstance', currTreeInstance);
                 currTreeInstance.pop();
             }
         }
@@ -279,7 +271,7 @@ class DocumentWatcher extends Disposable {
             );
         }
 
-        // console.log('old tree', oldTree, 'newTree', tree);
+        console.log('newTree', tree);
         return tree;
     }
 }
