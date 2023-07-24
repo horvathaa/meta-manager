@@ -242,6 +242,33 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         return undefined;
     }
 
+    public getLastNodeInPath(searchFunc: (data: T) => boolean): T | undefined {
+        const lastNodeHolder: { node: T | undefined } = { node: undefined };
+
+        if (this.root) {
+            this.collectLastNodeInPath(searchFunc, lastNodeHolder);
+        }
+
+        return lastNodeHolder.node;
+    }
+
+    private collectLastNodeInPath(
+        searchFunc: (data: T) => boolean,
+        lastNodeHolder: { node: T | undefined }
+    ): void {
+        if (!this.root) {
+            return;
+        }
+
+        if (searchFunc(this.root.data)) {
+            lastNodeHolder.node = this.root.data;
+        }
+
+        for (const child of this.root.children) {
+            child.collectLastNodeInPath(searchFunc, lastNodeHolder);
+        }
+    }
+
     public getAllPathsToNodes(searchFunc: (data: T) => boolean): T[][] {
         const paths: T[][] = [];
 

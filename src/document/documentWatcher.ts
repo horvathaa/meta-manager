@@ -24,6 +24,8 @@ import { FileParsedEvent } from '../fs/FileSystemController';
 import { DataController } from '../data/DataController';
 import { v4 as uuidv4 } from 'uuid';
 import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
+import RangePlus from './locationApi/range';
+import { isEmpty } from 'lodash';
 // import { debounce } from '../lib';
 const tstraverse = require('tstraverse');
 
@@ -90,58 +92,64 @@ class DocumentWatcher extends Disposable {
     }
 
     handleDocumentChange(event: TextDocumentChangeEvent) {
-        if (event.document === this.document && this.container.copyBuffer) {
+        if (event.document === this.document) {
             for (const change of event.contentChanges) {
-                if (
-                    change.text.replace(/\s/g, '') ===
-                    this.container.copyBuffer.code.replace(/\s/g, '')
-                ) {
-                    const path = this._nodesInFile?.getAllPathsToNodes(
-                        (d: ReadableNode) =>
-                            d.state === NodeState.MODIFIED_RANGE_AND_CONTENT
-                    ); //.forEach((n) => {
-                    console.log(
-                        'path',
-                        path,
-                        'nopdes in file',
-                        this._nodesInFile
+                // console.log('HEWWOOOO???');
+                // if (
+                //     change.text.replace(/\s/g, '') ===
+                //     this.container.copyBuffer.code.replace(/\s/g, '')
+                // ) {
+                const range =
+                    RangePlus.fromTextDocumentContentChangeEvent(change);
+                // console.log('range?', range);
+                // const path = this._nodesInFile?.getAllPathsToNodes(
+                //     (d: ReadableNode) => d.location.range.contains(range)
+                //     // d.state === NodeState.MODIFIED_RANGE_AND_CONTENT
+                // ); //.forEach((n) => {
+                const path = this._nodesInFile?.getLastNodeInPath(
+                    (d: ReadableNode) => {
+                        return !isEmpty(d) && d.location.range.contains(range);
+                    }
+                );
+                // console.log('path', path, 'nopdes in file', this._nodesInFile);
+                if (!path) {
+                    console.error(
+                        'could not get path -- doc change',
+                        change,
+                        'copy buffer',
+                        this.container.copyBuffer
                     );
-                    if (!path) {
-                        console.error(
-                            'could not get path -- doc change',
-                            change,
-                            'copy buffer',
-                            this.container.copyBuffer
-                        );
-                        return;
-                    }
-                    if (!path.length) {
-                        console.error(
-                            'path length is 0 -- probably top level change',
-                            change,
-                            'copy buffer',
-                            this.container.copyBuffer
-                        );
-                        return;
-                    }
-                    const mostAccuratePath = path[path.length - 1];
-                    mostAccuratePath.forEach((n) => {
-                        this.container.copyBuffer &&
-                            n.dataController?.addChatGptData(
-                                this.container.copyBuffer,
-                                {
-                                    uri: this.document.uri,
-                                    textDocumentContentChangeEvent: change,
-                                }
-                            );
-                        console.log('n', n);
-                        n.dataController?.chatGptData &&
-                            this.container.webviewController?.postMessage({
-                                command: 'renderChatGptHistory',
-                                payload: n.dataController.chatGptData[0],
-                            });
-                    });
+                    return;
                 }
+                // if (!path.length) {
+                //     console.error(
+                //         'path length is 0 -- probably top level change',
+                //         change,
+                //         'copy buffer',
+                //         this.container.copyBuffer
+                //     );
+                //     return;
+                // }
+                // const mostAccuratePath = path[path.length - 1];
+                const n = path;
+                // console.log('mostAccuratePath', mostAccuratePath);
+                // mostAccuratePath.forEach((n) => {
+                //     this.container.copyBuffer &&
+                //         n.dataController?.addChatGptData(
+                //             this.container.copyBuffer,
+                //             {
+                //                 uri: this.document.uri,
+                //                 textDocumentContentChangeEvent: change,
+                //             }
+                //         );
+                //     console.log('n', n);
+                n.dataController?.chatGptData &&
+                    this.container.webviewController?.postMessage({
+                        command: 'renderChatGptHistory',
+                        payload: n.dataController.chatGptData[0],
+                    });
+                // });
+                // }
             }
         }
     }

@@ -17,6 +17,7 @@ import {
 } from 'vscode';
 import RangePlus, { SerializedRangePlus } from './range';
 import { isTextDocument } from '../lib';
+import { debounce } from '../../lib';
 
 export enum TypeOfChange {
     RANGE_ONLY,
@@ -39,9 +40,15 @@ export interface SerializedLocationPlus {
     id?: string;
 }
 
+export interface PreviousRangeContent {
+    oldRange: RangePlus;
+    oldContent: string;
+}
+
 export interface ChangeEvent {
     location: LocationPlus;
     typeOfChange: TypeOfChange;
+    previousRangeContent: PreviousRangeContent;
 }
 
 export default class LocationPlus extends Location {
@@ -66,8 +73,16 @@ export default class LocationPlus extends Location {
                 : rangeOrPosition instanceof Position
                 ? RangePlus.fromPosition(rangeOrPosition)
                 : RangePlus.fromLineNumbers(0, 0, 0, 0); // may just want to throw an error instead
+        const debouncedOnTextDocumentChanged = debounce(
+            (e: TextDocumentChangeEvent) => this.onTextDocumentChanged(e),
+            500 // Adjust the debounce time (in milliseconds) to your needs
+        );
+
         this._disposable = Disposable.from(
-            workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this),
+            workspace.onDidChangeTextDocument(
+                (e) => debouncedOnTextDocumentChanged(e),
+                this
+            ),
             window.onDidChangeActiveTextEditor(
                 this.onDidChangeActiveTextEditor,
                 this
@@ -151,27 +166,47 @@ export default class LocationPlus extends Location {
             : textEditorOrDocument.document.getText(this._range);
     }
 
-    private getTypeOfChange(oldRange: RangePlus, oldContent: string) {
+    private getTypeOfChange(
+        oldRange: RangePlus,
+        oldContent: string,
+        contentChangeRange: RangePlus
+    ) {
         const newRange = this._range;
         const newContent = this._content;
-        if (oldRange.isEqual(newRange) && oldContent === newContent) {
-            return TypeOfChange.NO_CHANGE;
-        } else if (oldRange.isEqual(newRange)) {
-            return TypeOfChange.CONTENT_ONLY;
-        } else if (oldContent === newContent) {
-            return TypeOfChange.RANGE_ONLY;
-        } else {
+        const cleanedNewContent = newContent.replace(/\s/g, '');
+        const cleanedOldContent = oldContent.replace(/\s/g, '');
+        if (
+            !oldRange.isEqual(newRange) &&
+            cleanedOldContent !== cleanedNewContent &&
+            oldRange.contains(contentChangeRange)
+        ) {
             return TypeOfChange.RANGE_AND_CONTENT;
+        } else if (!oldRange.isEqual(newRange)) {
+            return TypeOfChange.RANGE_ONLY;
+        } else if (
+            cleanedOldContent !== cleanedNewContent &&
+            oldRange.contains(contentChangeRange)
+        ) {
+            return TypeOfChange.CONTENT_ONLY;
+        } else {
+            return TypeOfChange.NO_CHANGE;
         }
     }
 
-    onTextDocumentChanged(onTextDocumentChanged: TextDocumentChangeEvent) {
+    onTextDocumentChanged(
+        onTextDocumentChanged: TextDocumentChangeEvent,
+        thisArg?: any
+    ) {
+        // debounce(() => {
         const { document, contentChanges } = onTextDocumentChanged;
         if (this.uri.fsPath === document.uri.fsPath) {
             for (const change of contentChanges) {
-                // console.log('this is being called', this);
                 const oldRange = this._range.copy();
                 const oldContent = this._content;
+                const previousRangeContent: PreviousRangeContent = {
+                    oldRange,
+                    oldContent,
+                };
                 const updated = this._range.update(change);
                 this._range = RangePlus.fromRange(
                     document.validateRange(updated)
@@ -191,14 +226,25 @@ export default class LocationPlus extends Location {
                 //     !this._range.isEqual(oldRange) ||
                 //     this._content !== oldContent
                 // ) {
-                const typeOfChange = this.getTypeOfChange(oldRange, oldContent);
+                const contentChangeRange =
+                    RangePlus.fromTextDocumentContentChangeEvent(change);
+                const typeOfChange = this.getTypeOfChange(
+                    oldRange,
+                    oldContent,
+                    contentChangeRange
+                );
                 // console.log('this is firing', this);
-                this.onChanged.fire({ location: this, typeOfChange });
+                this.onChanged.fire({
+                    location: this,
+                    typeOfChange,
+                    previousRangeContent,
+                });
                 // }
                 this.range = this._range;
                 this._range.updateRangeLength(document);
             }
         }
+        // });
     }
 
     onDidChangeActiveTextEditor(textEditor: TextEditor | undefined) {

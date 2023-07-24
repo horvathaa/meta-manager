@@ -13,7 +13,10 @@ import {
     SimplifiedTree,
 } from '../tree/tree';
 import ReadableNode from '../tree/node';
-import LocationPlus, { ChangeEvent } from '../document/locationApi/location';
+import LocationPlus, {
+    ChangeEvent,
+    TypeOfChange,
+} from '../document/locationApi/location';
 import { ListLogLine, DefaultLogFields } from 'simple-git';
 import { DocumentData } from 'firebase/firestore';
 import TimelineEvent from './timeline/TimelineEvent';
@@ -26,6 +29,13 @@ export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // 
 interface InitChatGptData {
     uri: Uri;
     textDocumentContentChangeEvent: TextDocumentContentChangeEvent;
+}
+
+interface ChangeBuffer {
+    location: LocationPlus;
+    typeOfChange: TypeOfChange;
+    changeContent: string;
+    time: number;
 }
 
 export class DataController {
@@ -78,24 +88,34 @@ export class DataController {
             this.readableNode.location.onChanged.event(
                 debounce(async (changeEvent: ChangeEvent) => {
                     // console.log('hewwo???', location);
-                    console.log('this', this);
+                    // console.log('this', this);
                     const location = changeEvent.location;
                     const newContent = location.content;
-                    const oldContent = this.readableNode.location.content;
+                    const oldContent =
+                        changeEvent.previousRangeContent.oldContent;
                     this._debug &&
                         console.log(
                             'newContent',
                             newContent.replace(/\s/g, ''),
                             'oldContent',
-                            oldContent.replace(/\s/g, '')
+                            oldContent.replace(/\s/g, ''),
+                            'change',
+                            changeEvent,
+                            'this',
+                            this
                         );
-                    this._debug && console.log('chatgpt', this._chatGptData);
-                    // if (
-                    //     newContent.replace(/\s/g, '') ===
-                    //     oldContent.replace(/\s/g, '')
-                    // ) {
-                    //     return;
-                    // }
+                    // this._debug && console.log('chatgpt', this._chatGptData);
+                    if (
+                        // newContent.replace(/\s/g, '') ===
+                        // oldContent.replace(/\s/g, '')
+                        changeEvent.typeOfChange !==
+                            TypeOfChange.CONTENT_ONLY &&
+                        changeEvent.typeOfChange !==
+                            TypeOfChange.RANGE_AND_CONTENT
+                    ) {
+                        return;
+                    }
+
                     const editor =
                         window.activeTextEditor || window.visibleTextEditors[0];
                     const doc =
@@ -108,7 +128,12 @@ export class DataController {
                             newContent,
                             doc
                         );
-                    console.log('newNodeMetadata', newNodeMetadata);
+                    console.log(
+                        'newNodeMetadata',
+                        newNodeMetadata,
+                        'this',
+                        this
+                    );
                     this.vscNodeMetadata = newNodeMetadata;
                 })
             ),
