@@ -88,6 +88,19 @@ class RangePlus extends Range {
         return new RangePlus(start, end);
     }
 
+    public translate(range: Range) {
+        return RangePlus.fromLineNumbers(
+            this.start.line + range.start.line,
+            this.start.line === range.start.line
+                ? this.start.character + range.start.character
+                : range.start.character,
+            this.start.line + range.end.line,
+            this.start.line === range.end.line
+                ? this.start.character + range.end.character
+                : range.end.character
+        );
+    }
+
     public static fromTextDocumentContentChangeEvent(
         textDocumentContentChangeEvent: TextDocumentContentChangeEvent
     ): RangePlus {
@@ -268,15 +281,15 @@ class RangePlus extends Range {
             contentChangeRange,
             this
         );
-        debug &&
-            console.log(
-                'changeContext',
-                changeContext,
-                'contentChangeRange',
-                contentChangeRange,
-                'our range',
-                this
-            );
+        // debug &&
+        //     console.log(
+        //         'changeContext',
+        //         changeContext,
+        //         'contentChangeRange',
+        //         contentChangeRange,
+        //         'our range',
+        //         this
+        //     );
         if (
             changeContext.rangeIntersectionType ===
                 RangeIntersectionType.UNKNOWN ||

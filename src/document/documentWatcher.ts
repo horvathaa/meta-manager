@@ -23,7 +23,7 @@ import LocationPlus from './locationApi/location';
 import { FileParsedEvent } from '../fs/FileSystemController';
 import { DataController } from '../data/DataController';
 import { v4 as uuidv4 } from 'uuid';
-import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
+// import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
 import RangePlus from './locationApi/range';
 import { isEmpty } from 'lodash';
 // import { debounce } from '../lib';
@@ -74,13 +74,18 @@ class DocumentWatcher extends Disposable {
         });
 
         const docChangeListener = workspace.onDidChangeTextDocument((e) =>
-            this.handleDocumentChange(e)
+            this.handleOnDocumentChange(e)
         );
-        // listener should always exist but just in case!
-        const disposables = listener
-            ? [listener, otherListener, docChangeListener]
-            : [otherListener, docChangeListener];
-        this._disposable = Disposable.from(...disposables);
+        const saveListener = workspace.onDidSaveTextDocument((e) =>
+            this.handleOnDidSaveDidClose(e)
+        );
+        const listeners = [
+            saveListener,
+            listener,
+            otherListener,
+            docChangeListener,
+        ].filter((d) => d) as Disposable[];
+        this._disposable = Disposable.from(...listeners);
     }
 
     get relativeFilePath() {
@@ -91,21 +96,17 @@ class DocumentWatcher extends Disposable {
         return this._nodesInFile;
     }
 
-    handleDocumentChange(event: TextDocumentChangeEvent) {
+    handleOnDidSaveDidClose(event: TextDocument) {
+        // if (event === this.document) {
+        //     this._nodesInFile = this.initNodes(this._nodesInFile);
+        // }
+    }
+
+    handleOnDocumentChange(event: TextDocumentChangeEvent) {
         if (event.document === this.document) {
             for (const change of event.contentChanges) {
-                // console.log('HEWWOOOO???');
-                // if (
-                //     change.text.replace(/\s/g, '') ===
-                //     this.container.copyBuffer.code.replace(/\s/g, '')
-                // ) {
                 const range =
                     RangePlus.fromTextDocumentContentChangeEvent(change);
-                // console.log('range?', range);
-                // const path = this._nodesInFile?.getAllPathsToNodes(
-                //     (d: ReadableNode) => d.location.range.contains(range)
-                //     // d.state === NodeState.MODIFIED_RANGE_AND_CONTENT
-                // ); //.forEach((n) => {
                 const path = this._nodesInFile?.getLastNodeInPath(
                     (d: ReadableNode) => {
                         return !isEmpty(d) && d.location.range.contains(range);
@@ -121,16 +122,6 @@ class DocumentWatcher extends Disposable {
                     );
                     return;
                 }
-                // if (!path.length) {
-                //     console.error(
-                //         'path length is 0 -- probably top level change',
-                //         change,
-                //         'copy buffer',
-                //         this.container.copyBuffer
-                //     );
-                //     return;
-                // }
-                // const mostAccuratePath = path[path.length - 1];
                 const n = path;
                 // console.log('mostAccuratePath', mostAccuratePath);
                 // mostAccuratePath.forEach((n) => {
@@ -243,14 +234,14 @@ class DocumentWatcher extends Disposable {
                 readableNode.registerListeners();
                 // v expensive to compute all this metadata
                 // tbd whether/how to speed it up
-                const nodeInfo: VscodeTsNodeMetadata[] = [];
+                // const nodeInfo: VscodeTsNodeMetadata[] = [];
                 //  nodeMetadata.filter((n) =>
                 //     readableNode.readableNode.location.range.contains(
                 //         n.location.range
                 //     )
                 // );
 
-                readableNode.dataController.vscNodeMetadata = nodeInfo;
+                // readableNode.dataController.vscNodeMetadata = nodeInfo;
                 const treeRef = currTreeInstance[
                     currTreeInstance.length - 1
                 ].insert(

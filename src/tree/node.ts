@@ -17,7 +17,7 @@ import {
 } from './helpers/lib';
 import { Container } from '../container';
 import { DataController } from '../data/DataController';
-import { debounce } from '../lib';
+import { debounce } from '../utils/lib';
 
 interface SerializedReadableNode {
     humanReadableKind: string;

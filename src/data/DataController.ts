@@ -20,8 +20,9 @@ import LocationPlus, {
 import { ListLogLine, DefaultLogFields } from 'simple-git';
 import { DocumentData } from 'firebase/firestore';
 import TimelineEvent from './timeline/TimelineEvent';
-import { VscodeTsNodeMetadata } from '../document/languageServiceProvider/LanguageServiceProvider';
-import { debounce } from '../lib';
+import { ParsedTsNode } from '../document/languageServiceProvider/LanguageServiceProvider';
+import { debounce } from '../utils/lib';
+import { patienceDiffPlus } from '../utils/PatienceDiff';
 import { CopyBuffer, VscodeChatGptData } from '../constants/types';
 
 export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
@@ -46,7 +47,7 @@ export class DataController {
     _tree: SimplifiedTree<ReadableNode> | undefined;
     // _readableNode: ReadableNode;
     _chatGptData: VscodeChatGptData[] | undefined = [];
-    _vscNodeMetadata: VscodeTsNodeMetadata[];
+    _vscNodeMetadata: ParsedTsNode | undefined;
     _disposable: Disposable | undefined;
     _debug: boolean = false;
 
@@ -56,7 +57,6 @@ export class DataController {
     ) {
         // super();
         // this._readableNode = readableNode;
-        this._vscNodeMetadata = [];
         this.initListeners();
     }
 
@@ -93,17 +93,6 @@ export class DataController {
                     const newContent = location.content;
                     const oldContent =
                         changeEvent.previousRangeContent.oldContent;
-                    this._debug &&
-                        console.log(
-                            'newContent',
-                            newContent.replace(/\s/g, ''),
-                            'oldContent',
-                            oldContent.replace(/\s/g, ''),
-                            'change',
-                            changeEvent,
-                            'this',
-                            this
-                        );
                     // this._debug && console.log('chatgpt', this._chatGptData);
                     if (
                         // newContent.replace(/\s/g, '') ===
@@ -126,7 +115,8 @@ export class DataController {
                     const newNodeMetadata =
                         this.container.languageServiceProvider.parseCodeBlock(
                             newContent,
-                            doc
+                            doc,
+                            location
                         );
                     console.log(
                         'newNodeMetadata',
@@ -134,7 +124,12 @@ export class DataController {
                         'this',
                         this
                     );
-                    this.vscNodeMetadata = newNodeMetadata;
+                    this._vscNodeMetadata = newNodeMetadata;
+                    const diff = patienceDiffPlus(
+                        oldContent.split(' '),
+                        newContent.split(' ')
+                    );
+                    console.log('diff', diff);
                 })
             ),
             this.readableNode.location.onSelected.event(
@@ -204,7 +199,7 @@ export class DataController {
         this._disposable?.dispose();
     }
 
-    set vscNodeMetadata(newNodeMetadata: VscodeTsNodeMetadata[]) {
+    set vscNodeMetadata(newNodeMetadata: ParsedTsNode) {
         this._vscNodeMetadata = newNodeMetadata;
     }
 

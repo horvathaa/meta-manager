@@ -17,7 +17,7 @@ import {
 } from 'vscode';
 import RangePlus, { SerializedRangePlus } from './range';
 import { isTextDocument } from '../lib';
-import { debounce } from '../../lib';
+import { debounce } from '../../utils/lib';
 
 export enum TypeOfChange {
     RANGE_ONLY,
@@ -57,6 +57,7 @@ export default class LocationPlus extends Location {
     _content: string;
     _id?: string;
     _textEditorDecoration?: TextEditorDecorationType;
+    _lastEditedTime: NodeJS.Timeout | null;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     onChanged: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
     onSelected: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
@@ -66,17 +67,17 @@ export default class LocationPlus extends Location {
         opts?: LocationPlusOptions
     ) {
         super(uri, rangeOrPosition);
-
+        this._lastEditedTime = null;
         this._range =
             rangeOrPosition instanceof Range
                 ? RangePlus.fromRange(rangeOrPosition)
                 : rangeOrPosition instanceof Position
                 ? RangePlus.fromPosition(rangeOrPosition)
                 : RangePlus.fromLineNumbers(0, 0, 0, 0); // may just want to throw an error instead
-        const debouncedOnTextDocumentChanged = debounce(
-            (e: TextDocumentChangeEvent) => this.onTextDocumentChanged(e),
-            500 // Adjust the debounce time (in milliseconds) to your needs
-        );
+        const debouncedOnTextDocumentChanged = // debounce(
+            (e: TextDocumentChangeEvent) => this.onTextDocumentChanged(e); //,
+        // 500 // Adjust the debounce time (in milliseconds) to your needs
+        //);
 
         this._disposable = Disposable.from(
             workspace.onDidChangeTextDocument(
@@ -193,6 +194,20 @@ export default class LocationPlus extends Location {
         }
     }
 
+    posToLine(pos: number) {
+        const code = this.content.slice(0, pos).split('\n');
+        return new Position(
+            this.range.start.line + code.length - 1,
+            code[code.length - 1].length
+        );
+    }
+
+    deriveRangeFromOffset(offsetStart: number, offsetEnd: number) {
+        const start = this.posToLine(offsetStart);
+        const end = this.posToLine(offsetEnd);
+        return RangePlus.fromPositions(start, end);
+    }
+
     onTextDocumentChanged(
         onTextDocumentChanged: TextDocumentChangeEvent,
         thisArg?: any
@@ -207,6 +222,7 @@ export default class LocationPlus extends Location {
                     oldRange,
                     oldContent,
                 };
+                // console.log('change', change);
                 const updated = this._range.update(change);
                 this._range = RangePlus.fromRange(
                     document.validateRange(updated)
@@ -221,27 +237,27 @@ export default class LocationPlus extends Location {
                     furtherNormalizedStart.start,
                     furtherNormalizedEnd.end
                 );
-                this._content = document.getText(this._range);
-                // if (
-                //     !this._range.isEqual(oldRange) ||
-                //     this._content !== oldContent
-                // ) {
-                const contentChangeRange =
-                    RangePlus.fromTextDocumentContentChangeEvent(change);
-                const typeOfChange = this.getTypeOfChange(
-                    oldRange,
-                    oldContent,
-                    contentChangeRange
-                );
-                // console.log('this is firing', this);
-                this.onChanged.fire({
-                    location: this,
-                    typeOfChange,
-                    previousRangeContent,
-                });
-                // }
-                this.range = this._range;
-                this._range.updateRangeLength(document);
+                // only fire the onchanged event after the user has stopped typing for 5 seconds
+                // can tinker with the wait time but 5 seconds seems ok for now
+                // we do this so the parser can do a smarter diff
+                this._lastEditedTime && clearTimeout(this._lastEditedTime);
+                this._lastEditedTime = setTimeout(() => {
+                    this._content = document.getText(this._range);
+                    const contentChangeRange =
+                        RangePlus.fromTextDocumentContentChangeEvent(change);
+                    const typeOfChange = this.getTypeOfChange(
+                        oldRange,
+                        oldContent,
+                        contentChangeRange
+                    );
+                    this.onChanged.fire({
+                        location: this,
+                        typeOfChange,
+                        previousRangeContent,
+                    });
+                    this.range = this._range;
+                    this._range.updateRangeLength(document);
+                }, 5000);
             }
         }
         // });
