@@ -24,6 +24,9 @@ import { ParsedTsNode } from '../document/languageServiceProvider/LanguageServic
 import { debounce } from '../utils/lib';
 import { patienceDiffPlus } from '../utils/PatienceDiff';
 import { CopyBuffer, VscodeChatGptData } from '../constants/types';
+import MetaInformationExtractor from '../comments/CommentCreator';
+import RangePlus from '../document/locationApi/range';
+import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
 
 export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
 
@@ -37,6 +40,34 @@ interface ChangeBuffer {
     typeOfChange: TypeOfChange;
     changeContent: string;
     time: number;
+    diff:
+        | {
+              lines: any[];
+              lineCountDeleted: number;
+              lineCountInserted: number;
+              lineCountMoved: number;
+              aMove: any[];
+              aMoveIndex: any[];
+              bMove: any[];
+              bMoveIndex: any[];
+          }
+        | {
+              lines: any[];
+              lineCountDeleted: number;
+              lineCountInserted: number;
+              lineCountMoved: number;
+              aMove?: undefined;
+              aMoveIndex?: undefined;
+              bMove?: undefined;
+              bMoveIndex?: undefined;
+          };
+
+    uid: string;
+    changeInfo?: {
+        newComments?: CodeComment[];
+        removedComments?: CodeComment[];
+        changedComments?: CodeComment[];
+    };
 }
 
 export class DataController {
@@ -45,19 +76,31 @@ export class DataController {
     _firestoreData: TimelineEvent[] | undefined;
     _outputData: OutputDataController | undefined;
     _tree: SimplifiedTree<ReadableNode> | undefined;
+    _metaInformationExtractor: MetaInformationExtractor;
     // _readableNode: ReadableNode;
     _chatGptData: VscodeChatGptData[] | undefined = [];
     _vscNodeMetadata: ParsedTsNode | undefined;
     _disposable: Disposable | undefined;
     _debug: boolean = false;
+    _changeBuffer: ChangeBuffer[];
 
     constructor(
         private readonly readableNode: ReadableNode,
-        private readonly container: Container
+        private readonly container: Container,
+        private readonly debug = false
     ) {
         // super();
         // this._readableNode = readableNode;
+        this._changeBuffer = [];
+        this.debug && console.log('MAKING META', this.readableNode);
+        this._metaInformationExtractor = new MetaInformationExtractor(
+            this.readableNode.languageId,
+            this.readableNode.location.content,
+            this.debug
+        );
+        this.debug && console.log('this', this);
         this.initListeners();
+        this.debug && console.log('init complete');
     }
 
     // get readableNode() {
@@ -118,18 +161,55 @@ export class DataController {
                             doc,
                             location
                         );
-                    console.log(
-                        'newNodeMetadata',
-                        newNodeMetadata,
-                        'this',
-                        this
-                    );
+                    // console.log(
+                    //     'newNodeMetadata',
+                    //     newNodeMetadata,
+                    //     'this',
+                    //     this
+                    // );
                     this._vscNodeMetadata = newNodeMetadata;
                     const diff = patienceDiffPlus(
-                        oldContent.split(' '),
-                        newContent.split(' ')
+                        oldContent.split(/[\[\](){}.,;:!?\s]/),
+                        newContent.split(/[\[\](){}.,;:!?\s]/)
                     );
-                    console.log('diff', diff);
+                    const oldComments =
+                        this._metaInformationExtractor.foundComments;
+                    this._metaInformationExtractor.updateMetaInformation(
+                        newContent
+                    );
+                    this._metaInformationExtractor.foundComments.forEach(
+                        (c) => {
+                            c.location = (
+                                this.readableNode.location.range as RangePlus
+                            ).translate(c.location);
+                        }
+                    );
+                    let commentInfo = undefined;
+                    if (
+                        oldComments.length !==
+                        this._metaInformationExtractor.foundComments.length
+                    ) {
+                        commentInfo = {
+                            newComments:
+                                this._metaInformationExtractor.foundComments.filter(
+                                    (c) => c.state && c.state === META_STATE.NEW
+                                ),
+                        };
+                    }
+                    this._changeBuffer.push({
+                        ...(commentInfo && { changeInfo: commentInfo }), // condiiontal property add
+                        ...{
+                            diff,
+                            location,
+                            typeOfChange: changeEvent.typeOfChange,
+                            changeContent: newContent,
+                            time: Date.now(),
+                            uid:
+                                this.container.firestoreController?._user
+                                    ?.uid || 'anonymous',
+                        },
+                    });
+                    console.log('this!!!!', this);
                 })
             ),
             this.readableNode.location.onSelected.event(

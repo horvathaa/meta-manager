@@ -23,10 +23,16 @@ const LOG_FUNCTIONS: { [key: string]: string } = {
     r: 'print',
 };
 
+export enum META_STATE {
+    NEW = 'NEW',
+    CHANGED = 'CHANGED',
+}
 export interface MetaInformation {
     type: string;
     text: string;
-    location: Location;
+    // location: Location;
+    location: Range;
+    state?: META_STATE;
 }
 
 export interface CodeComment extends MetaInformation {
@@ -91,10 +97,8 @@ export const getCodeLine = (
     });
 };
 
-export const getLegalCommentValues = (document: TextDocument) => {
-    const config = new CommentConfigHandler().getCommentConfig(
-        document.languageId
-    );
+export const getLegalCommentValues = (languageId: string) => {
+    const config = new CommentConfigHandler().getCommentConfig(languageId);
     if (config) {
         const { lineComment, blockComment } = config;
         if (lineComment && blockComment) {
@@ -116,8 +120,8 @@ export const getLegalCommentValues = (document: TextDocument) => {
     return [];
 };
 
-export const getLegalLogValues = (document: TextDocument) => {
-    const logFunction = LOG_FUNCTIONS[document.languageId];
+export const getLegalLogValues = (languageId: string) => {
+    const logFunction = LOG_FUNCTIONS[languageId];
     if (!logFunction) {
         return [];
     } else {
@@ -135,7 +139,9 @@ const lineToRange = (l: CodeLine): Range => {
     );
 };
 
-export const lineToPosition = (l: CodeLine, document: TextDocument) => {
+// export const lineToPosition = (l: CodeLine, document: TextDocument) => {
+export const lineToPosition = (l: CodeLine) => {
     // return document.positionAt(l.code[0].offset); // consider adding total offset value to token and/or line
-    return new Location(document.uri, lineToRange(l));
+    // return new Location(document.uri, lineToRange(l));
+    return lineToRange(l);
 };

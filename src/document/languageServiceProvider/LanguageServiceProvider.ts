@@ -201,15 +201,8 @@ class LanguageServiceProvider {
         doc: TextDocument,
         location: LocationPlus
     ) {
-        const range = this.nodeToRange(node, doc);
-        console.log(
-            'range',
-            range,
-            'location',
-            location,
-            'reverse with?',
-            range.with(location.range.start, location.range.end)
-        );
+        // const range = this.nodeToRange(node, doc);
+
         return {
             node,
             location: new Location(

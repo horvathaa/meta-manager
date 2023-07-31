@@ -316,4 +316,8 @@ export default class LocationPlus extends Location {
     compare(other: LocationPlus) {
         return this._range.compare(other._range);
     }
+
+    getDocument() {
+        return workspace.openTextDocument(this.uri);
+    }
 }

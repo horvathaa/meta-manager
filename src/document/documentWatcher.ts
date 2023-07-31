@@ -47,6 +47,7 @@ class DocumentWatcher extends Disposable {
         this._nodesInFile = undefined;
         const listener = container.fileSystemController?.onFileParsed(
             (event: FileParsedEvent) => {
+                // console.log('EVENT', event);
                 const { filename, data } = event;
                 if (filename === this._relativeFilePath) {
                     const tree = new SimplifiedTree<ReadableNode>({
@@ -68,8 +69,9 @@ class DocumentWatcher extends Disposable {
             }
         );
         const otherListener = container.onNodesComplete(() => {
-            if (!this._nodesInFile) {
+            if (this._nodesInFile === undefined) {
                 this._nodesInFile = this.initNodes();
+                // console.log('NEW NODES', this._nodesInFile);
             }
         });
 
@@ -118,7 +120,9 @@ class DocumentWatcher extends Disposable {
                         'could not get path -- doc change',
                         change,
                         'copy buffer',
-                        this.container.copyBuffer
+                        this.container.copyBuffer,
+                        'nodes',
+                        this._nodesInFile
                     );
                     return;
                 }
@@ -158,7 +162,7 @@ class DocumentWatcher extends Disposable {
             ts.ScriptTarget.Latest,
             true
         );
-
+        let debug = false;
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
         // const nodeMetadata =
@@ -171,6 +175,9 @@ class DocumentWatcher extends Disposable {
             name: this._relativeFilePath,
         });
         tree.initRoot(); // initialize the root node
+        // if (tree.name === 'source/viewHelper/viewHelper.ts') {
+        //     debug = true;
+        // }
         // let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
@@ -194,10 +201,17 @@ class DocumentWatcher extends Disposable {
                 // context.container
                 // );
                 // );
+                debug && console.log('adding readable node', readableNode);
                 readableNode.dataController = new DataController(
                     readableNode,
-                    context.container
+                    context.container,
+                    debug
                 );
+                debug &&
+                    console.log(
+                        'adding data node',
+                        readableNode.dataController
+                    );
                 readableNode.location.updateContent(docCopy);
                 // we have a point of comparison
                 if (otherTreeInstance && oldTree) {
@@ -227,7 +241,7 @@ class DocumentWatcher extends Disposable {
                 }
                 // we do not have a point of comparison so we init new nodes
                 else {
-                    name = `${name}:${uuidv4()}}`;
+                    name = `${name}:${uuidv4()}`;
                 }
 
                 readableNode.setId(name);
@@ -257,11 +271,9 @@ class DocumentWatcher extends Disposable {
         function leave(node: ts.Node) {
             const topNode = nodes.pop();
             if (topNode && ts.isBlock(topNode)) {
-                // console.log('currTreeInstance', currTreeInstance);
                 currTreeInstance.pop();
             }
         }
-
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
         if (!oldTree) {
             this.container.fileSystemController?.writeToFile(
@@ -269,8 +281,6 @@ class DocumentWatcher extends Disposable {
                 tree.name
             );
         }
-
-        console.log('newTree', tree);
         return tree;
     }
 }

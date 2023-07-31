@@ -34,6 +34,13 @@ export enum NodeState {
     ADDED = 'ADDED',
 }
 
+const LANGUAGE_ID_MAP: { [key: string]: any } = {
+    ts: 'typescript',
+    js: 'javascript',
+    tsx: 'typescriptreact',
+    jsx: 'javascriptreact',
+};
+
 class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     readonly node: ts.Node | undefined;
     readonly humanReadableKind: string;
@@ -41,7 +48,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     _dataController: DataController | undefined;
     location: LocationPlus;
     id: string;
-
+    languageId: string;
     visited?: boolean;
     state?: NodeState;
     constructor(
@@ -55,6 +62,11 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         super();
         this.node = node;
         this.humanReadableKind = humanReadableKind;
+        const fileExtension = location.uri.fsPath.split('.').pop();
+        this.languageId =
+            fileExtension && LANGUAGE_ID_MAP[fileExtension]
+                ? LANGUAGE_ID_MAP[fileExtension]
+                : 'typescript';
         this.location = location;
         this.id = id || '';
         this.visited = false;
