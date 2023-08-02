@@ -17,7 +17,7 @@ import {
 } from './helpers/lib';
 import { Container } from '../container';
 import { DataController } from '../data/DataController';
-import { debounce } from '../lib';
+import { debounce } from '../utils/lib';
 
 interface SerializedReadableNode {
     humanReadableKind: string;
@@ -34,6 +34,13 @@ export enum NodeState {
     ADDED = 'ADDED',
 }
 
+const LANGUAGE_ID_MAP: { [key: string]: any } = {
+    ts: 'typescript',
+    js: 'javascript',
+    tsx: 'typescriptreact',
+    jsx: 'javascriptreact',
+};
+
 class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     readonly node: ts.Node | undefined;
     readonly humanReadableKind: string;
@@ -41,7 +48,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     _dataController: DataController | undefined;
     location: LocationPlus;
     id: string;
-
+    languageId: string;
     visited?: boolean;
     state?: NodeState;
     constructor(
@@ -55,6 +62,11 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         super();
         this.node = node;
         this.humanReadableKind = humanReadableKind;
+        const fileExtension = location.uri.fsPath.split('.').pop();
+        this.languageId =
+            fileExtension && LANGUAGE_ID_MAP[fileExtension]
+                ? LANGUAGE_ID_MAP[fileExtension]
+                : 'typescript';
         this.location = location;
         this.id = id || '';
         this.visited = false;
@@ -150,16 +162,6 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         const changedDisposable = this.location.onChanged.event(
             (changeEvent: ChangeEvent) => {
                 this.state = this.getNodeState(changeEvent.typeOfChange);
-                this.id.includes('activate') &&
-                    console.log(
-                        'ACTIVATE THIS!!!!!!!',
-                        this,
-                        'event',
-                        changeEvent
-                    );
-                // if (this.state === NodeState.MODIFIED_RANGE_AND_CONTENT) {
-                //     console.log('this!!!!!!!!!!!!!', this);
-                // }
                 // debounce(() => {
                 //     const newContent = this.location.content;
                 //     const numConsoleLogs = newContent.split('console.');

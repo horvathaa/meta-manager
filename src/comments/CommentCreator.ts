@@ -2,7 +2,9 @@ import { Location, TextDocument } from 'vscode';
 import { CommentConfigHandler } from './CommentManager';
 import {
     CodeComment,
+    CodeLine,
     LogStatement,
+    META_STATE,
     MetaInformation,
     getCodeLine,
     getLegalCommentValues,
@@ -10,59 +12,127 @@ import {
     lineToPosition,
 } from './commentCreatorUtils';
 
-export class MetaInformationExtractor {
-    private readonly _searchValues: Map<string, string[]>;
-    private readonly _foundComments: CodeComment[];
-    private readonly _foundLogStatements: LogStatement[];
-    private readonly _document: TextDocument;
-    private readonly _id: string;
+enum SEARCH_VALUES {
+    COMMENT = 'comment',
+    LOG = 'log',
+}
 
-    constructor(document: TextDocument) {
-        this._document = document;
-        this._id = document.uri.toString();
+export class MetaInformationExtractor {
+    private readonly _searchValues: Map<SEARCH_VALUES, string[]>;
+    private _foundComments: CodeComment[];
+    private _foundLogStatements: LogStatement[];
+    // private readonly _document: TextDocument;
+    // private readonly _id: string;
+
+    constructor(
+        private readonly languageId: string,
+        private readonly content: string,
+        private readonly debug = false
+    ) {
+        // this._document = document;
+        // this._id = document.uri.toString();
         this._searchValues = new Map();
         this._searchValues.set(
-            'comment',
-            getLegalCommentValues(this._document)
+            SEARCH_VALUES.COMMENT,
+            getLegalCommentValues(this.languageId)
         );
-        this._searchValues.set('log', getLegalLogValues(this._document));
-        this._foundComments = this.getMetaInformation('comment');
-        this._foundLogStatements = this.getMetaInformation('log');
+        this.debug &&
+            console.log('MADE COMMENT SEARCH VALUE', this._searchValues);
+        this._searchValues.set(
+            SEARCH_VALUES.LOG,
+            getLegalLogValues(this.languageId)
+        );
+        this.debug && console.log('MADE LOG SEARCH VALUE', this._searchValues);
+        this._foundComments = this.getMetaInformation(
+            SEARCH_VALUES.COMMENT,
+            this.content
+        );
+        this.debug && console.log('MADE FOUND COMMENTS', this._foundComments);
+        this._foundLogStatements = this.getMetaInformation(
+            SEARCH_VALUES.LOG,
+            this.content
+        );
+        this.debug &&
+            console.log('MADE FOUND COMMENTS', this._foundLogStatements);
     }
 
-    get id(): string {
-        return this._id;
-    }
+    // get id(): string {
+    //     return this._id;
+    // }
 
-    get searchValues(): Map<string, string[]> {
+    get searchValues(): Map<SEARCH_VALUES, string[]> {
         return this._searchValues;
     }
 
-    get document(): TextDocument {
-        return this._document;
+    get foundComments(): CodeComment[] {
+        return this._foundComments;
     }
 
-    getMetaInformation(type: string): MetaInformation[] {
+    get foundLogStatements(): LogStatement[] {
+        return this._foundLogStatements;
+    }
+
+    updateMetaInformation(content: string) {
+        this._foundComments = this.getMetaInformation(
+            SEARCH_VALUES.COMMENT,
+            content
+        );
+        this._foundLogStatements = this.getMetaInformation(
+            SEARCH_VALUES.LOG,
+            content
+        );
+    }
+
+    // get document(): TextDocument {
+    //     return this._document;
+    // }
+
+    getMetaInformation(
+        type: SEARCH_VALUES,
+        content: string
+    ): MetaInformation[] {
         const searchValues = this._searchValues.get(type);
         if (!searchValues) {
             return [];
         }
-        const codeLines = getCodeLine(this._document.getText());
+        const oldVals =
+            type === SEARCH_VALUES.COMMENT && this.foundComments
+                ? this.foundComments
+                : type === SEARCH_VALUES.LOG && this.foundLogStatements
+                ? this.foundLogStatements
+                : [];
+        this.debug && console.log('OLD VALUES', oldVals);
+        const codeLines = getCodeLine(content);
+        this.debug && console.log('CODE LINES', codeLines);
         const metaInformation: MetaInformation[] = [];
         codeLines.forEach((l) => {
-            console.log('l', l);
             if (l.code.some((c) => searchValues.includes(c.token))) {
                 metaInformation.push({
                     type,
                     text: l.code.map((c) => c.token).join(' '),
-                    location: lineToPosition(l, this._document),
+                    location: lineToPosition(l),
+                    state: this.getMetaInformationState(oldVals, l),
                 });
             }
         });
-        console.log(`metaInformation type: ${type}`, metaInformation);
+        this.debug && console.log('META INFORMATION', metaInformation);
+        // console.log(`metaInformation type: ${type}`, metaInformation);
         return metaInformation;
     }
+
+    getMetaInformationState(
+        oldVals: MetaInformation[],
+        line: CodeLine
+    ): META_STATE {
+        const oldVal = oldVals.find((v) => v.location.start.line === line.line);
+        if (!oldVal) {
+            return META_STATE.NEW;
+        }
+        return META_STATE.CHANGED;
+    }
 }
+
+export default MetaInformationExtractor;
 
 // export const getCommentMetadata = (
 //     document: TextDocument,

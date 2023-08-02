@@ -217,18 +217,25 @@ class FirestoreController extends Disposable {
                 'FirestoreController: Could not set up listener for copy -- no user'
             );
         }
-        const q = query(collectionRef, where('user', '==', this._user.uid));
+        console.log('excuse me', this.container);
+        const q = query(
+            collectionRef,
+            where('user', '==', this._user.uid),
+            where('timeCopied', '>', this.container.launchTime)
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            console.log('snapshot???', snapshot);
             snapshot.docChanges().forEach((change) => {
+                console.log('change????', change);
                 if (change.type === 'added') {
                     console.log('New copy: ', change.doc.data());
                     this._onCopy.fire(change.doc.data() as CopyBuffer);
                 }
                 if (change.type === 'modified') {
-                    console.log('Modified copy: ', change.doc.data());
+                    // console.log('Modified copy: ', change.doc.data());
                 }
                 if (change.type === 'removed') {
-                    console.log('Removed copy: ', change.doc.data());
+                    // console.log('Removed copy: ', change.doc.data());
                 }
             });
         });

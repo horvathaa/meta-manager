@@ -23,7 +23,9 @@ import LocationPlus from './locationApi/location';
 import { FileParsedEvent } from '../fs/FileSystemController';
 import { DataController } from '../data/DataController';
 import { v4 as uuidv4 } from 'uuid';
-import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
+// import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
+import RangePlus from './locationApi/range';
+import { isEmpty } from 'lodash';
 // import { debounce } from '../lib';
 const tstraverse = require('tstraverse');
 
@@ -45,6 +47,7 @@ class DocumentWatcher extends Disposable {
         this._nodesInFile = undefined;
         const listener = container.fileSystemController?.onFileParsed(
             (event: FileParsedEvent) => {
+                // console.log('EVENT', event);
                 const { filename, data } = event;
                 if (filename === this._relativeFilePath) {
                     const tree = new SimplifiedTree<ReadableNode>({
@@ -66,19 +69,25 @@ class DocumentWatcher extends Disposable {
             }
         );
         const otherListener = container.onNodesComplete(() => {
-            if (!this._nodesInFile) {
+            if (this._nodesInFile === undefined) {
                 this._nodesInFile = this.initNodes();
+                // console.log('NEW NODES', this._nodesInFile);
             }
         });
 
-        const docChangeListener = workspace.onDidChangeTextDocument((e) =>
-            this.handleDocumentChange(e)
+        // const docChangeListener = workspace.onDidChangeTextDocument((e) =>
+        //     this.handleOnDocumentChange(e)
+        // );
+        const saveListener = workspace.onDidSaveTextDocument((e) =>
+            this.handleOnDidSaveDidClose(e)
         );
-        // listener should always exist but just in case!
-        const disposables = listener
-            ? [listener, otherListener, docChangeListener]
-            : [otherListener, docChangeListener];
-        this._disposable = Disposable.from(...disposables);
+        const listeners = [
+            saveListener,
+            listener,
+            otherListener,
+            // docChangeListener,
+        ].filter((d) => d) as Disposable[];
+        this._disposable = Disposable.from(...listeners);
     }
 
     get relativeFilePath() {
@@ -89,73 +98,58 @@ class DocumentWatcher extends Disposable {
         return this._nodesInFile;
     }
 
-    handleDocumentChange(event: TextDocumentChangeEvent) {
-        event.document === this.document &&
-            console.log('container', this.container, 'event', event);
-        if (event.document === this.document && this.container.copyBuffer) {
-            for (const change of event.contentChanges) {
-                console.log('change', change, 'container', this.container);
-                if (
-                    change.text.replace(/\s/g, '') ===
-                    this.container.copyBuffer.code.replace(/\s/g, '')
-                ) {
-                    // console.log(
-                    //     'SAME!!!!!!!!!!!!!!',
-                    //     'change',
-                    //     change,
-                    //     'copy buffer',
-                    //     container.copyBuffer
-                    // );
-
-                    const path = this._nodesInFile?.getAllPathsToNodes(
-                        (d: ReadableNode) =>
-                            d.state === NodeState.MODIFIED_RANGE_AND_CONTENT
-                    ); //.forEach((n) => {
-                    console.log(
-                        'path',
-                        path,
-                        'nopdes in file',
-                        this._nodesInFile
-                    );
-                    if (!path) {
-                        console.error(
-                            'could not get path -- doc change',
-                            change,
-                            'copy buffer',
-                            this.container.copyBuffer
-                        );
-                        return;
-                    }
-                    if (!path.length) {
-                        console.error(
-                            'path length is 0 -- probably top level change',
-                            change,
-                            'copy buffer',
-                            this.container.copyBuffer
-                        );
-                        return;
-                    }
-                    const mostAccuratePath = path[path.length - 1];
-                    mostAccuratePath.forEach((n) => {
-                        this.container.copyBuffer &&
-                            n.dataController?.addChatGptData(
-                                this.container.copyBuffer,
-                                {
-                                    uri: this.document.uri,
-                                    textDocumentContentChangeEvent: change,
-                                }
-                            );
-                        console.log('n', n);
-                        n.dataController?.chatGptData &&
-                            this.container.webviewController?.postMessage({
-                                command: 'renderChatGptHistory',
-                                payload: n.dataController.chatGptData[0],
-                            });
-                    });
-                }
-            }
-        }
+    handleOnDidSaveDidClose(event: TextDocument) {
+        // if (event === this.document) {
+        //     this._nodesInFile = this.initNodes(this._nodesInFile);
+        // }
     }
+
+    // handleWebPaste(change: TextDocumentContentChangeEvent) {
+    //     const range = RangePlus.fromTextDocumentContentChangeEvent(change);
+    //     console.log('range', range);
+    //     const path = this._nodesInFile?.getLastNodeInPath((d: ReadableNode) => {
+    //         console.log('d!', d);
+    //         return !isEmpty(d) && d.location.range.contains(range);
+    //     });
+    //     // console.log('path', path, 'nopdes in file', this._nodesInFile);
+    //     if (!path) {
+    //         console.error(
+    //             'could not get path -- doc change',
+    //             change,
+    //             'copy buffer',
+    //             this.container.copyBuffer,
+    //             'nodes',
+    //             this._nodesInFile
+    //         );
+    //         return;
+    //     }
+    //     const n = path;
+    //     this.container.copyBuffer &&
+    //         n.dataController?.addWebData(this.container.copyBuffer, {
+    //             uri: this.document.uri,
+    //             textDocumentContentChangeEvent: change,
+    //         });
+    //     console.log('n', n);
+    //     n.dataController?.webMetaData &&
+    //         this.container.webviewController?.postMessage({
+    //             command: 'renderChatGptHistory',
+    //             payload: n.dataController.webMetaData,
+    //         });
+    // }
+
+    // handleOnDocumentChange(event: TextDocumentChangeEvent) {
+    //     if (event.document === this.document) {
+    //         for (const change of event.contentChanges) {
+    //             // console.log('change', change);
+    //             if (
+    //                 this.container.copyBuffer &&
+    //                 change.text === this.container.copyBuffer.code
+    //             ) {
+    //                 // this.handleWebPaste(change);
+    //             }
+    //         }
+    //     }
+    // }
 
     initNodes(oldTree?: SimplifiedTree<ReadableNode>) {
         const tree = this.traverse(oldTree);
@@ -170,7 +164,7 @@ class DocumentWatcher extends Disposable {
             ts.ScriptTarget.Latest,
             true
         );
-
+        let debug = false;
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
         // const nodeMetadata =
@@ -183,6 +177,9 @@ class DocumentWatcher extends Disposable {
             name: this._relativeFilePath,
         });
         tree.initRoot(); // initialize the root node
+        // if (tree.name === 'source/viewHelper/viewHelper.ts') {
+        //     debug = true;
+        // }
         // let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
@@ -206,10 +203,17 @@ class DocumentWatcher extends Disposable {
                 // context.container
                 // );
                 // );
+                debug && console.log('adding readable node', readableNode);
                 readableNode.dataController = new DataController(
                     readableNode,
-                    context.container
+                    context.container,
+                    debug
                 );
+                debug &&
+                    console.log(
+                        'adding data node',
+                        readableNode.dataController
+                    );
                 readableNode.location.updateContent(docCopy);
                 // we have a point of comparison
                 if (otherTreeInstance && oldTree) {
@@ -239,27 +243,29 @@ class DocumentWatcher extends Disposable {
                 }
                 // we do not have a point of comparison so we init new nodes
                 else {
-                    name = `${name}:${uuidv4()}}`;
+                    name = `${name}:${uuidv4()}`;
                 }
 
                 readableNode.setId(name);
                 readableNode.registerListeners();
                 // v expensive to compute all this metadata
                 // tbd whether/how to speed it up
-                const nodeInfo: VscodeTsNodeMetadata[] = [];
+                // const nodeInfo: VscodeTsNodeMetadata[] = [];
                 //  nodeMetadata.filter((n) =>
                 //     readableNode.readableNode.location.range.contains(
                 //         n.location.range
                 //     )
                 // );
 
-                readableNode.dataController.vscNodeMetadata = nodeInfo;
-                currTreeInstance.push(
-                    currTreeInstance[currTreeInstance.length - 1].insert(
-                        readableNode, // .readableNode,
-                        { name }
-                    )
+                // readableNode.dataController.vscNodeMetadata = nodeInfo;
+                const treeRef = currTreeInstance[
+                    currTreeInstance.length - 1
+                ].insert(
+                    readableNode, // .readableNode,
+                    { name }
                 );
+                // readableNode.dataController.tree = treeRef; // this is wrong lol
+                currTreeInstance.push(treeRef);
             }
         }
 
@@ -270,7 +276,6 @@ class DocumentWatcher extends Disposable {
                 currTreeInstance.pop();
             }
         }
-
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
         if (!oldTree) {
             this.container.fileSystemController?.writeToFile(
@@ -278,8 +283,6 @@ class DocumentWatcher extends Disposable {
                 tree.name
             );
         }
-
-        // console.log('old tree', oldTree, 'newTree', tree);
         return tree;
     }
 }

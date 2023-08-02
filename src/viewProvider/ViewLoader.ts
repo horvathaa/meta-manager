@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { getNonce } from '../lib';
+import { getNonce } from '../utils/lib';
 
 export default class ViewLoader {
     public _panel: vscode.WebviewPanel | undefined;

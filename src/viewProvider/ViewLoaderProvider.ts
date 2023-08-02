@@ -6,7 +6,7 @@ import {
     WebviewViewProvider,
     WebviewViewResolveContext,
 } from 'vscode';
-import { getNonce } from '../lib';
+import { getNonce } from '../utils/lib';
 import { VS_CODE_API } from '../view2/src/VSCodeApi';
 // import TimelinesChart from 'timelines-chart';
 

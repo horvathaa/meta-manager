@@ -88,6 +88,35 @@ class RangePlus extends Range {
         return new RangePlus(start, end);
     }
 
+    public translate(range: Range) {
+        return RangePlus.fromLineNumbers(
+            this.start.line + range.start.line,
+            this.start.line === range.start.line
+                ? this.start.character + range.start.character
+                : range.start.character,
+            this.start.line + range.end.line,
+            this.start.line === range.end.line
+                ? this.start.character + range.end.character
+                : range.end.character
+        );
+    }
+
+    public static fromRangeAndText(range: Range, text: string) {
+        const numNewlines = text.split('\n').length - 1;
+        if (numNewlines) {
+            const end = new Position(
+                range.start.line + numNewlines,
+                text.substring(text.lastIndexOf('\n')).length
+            );
+            return RangePlus.fromPositions(range.start, end);
+        } else {
+            return RangePlus.fromPositions(
+                range.start,
+                range.end.translate(0, text.length)
+            );
+        }
+    }
+
     public static fromTextDocumentContentChangeEvent(
         textDocumentContentChangeEvent: TextDocumentContentChangeEvent
     ): RangePlus {
@@ -101,19 +130,7 @@ class RangePlus extends Range {
         } // addition
         else {
             const { range, text } = textDocumentContentChangeEvent;
-            const numNewlines = text.split('\n').length - 1;
-            if (numNewlines) {
-                const end = new Position(
-                    range.start.line + numNewlines,
-                    text.substring(text.lastIndexOf('\n')).length
-                );
-                return RangePlus.fromPositions(range.start, end);
-            } else {
-                return RangePlus.fromPositions(
-                    range.start,
-                    range.end.translate(0, text.length)
-                );
-            }
+            return RangePlus.fromRangeAndText(range, text);
         }
     }
 
@@ -268,15 +285,15 @@ class RangePlus extends Range {
             contentChangeRange,
             this
         );
-        debug &&
-            console.log(
-                'changeContext',
-                changeContext,
-                'contentChangeRange',
-                contentChangeRange,
-                'our range',
-                this
-            );
+        // debug &&
+        //     console.log(
+        //         'changeContext',
+        //         changeContext,
+        //         'contentChangeRange',
+        //         contentChangeRange,
+        //         'our range',
+        //         this
+        //     );
         if (
             changeContext.rangeIntersectionType ===
                 RangeIntersectionType.UNKNOWN ||

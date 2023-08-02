@@ -35,6 +35,14 @@
 				"npm: watch-tests"
 			],
 			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "build:webpack",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "npm: build:webpack",
+			"detail": "webpack"
 		}
 	]
 }

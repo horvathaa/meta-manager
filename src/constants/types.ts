@@ -85,15 +85,63 @@ export interface ThreadPair {
     codeBlocks: CodeBlock[];
 }
 
+export enum WEB_INFO_SOURCE {
+    CHAT_GPT = 'CHAT_GPT',
+    GITHUB = 'GITHUB',
+    STACKOVERFLOW = 'STACKOVERFLOW',
+    OTHER = 'OTHER',
+}
+
 export interface CopyBuffer {
-    id: string;
     code: string;
+    url: string;
+    user: string;
+    type: WEB_INFO_SOURCE;
+    timeCopied: number;
+    id: string;
+    additionalMetadata: AdditionalMetadata;
+}
+
+type AdditionalMetadata = ChatGptCopyBuffer | GitHubCopyBuffer | null;
+
+export interface VscodeCopyBuffer extends CopyBuffer {
+    location: LocationPlus;
+    pasteTime: number;
+    gitMetadata: any;
+}
+
+export interface ChatGptCopyBuffer {
+    // id: string;
+    // code: string;
     messageCopied: ThreadPair;
     thread: ChatGptThread;
 }
 
-export interface VscodeChatGptData extends CopyBuffer {
-    location: LocationPlus;
-    pasteTime: number;
-    gitMetadata: any;
+interface Code {
+    language: string;
+    code: string;
+    filename: string;
+    url?: string;
+    startLine?: number;
+    endLine?: number;
+}
+
+// TODO: add stars, version, readme
+// Would be nice to also isten for copy-paste from within VS Code
+// pull in "local changes" from source in which code was copied
+// like this code is from the chrome extension part of this repo
+// would be nice to get any changes i make to that interface over here
+interface Repo {
+    name: string;
+    owner: string;
+    branch: string;
+    commit: string;
+    stars?: number;
+    version?: string;
+    readme?: string;
+}
+
+export interface GitHubCopyBuffer {
+    codeMetadata: Code;
+    repo: Repo;
 }

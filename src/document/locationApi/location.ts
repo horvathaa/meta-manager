@@ -17,12 +17,13 @@ import {
 } from 'vscode';
 import RangePlus, { SerializedRangePlus } from './range';
 import { isTextDocument } from '../lib';
+import { debounce } from '../../utils/lib';
 
 export enum TypeOfChange {
-    RANGE_ONLY,
-    CONTENT_ONLY,
-    RANGE_AND_CONTENT,
-    NO_CHANGE,
+    RANGE_ONLY = 'RANGE_ONLY',
+    CONTENT_ONLY = 'CONTENT_ONLY',
+    RANGE_AND_CONTENT = 'RANGE_AND_CONTENT',
+    NO_CHANGE = 'NO_CHANGE',
 }
 
 export interface LocationPlusOptions {
@@ -39,9 +40,17 @@ export interface SerializedLocationPlus {
     id?: string;
 }
 
+export interface PreviousRangeContent {
+    oldRange: RangePlus;
+    oldContent: string;
+}
+
 export interface ChangeEvent {
     location: LocationPlus;
     typeOfChange: TypeOfChange;
+    previousRangeContent: PreviousRangeContent;
+    originalChangeEvent: TextDocumentContentChangeEvent;
+    addedContent?: string;
 }
 
 export default class LocationPlus extends Location {
@@ -50,6 +59,7 @@ export default class LocationPlus extends Location {
     _content: string;
     _id?: string;
     _textEditorDecoration?: TextEditorDecorationType;
+    _lastEditedTime: NodeJS.Timeout | null;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     onChanged: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
     onSelected: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
@@ -59,15 +69,23 @@ export default class LocationPlus extends Location {
         opts?: LocationPlusOptions
     ) {
         super(uri, rangeOrPosition);
-
+        this._lastEditedTime = null;
         this._range =
             rangeOrPosition instanceof Range
                 ? RangePlus.fromRange(rangeOrPosition)
                 : rangeOrPosition instanceof Position
                 ? RangePlus.fromPosition(rangeOrPosition)
                 : RangePlus.fromLineNumbers(0, 0, 0, 0); // may just want to throw an error instead
+        const debouncedOnTextDocumentChanged = // debounce(
+            (e: TextDocumentChangeEvent) => this.onTextDocumentChanged(e); //,
+        // 500 // Adjust the debounce time (in milliseconds) to your needs
+        //);
+
         this._disposable = Disposable.from(
-            workspace.onDidChangeTextDocument(this.onTextDocumentChanged, this),
+            workspace.onDidChangeTextDocument(
+                (e) => debouncedOnTextDocumentChanged(e),
+                this
+            ),
             window.onDidChangeActiveTextEditor(
                 this.onDidChangeActiveTextEditor,
                 this
@@ -151,27 +169,64 @@ export default class LocationPlus extends Location {
             : textEditorOrDocument.document.getText(this._range);
     }
 
-    private getTypeOfChange(oldRange: RangePlus, oldContent: string) {
+    private getTypeOfChange(
+        oldRange: RangePlus,
+        oldContent: string,
+        contentChangeRange: RangePlus
+    ) {
         const newRange = this._range;
         const newContent = this._content;
-        if (oldRange.isEqual(newRange) && oldContent === newContent) {
-            return TypeOfChange.NO_CHANGE;
-        } else if (oldRange.isEqual(newRange)) {
-            return TypeOfChange.CONTENT_ONLY;
-        } else if (oldContent === newContent) {
-            return TypeOfChange.RANGE_ONLY;
-        } else {
+        const cleanedNewContent = newContent.replace(/\s/g, '');
+        const cleanedOldContent = oldContent.replace(/\s/g, '');
+        if (
+            !oldRange.isEqual(newRange) &&
+            cleanedOldContent !== cleanedNewContent &&
+            (oldRange.contains(contentChangeRange) ||
+                oldRange.doesIntersect(contentChangeRange))
+        ) {
             return TypeOfChange.RANGE_AND_CONTENT;
+        } else if (!oldRange.isEqual(newRange)) {
+            return TypeOfChange.RANGE_ONLY;
+        } else if (
+            cleanedOldContent !== cleanedNewContent &&
+            (oldRange.contains(contentChangeRange) ||
+                oldRange.doesIntersect(contentChangeRange))
+        ) {
+            return TypeOfChange.CONTENT_ONLY;
+        } else {
+            return TypeOfChange.NO_CHANGE;
         }
     }
 
-    onTextDocumentChanged(onTextDocumentChanged: TextDocumentChangeEvent) {
+    posToLine(pos: number) {
+        const code = this.content.slice(0, pos).split('\n');
+        return new Position(
+            this.range.start.line + code.length - 1,
+            code[code.length - 1].length
+        );
+    }
+
+    deriveRangeFromOffset(offsetStart: number, offsetEnd: number) {
+        const start = this.posToLine(offsetStart);
+        const end = this.posToLine(offsetEnd);
+        return RangePlus.fromPositions(start, end);
+    }
+
+    onTextDocumentChanged(
+        onTextDocumentChanged: TextDocumentChangeEvent,
+        thisArg?: any
+    ) {
+        // debounce(() => {
         const { document, contentChanges } = onTextDocumentChanged;
         if (this.uri.fsPath === document.uri.fsPath) {
             for (const change of contentChanges) {
-                // console.log('this is being called', this);
                 const oldRange = this._range.copy();
                 const oldContent = this._content;
+                const previousRangeContent: PreviousRangeContent = {
+                    oldRange,
+                    oldContent,
+                };
+                // console.log('change', change);
                 const updated = this._range.update(change);
                 this._range = RangePlus.fromRange(
                     document.validateRange(updated)
@@ -186,19 +241,47 @@ export default class LocationPlus extends Location {
                     furtherNormalizedStart.start,
                     furtherNormalizedEnd.end
                 );
-                this._content = document.getText(this._range);
-                // if (
-                //     !this._range.isEqual(oldRange) ||
-                //     this._content !== oldContent
-                // ) {
-                const typeOfChange = this.getTypeOfChange(oldRange, oldContent);
-                // console.log('this is firing', this);
-                this.onChanged.fire({ location: this, typeOfChange });
-                // }
-                this.range = this._range;
-                this._range.updateRangeLength(document);
+                // only fire the onchanged event after the user has stopped typing for 5 seconds
+                // can tinker with the wait time but 5 seconds seems ok for now
+                // we do this so the parser can do a smarter diff
+                this._lastEditedTime && clearTimeout(this._lastEditedTime);
+                this._lastEditedTime = setTimeout(() => {
+                    this._content = document.getText(this._range);
+                    const contentChangeRange =
+                        RangePlus.fromTextDocumentContentChangeEvent(change);
+                    const typeOfChange = this.getTypeOfChange(
+                        oldRange,
+                        oldContent,
+                        contentChangeRange
+                    );
+                    console.log('ABOUT TO FIRE', {
+                        ...{
+                            location: this,
+                            typeOfChange,
+                            previousRangeContent,
+                            originalChangeEvent: change,
+                        },
+                        ...(change.text.length > 0 && {
+                            addedContent: change.text,
+                        }),
+                    });
+                    this.onChanged.fire({
+                        ...{
+                            location: this,
+                            typeOfChange,
+                            previousRangeContent,
+                            originalChangeEvent: change,
+                        },
+                        ...(change.text.length > 0 && {
+                            addedContent: change.text,
+                        }),
+                    });
+                    this.range = this._range;
+                    this._range.updateRangeLength(document);
+                }, 5000);
             }
         }
+        // });
     }
 
     onDidChangeActiveTextEditor(textEditor: TextEditor | undefined) {
@@ -253,5 +336,16 @@ export default class LocationPlus extends Location {
     // assume same file
     compare(other: LocationPlus) {
         return this._range.compare(other._range);
+    }
+
+    getDocument() {
+        return workspace.openTextDocument(this.uri);
+    }
+
+    contains(otherLocation: Location) {
+        return (
+            this.uri.toString() === otherLocation.uri.toString() &&
+            this._range.contains(otherLocation.range)
+        );
     }
 }

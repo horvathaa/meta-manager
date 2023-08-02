@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import * as ts from 'typescript';
 import * as path from 'path';
 import { Container } from '../../container';
+import LocationPlus from '../locationApi/location';
+import RangePlus from '../locationApi/range';
 const tstraverse = require('tstraverse');
 
 // interface VscodeTsNode {
@@ -12,19 +14,32 @@ const tstraverse = require('tstraverse');
 //     kind: string;
 // }
 
-export interface VscodeTsNodeMetadata {
-    references: ts.ReferenceEntry[] | undefined;
-    definition: readonly ts.DefinitionInfo[] | undefined;
-    node: ts.Identifier;
+interface BasicNodeMetadata {
+    node: ts.Node;
     location: Location;
     kind: string;
+}
+
+export interface IdentifierNodeMetadata extends BasicNodeMetadata {
+    references: ts.ReferenceEntry[] | undefined;
+    definition: readonly ts.DefinitionInfo[] | undefined;
+    name: string;
+}
+
+export interface BlockNodeMetadata extends BasicNodeMetadata {
+    code: string;
+}
+
+export interface ParsedTsNode {
+    identifiers: IdentifierNodeMetadata[];
+    blocks: BlockNodeMetadata[];
 }
 
 class LanguageServiceProvider {
     _languageService: ts.LanguageService;
     _tsConfig: ts.ParsedCommandLine;
     _filenames: Map<string, string>;
-    _docNodeMap: Map<string, VscodeTsNodeMetadata[]>;
+    _docNodeMap: Map<string, ParsedTsNode[]>;
     constructor(private readonly container: Container) {
         if (!container.workspaceFolder) {
             throw new Error('LanguageServiceProvider: No root project path');
@@ -172,7 +187,7 @@ class LanguageServiceProvider {
         return new Position(code.length - 1, code[code.length - 1].length);
     }
 
-    public nodeToRange(node: ts.Identifier, doc: TextDocument) {
+    public nodeToRange(node: ts.Node, doc: TextDocument) {
         const code = doc.getText();
         return new Range(
             this.posToLine(code, this.getNodePosition(node, doc)),
@@ -181,18 +196,29 @@ class LanguageServiceProvider {
     }
 
     public makeVscodeTsNode(
-        node: ts.Identifier,
+        node: ts.Node,
         precedingNode: ts.Node,
-        doc: TextDocument
+        doc: TextDocument,
+        location: LocationPlus
     ) {
+        // const range = this.nodeToRange(node, doc);
+
         return {
             node,
-            location: new Location(doc.uri, this.nodeToRange(node, doc)),
+            location: new Location(
+                doc.uri,
+                location.deriveRangeFromOffset(node.pos, node.end)
+                // (location.range as RangePlus).translate(range)
+            ),
             kind: ts.SyntaxKind[precedingNode.kind],
         };
     }
 
-    public parseCodeBlock(code: string, doc: TextDocument) {
+    public parseCodeBlock(
+        code: string,
+        doc: TextDocument,
+        location: LocationPlus
+    ) {
         const tsFilename = this._filenames.get(
             this.getRelativePath(doc.uri.fsPath)
         );
@@ -210,18 +236,35 @@ class LanguageServiceProvider {
             ts.ScriptTarget.Latest
         );
         const nodes: ts.Node[] = [];
-        const nodeMetadatas: VscodeTsNodeMetadata[] = [];
+        const nodeMetadata: ParsedTsNode = {
+            identifiers: [],
+            blocks: [],
+        };
 
         function enter(node: ts.Node) {
             if (ts.isIdentifier(node)) {
-                nodeMetadatas.push({
+                nodeMetadata.identifiers.push({
                     ...context.makeVscodeTsNode(
                         node,
                         nodes[nodes.length - 1],
-                        doc
+                        doc,
+                        location
                     ),
                     references: context.getReferences(node, doc),
                     definition: context.getDefinition(node, doc),
+                    name: node.text,
+                });
+            }
+            if (ts.isBlock(node)) {
+                const basic = context.makeVscodeTsNode(
+                    node,
+                    nodes[nodes.length - 1],
+                    doc,
+                    location
+                );
+                nodeMetadata.blocks.push({
+                    ...basic,
+                    code: doc.getText(basic.location.range),
                 });
             }
             nodes.push(node);
@@ -232,7 +275,7 @@ class LanguageServiceProvider {
         }
 
         tstraverse.traverse(source, { enter, leave });
-        return nodeMetadatas;
+        return nodeMetadata;
     }
 }
 
