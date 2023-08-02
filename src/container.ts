@@ -20,6 +20,14 @@ import FirestoreController from './data/firestore/FirestoreController';
 import DebugController from './debug/debug';
 import LanguageServiceProvider from './document/languageServiceProvider/LanguageServiceProvider';
 import { CopyBuffer } from './constants/types';
+import LocationPlus from './document/locationApi/location';
+import RangePlus from './document/locationApi/range';
+
+export interface ClipboardMetadata {
+    text: string;
+    location: LocationPlus;
+    time: number;
+}
 
 export class Container {
     // https://stackoverflow.com/questions/59641564/what-are-the-differences-between-the-private-keyword-and-private-fields-in-types -- why # sign
@@ -27,9 +35,15 @@ export class Container {
     _disposables: Disposable[];
     _onInitComplete: EventEmitter<Container> = new EventEmitter<Container>();
     _onNodesComplete: EventEmitter<Container> = new EventEmitter<Container>();
-
-    private readonly _context: ExtensionContext;
-    constructor(context: ExtensionContext) {
+    _onCopy: EventEmitter<ClipboardMetadata> =
+        new EventEmitter<ClipboardMetadata>();
+    _onPaste: EventEmitter<ClipboardMetadata> =
+        new EventEmitter<ClipboardMetadata>();
+    constructor(
+        readonly context: ExtensionContext,
+        readonly launchTime = Date.now()
+    ) {
+        console.log('CONTEXT', this.context);
         this._disposables = [];
         this._workspaceFolder = workspace.workspaceFolders
             ? workspace.workspaceFolders[0]
@@ -43,21 +57,23 @@ export class Container {
             (textEditor: TextEditor, edit: TextEditorEdit, params: any) =>
                 this.overriddenClipboardCopyAction(textEditor, edit, params)
         );
+        this._clipboardPasteDisposable = commands.registerTextEditorCommand(
+            'editor.action.clipboardPasteAction',
+            (textEditor: TextEditor, edit: TextEditorEdit, params: any) =>
+                this.overriddenClipboardPasteAction(textEditor, edit, params)
+        );
         this._disposables.push(
             // (this._dataController = new DataController(this))
             // (this._fileParser = FileParser.createFileParser(context, this)) // new FileParser(context, this))
-            this._clipboardCopyDisposable
+            this._clipboardCopyDisposable,
+            this._clipboardPasteDisposable
         );
-        this._context = context;
+        // this._context = context;
     }
 
     private _fileParser: FileParser | undefined;
     public get fileParser(): FileParser | undefined {
         return this._fileParser;
-    }
-
-    public get context(): ExtensionContext {
-        return this._context;
     }
 
     private _workspaceFolder: WorkspaceFolder | undefined;
@@ -105,12 +121,25 @@ export class Container {
         return this._clipboardCopyDisposable;
     }
 
+    private _clipboardPasteDisposable: Disposable | undefined;
+    public get clipboardPasteDisposable(): Disposable | undefined {
+        return this._clipboardCopyDisposable;
+    }
+
     public get onInitComplete() {
         return this._onInitComplete.event;
     }
 
     public get onNodesComplete() {
         return this._onNodesComplete.event;
+    }
+
+    public get onCopy() {
+        return this._onCopy.event;
+    }
+
+    public get onPaste() {
+        return this._onPaste.event;
     }
 
     static async create(context: ExtensionContext) {
@@ -158,6 +187,88 @@ export class Container {
         }
     }
 
+    async overriddenClipboardPasteAction(
+        textEditor: TextEditor,
+        edit: TextEditorEdit,
+        params: any
+    ) {
+        const pastedText = await env.clipboard.readText();
+        console.log(
+            'overriddenClipboardPasteAction',
+            textEditor,
+            edit,
+            params,
+            pastedText
+        );
+
+        this._clipboardPasteDisposable?.dispose();
+        commands
+            .executeCommand('editor.action.clipboardPasteAction')
+            .then(() => {
+                // commands
+                //     .executeCommand('editor.action.clipboardPasteAction')
+                //     .then(() => {
+                //add the overridden editor.action.clipboardCopyAction back
+                this._clipboardPasteDisposable =
+                    commands.registerTextEditorCommand(
+                        'editor.action.clipboardPasteAction',
+                        (
+                            textEditor: TextEditor,
+                            edit: TextEditorEdit,
+                            params: any
+                        ) =>
+                            this.overriddenClipboardPasteAction(
+                                textEditor,
+                                edit,
+                                params
+                            )
+                    );
+                this.context.subscriptions.push(this._clipboardPasteDisposable);
+                // });
+                const location: LocationPlus = new LocationPlus(
+                    textEditor.document.uri,
+                    RangePlus.fromRangeAndText(textEditor.selection, pastedText)
+                );
+
+                this._onPaste.fire({
+                    text: pastedText,
+                    location,
+                    time: Date.now(),
+                });
+            });
+        // console.log('textEditor', textEditor);
+        // console.log('edit', edit);
+        // console.log('params', params);
+        // console.log('this', this);
+        // if (textEditor.document.uri !== this.readableNode.location.uri) {
+        //     return;
+        // }
+
+        // const selection = textEditor.selection;
+        // if (!this.readableNode.location.range.contains(selection)) {
+        //     return;
+        // }
+        // const selectionRange = RangePlus.fromPositions(
+        //     selection.start,
+        //     selection.end
+        // );
+        // const selectionContent = textEditor.document.getText(selectionRange);
+        // const newNodeMetadata =
+        //     this.container.languageServiceProvider.parseCodeBlock(
+        //         selectionContent,
+        //         doc,
+        //         this.readableNode.location
+        //     );
+        // // console.log(
+        // //     'newNodeMetadata',
+        // //     newNodeMetadata,
+        // //     'this',
+        // //     this
+        // // );
+        // this._vscNodeMetadata = newNodeMetadata;
+        // console.log('this._vscNodeMe
+    }
+
     overriddenClipboardCopyAction(
         textEditor: TextEditor,
         edit: TextEditorEdit,
@@ -189,7 +300,20 @@ export class Container {
                                 params
                             )
                     );
-                this._context.subscriptions.push(this._clipboardCopyDisposable);
+                this.context.subscriptions.push(this._clipboardCopyDisposable);
+                const copiedText = textEditor.document.getText(
+                    textEditor.selection
+                );
+                const location: LocationPlus = new LocationPlus(
+                    textEditor.document.uri,
+                    textEditor.selection
+                );
+
+                this._onCopy.fire({
+                    text: copiedText,
+                    location,
+                    time: Date.now(),
+                });
             });
     }
 }

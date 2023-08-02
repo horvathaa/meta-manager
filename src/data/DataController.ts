@@ -5,6 +5,9 @@ import {
     window,
     workspace,
     TextDocumentContentChangeEvent,
+    commands,
+    TextEditor,
+    TextEditorEdit,
 } from 'vscode';
 import { Container } from '../container';
 import {
@@ -23,14 +26,15 @@ import TimelineEvent from './timeline/TimelineEvent';
 import { ParsedTsNode } from '../document/languageServiceProvider/LanguageServiceProvider';
 import { debounce } from '../utils/lib';
 import { patienceDiffPlus } from '../utils/PatienceDiff';
-import { CopyBuffer, VscodeChatGptData } from '../constants/types';
+import { CopyBuffer, VscodeCopyBuffer } from '../constants/types';
 import MetaInformationExtractor from '../comments/CommentCreator';
 import RangePlus from '../document/locationApi/range';
 import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
+import { CurrentGitState } from './git/GitController';
 
 export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
 
-interface InitChatGptData {
+interface PasteData {
     uri: Uri;
     textDocumentContentChangeEvent: TextDocumentContentChangeEvent;
 }
@@ -78,11 +82,13 @@ export class DataController {
     _tree: SimplifiedTree<ReadableNode> | undefined;
     _metaInformationExtractor: MetaInformationExtractor;
     // _readableNode: ReadableNode;
-    _chatGptData: VscodeChatGptData[] | undefined = [];
+    // _chatGptData: VscodeCopyBuffer[] | undefined = [];
+    _webMetaData: VscodeCopyBuffer[] = [];
     _vscNodeMetadata: ParsedTsNode | undefined;
     _disposable: Disposable | undefined;
     _debug: boolean = false;
     _changeBuffer: ChangeBuffer[];
+    // _pasteDisposable: Disposable;
 
     constructor(
         private readonly readableNode: ReadableNode,
@@ -99,6 +105,7 @@ export class DataController {
             this.debug
         );
         this.debug && console.log('this', this);
+        // this._pasteDisposable =
         this.initListeners();
         this.debug && console.log('init complete');
     }
@@ -126,8 +133,91 @@ export class DataController {
         return this.readableNode.compare(other);
     }
 
+    handleUpdateChangeBuffer(
+        oldContent: string,
+        newContent: string,
+        changeEvent: ChangeEvent
+    ) {
+        const diff = patienceDiffPlus(
+            oldContent.split(/[\[\](){}.,;:!?\s]/),
+            newContent.split(/[\[\](){}.,;:!?\s]/)
+        );
+        const oldComments = this._metaInformationExtractor.foundComments;
+        this._metaInformationExtractor.updateMetaInformation(newContent);
+        this._metaInformationExtractor.foundComments.forEach((c) => {
+            c.location = (
+                this.readableNode.location.range as RangePlus
+            ).translate(c.location);
+        });
+        let commentInfo = undefined;
+        if (
+            oldComments.length !==
+            this._metaInformationExtractor.foundComments.length
+        ) {
+            commentInfo = {
+                newComments:
+                    this._metaInformationExtractor.foundComments.filter(
+                        (c) => c.state && c.state === META_STATE.NEW
+                    ),
+            };
+        }
+        this._changeBuffer.push({
+            ...(commentInfo && { changeInfo: commentInfo }), // condiiontal property add
+            ...{
+                diff,
+                location: changeEvent.location,
+                typeOfChange: changeEvent.typeOfChange,
+                changeContent: newContent,
+                time: Date.now(),
+                uid:
+                    this.container.firestoreController?._user?.uid ||
+                    'anonymous',
+            },
+        });
+        console.log('this!!!!', this);
+    }
+
+    async handleUpdateNodeMetadata(newContent: string, location: LocationPlus) {
+        const editor = window.activeTextEditor || window.visibleTextEditors[0];
+        const doc =
+            editor.document.uri.fsPath === location.uri.fsPath
+                ? editor.document
+                : await workspace.openTextDocument(location.uri); // idk when this would ever happen??? maybe in a git pull where a whole bunch of docs are being updated
+
+        const newNodeMetadata =
+            this.container.languageServiceProvider.parseCodeBlock(
+                newContent,
+                doc,
+                location
+            );
+        // console.log(
+        //     'newNodeMetadata',
+        //     newNodeMetadata,
+        //     'this',
+        //     this
+        // );
+        this._vscNodeMetadata = newNodeMetadata;
+    }
+
     initListeners() {
         this._disposable = Disposable.from(
+            // this._pasteDisposable,
+            // tbd how much info to copy in the copy event -- probably would need
+            // to transmit back to container? put in copy buffer
+            this.container.onCopy((copyEvent) => {
+                if (this.readableNode.location.contains(copyEvent.location)) {
+                    console.log('COPIED', this, 'copy', copyEvent);
+                }
+            }),
+            // same questions as above for paste -- what to save
+            // from console logs it seems like this event gets fired before the
+            // on change but that's probably due to the debounce for that...?
+            // tbd
+            this.container.onPaste((pasteEvent) => {
+                if (this.readableNode.location.contains(pasteEvent.location)) {
+                    console.log('PASTED', this, 'paste', pasteEvent);
+                }
+            }),
             this.readableNode.location.onChanged.event(
                 debounce(async (changeEvent: ChangeEvent) => {
                     // console.log('hewwo???', location);
@@ -148,68 +238,30 @@ export class DataController {
                         return;
                     }
 
-                    const editor =
-                        window.activeTextEditor || window.visibleTextEditors[0];
-                    const doc =
-                        editor.document.uri.fsPath === location.uri.fsPath
-                            ? editor.document
-                            : await workspace.openTextDocument(location.uri); // idk when this would ever happen??? maybe in a git pull where a whole bunch of docs are being updated
-
-                    const newNodeMetadata =
-                        this.container.languageServiceProvider.parseCodeBlock(
-                            newContent,
-                            doc,
-                            location
-                        );
-                    // console.log(
-                    //     'newNodeMetadata',
-                    //     newNodeMetadata,
-                    //     'this',
-                    //     this
-                    // );
-                    this._vscNodeMetadata = newNodeMetadata;
-                    const diff = patienceDiffPlus(
-                        oldContent.split(/[\[\](){}.,;:!?\s]/),
-                        newContent.split(/[\[\](){}.,;:!?\s]/)
+                    console.log(
+                        'changeEvent!!!!!!!',
+                        changeEvent,
+                        'this!!!!!',
+                        this
                     );
-                    const oldComments =
-                        this._metaInformationExtractor.foundComments;
-                    this._metaInformationExtractor.updateMetaInformation(
-                        newContent
-                    );
-                    this._metaInformationExtractor.foundComments.forEach(
-                        (c) => {
-                            c.location = (
-                                this.readableNode.location.range as RangePlus
-                            ).translate(c.location);
-                        }
-                    );
-                    let commentInfo = undefined;
                     if (
-                        oldComments.length !==
-                        this._metaInformationExtractor.foundComments.length
+                        this.container.copyBuffer &&
+                        changeEvent.addedContent &&
+                        changeEvent.addedContent ===
+                            this.container.copyBuffer.code
                     ) {
-                        commentInfo = {
-                            newComments:
-                                this._metaInformationExtractor.foundComments.filter(
-                                    (c) => c.state && c.state === META_STATE.NEW
-                                ),
-                        };
+                        this.addWebData(this.container.copyBuffer, {
+                            uri: location.uri,
+                            textDocumentContentChangeEvent:
+                                changeEvent.originalChangeEvent,
+                        });
                     }
-                    this._changeBuffer.push({
-                        ...(commentInfo && { changeInfo: commentInfo }), // condiiontal property add
-                        ...{
-                            diff,
-                            location,
-                            typeOfChange: changeEvent.typeOfChange,
-                            changeContent: newContent,
-                            time: Date.now(),
-                            uid:
-                                this.container.firestoreController?._user
-                                    ?.uid || 'anonymous',
-                        },
-                    });
-                    console.log('this!!!!', this);
+                    this.handleUpdateChangeBuffer(
+                        oldContent,
+                        newContent,
+                        changeEvent
+                    );
+                    this.handleUpdateNodeMetadata(newContent, location);
                 })
             ),
             this.readableNode.location.onSelected.event(
@@ -245,22 +297,22 @@ export class DataController {
         return () => this.dispose();
     }
 
-    addChatGptData(data: CopyBuffer, initChatGptData: InitChatGptData) {
+    addWebData(data: CopyBuffer, initChatGptData: PasteData) {
         const { uri, textDocumentContentChangeEvent } = initChatGptData;
         console.log('gitcontroller', this.container.gitController);
-        this._chatGptData?.push({
+        const { repository, ...rest } = this.container.gitController
+            ?.gitState as CurrentGitState;
+        this._webMetaData?.push({
             ...data,
             location: new LocationPlus(
                 uri,
-                initChatGptData.textDocumentContentChangeEvent.range,
-                {
-                    rangeFromTextDocumentContentChangeEvent:
-                        textDocumentContentChangeEvent,
-                }
+                RangePlus.fromTextDocumentContentChangeEvent(
+                    textDocumentContentChangeEvent
+                )
             ),
             pasteTime: Date.now(),
-            // gitMetadata: this.container.gitController?.gitState,
-            gitMetadata: null,
+            gitMetadata: rest,
+            // gitMetadata: null,
         });
         this._debug = true;
     }
@@ -287,8 +339,8 @@ export class DataController {
         return this._vscNodeMetadata;
     }
 
-    get chatGptData() {
-        return this._chatGptData;
+    get webMetaData() {
+        return this._webMetaData;
     }
 
     set tree(newTree: SimplifiedTree<ReadableNode> | undefined) {

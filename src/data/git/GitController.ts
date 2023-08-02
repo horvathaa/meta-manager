@@ -12,7 +12,7 @@ import { Container } from '../../container';
 import { isTextDocument } from '../../document/lib';
 import { API, APIState, Repository } from './gitApi/git';
 
-interface CurrentGitState {
+export interface CurrentGitState {
     repo: string;
     branch: string;
     commit: string;

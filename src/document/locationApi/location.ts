@@ -20,10 +20,10 @@ import { isTextDocument } from '../lib';
 import { debounce } from '../../utils/lib';
 
 export enum TypeOfChange {
-    RANGE_ONLY,
-    CONTENT_ONLY,
-    RANGE_AND_CONTENT,
-    NO_CHANGE,
+    RANGE_ONLY = 'RANGE_ONLY',
+    CONTENT_ONLY = 'CONTENT_ONLY',
+    RANGE_AND_CONTENT = 'RANGE_AND_CONTENT',
+    NO_CHANGE = 'NO_CHANGE',
 }
 
 export interface LocationPlusOptions {
@@ -49,6 +49,8 @@ export interface ChangeEvent {
     location: LocationPlus;
     typeOfChange: TypeOfChange;
     previousRangeContent: PreviousRangeContent;
+    originalChangeEvent: TextDocumentContentChangeEvent;
+    addedContent?: string;
 }
 
 export default class LocationPlus extends Location {
@@ -179,14 +181,16 @@ export default class LocationPlus extends Location {
         if (
             !oldRange.isEqual(newRange) &&
             cleanedOldContent !== cleanedNewContent &&
-            oldRange.contains(contentChangeRange)
+            (oldRange.contains(contentChangeRange) ||
+                oldRange.doesIntersect(contentChangeRange))
         ) {
             return TypeOfChange.RANGE_AND_CONTENT;
         } else if (!oldRange.isEqual(newRange)) {
             return TypeOfChange.RANGE_ONLY;
         } else if (
             cleanedOldContent !== cleanedNewContent &&
-            oldRange.contains(contentChangeRange)
+            (oldRange.contains(contentChangeRange) ||
+                oldRange.doesIntersect(contentChangeRange))
         ) {
             return TypeOfChange.CONTENT_ONLY;
         } else {
@@ -250,10 +254,27 @@ export default class LocationPlus extends Location {
                         oldContent,
                         contentChangeRange
                     );
+                    console.log('ABOUT TO FIRE', {
+                        ...{
+                            location: this,
+                            typeOfChange,
+                            previousRangeContent,
+                            originalChangeEvent: change,
+                        },
+                        ...(change.text.length > 0 && {
+                            addedContent: change.text,
+                        }),
+                    });
                     this.onChanged.fire({
-                        location: this,
-                        typeOfChange,
-                        previousRangeContent,
+                        ...{
+                            location: this,
+                            typeOfChange,
+                            previousRangeContent,
+                            originalChangeEvent: change,
+                        },
+                        ...(change.text.length > 0 && {
+                            addedContent: change.text,
+                        }),
                     });
                     this.range = this._range;
                     this._range.updateRangeLength(document);
@@ -319,5 +340,12 @@ export default class LocationPlus extends Location {
 
     getDocument() {
         return workspace.openTextDocument(this.uri);
+    }
+
+    contains(otherLocation: Location) {
+        return (
+            this.uri.toString() === otherLocation.uri.toString() &&
+            this._range.contains(otherLocation.range)
+        );
     }
 }

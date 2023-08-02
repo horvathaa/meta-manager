@@ -75,9 +75,9 @@ class DocumentWatcher extends Disposable {
             }
         });
 
-        const docChangeListener = workspace.onDidChangeTextDocument((e) =>
-            this.handleOnDocumentChange(e)
-        );
+        // const docChangeListener = workspace.onDidChangeTextDocument((e) =>
+        //     this.handleOnDocumentChange(e)
+        // );
         const saveListener = workspace.onDidSaveTextDocument((e) =>
             this.handleOnDidSaveDidClose(e)
         );
@@ -85,7 +85,7 @@ class DocumentWatcher extends Disposable {
             saveListener,
             listener,
             otherListener,
-            docChangeListener,
+            // docChangeListener,
         ].filter((d) => d) as Disposable[];
         this._disposable = Disposable.from(...listeners);
     }
@@ -104,50 +104,52 @@ class DocumentWatcher extends Disposable {
         // }
     }
 
-    handleOnDocumentChange(event: TextDocumentChangeEvent) {
-        if (event.document === this.document) {
-            for (const change of event.contentChanges) {
-                const range =
-                    RangePlus.fromTextDocumentContentChangeEvent(change);
-                const path = this._nodesInFile?.getLastNodeInPath(
-                    (d: ReadableNode) => {
-                        return !isEmpty(d) && d.location.range.contains(range);
-                    }
-                );
-                // console.log('path', path, 'nopdes in file', this._nodesInFile);
-                if (!path) {
-                    console.error(
-                        'could not get path -- doc change',
-                        change,
-                        'copy buffer',
-                        this.container.copyBuffer,
-                        'nodes',
-                        this._nodesInFile
-                    );
-                    return;
-                }
-                const n = path;
-                // console.log('mostAccuratePath', mostAccuratePath);
-                // mostAccuratePath.forEach((n) => {
-                //     this.container.copyBuffer &&
-                //         n.dataController?.addChatGptData(
-                //             this.container.copyBuffer,
-                //             {
-                //                 uri: this.document.uri,
-                //                 textDocumentContentChangeEvent: change,
-                //             }
-                //         );
-                //     console.log('n', n);
-                n.dataController?.chatGptData &&
-                    this.container.webviewController?.postMessage({
-                        command: 'renderChatGptHistory',
-                        payload: n.dataController.chatGptData[0],
-                    });
-                // });
-                // }
-            }
-        }
-    }
+    // handleWebPaste(change: TextDocumentContentChangeEvent) {
+    //     const range = RangePlus.fromTextDocumentContentChangeEvent(change);
+    //     console.log('range', range);
+    //     const path = this._nodesInFile?.getLastNodeInPath((d: ReadableNode) => {
+    //         console.log('d!', d);
+    //         return !isEmpty(d) && d.location.range.contains(range);
+    //     });
+    //     // console.log('path', path, 'nopdes in file', this._nodesInFile);
+    //     if (!path) {
+    //         console.error(
+    //             'could not get path -- doc change',
+    //             change,
+    //             'copy buffer',
+    //             this.container.copyBuffer,
+    //             'nodes',
+    //             this._nodesInFile
+    //         );
+    //         return;
+    //     }
+    //     const n = path;
+    //     this.container.copyBuffer &&
+    //         n.dataController?.addWebData(this.container.copyBuffer, {
+    //             uri: this.document.uri,
+    //             textDocumentContentChangeEvent: change,
+    //         });
+    //     console.log('n', n);
+    //     n.dataController?.webMetaData &&
+    //         this.container.webviewController?.postMessage({
+    //             command: 'renderChatGptHistory',
+    //             payload: n.dataController.webMetaData,
+    //         });
+    // }
+
+    // handleOnDocumentChange(event: TextDocumentChangeEvent) {
+    //     if (event.document === this.document) {
+    //         for (const change of event.contentChanges) {
+    //             // console.log('change', change);
+    //             if (
+    //                 this.container.copyBuffer &&
+    //                 change.text === this.container.copyBuffer.code
+    //             ) {
+    //                 // this.handleWebPaste(change);
+    //             }
+    //         }
+    //     }
+    // }
 
     initNodes(oldTree?: SimplifiedTree<ReadableNode>) {
         const tree = this.traverse(oldTree);
