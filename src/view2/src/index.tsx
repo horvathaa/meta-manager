@@ -1,9 +1,10 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import { App } from './App';
+// import { App } from './App';
 // import { useFlatConfigStore } from './store';
 // import './vscode.css';
-import { VS_CODE_API } from './VSCodeApi';
+// import { VS_CODE_API } from './VSCodeApi';
 
 // TODO: Type the incoming config data
 // let config: any = {};
@@ -17,13 +18,13 @@ if (root) {
     // gitRepo = root.getAttribute('data-gitrepo') || '';
 }
 
-VS_CODE_API.postMessage({
-    command: 'refreshFiles',
-});
+// VS_CODE_API.postMessage({
+//     command: 'refreshFiles',
+// });
 
-VS_CODE_API.postMessage({
-    command: 'refreshState',
-});
+// VS_CODE_API.postMessage({
+//     command: 'refreshState',
+// });
 
 // window.addEventListener('message', (e) => {
 //     // @ts-ignore

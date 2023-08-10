@@ -22,3 +22,19 @@
     border-radius: 4px;
     margin: 0.5rem 0;
 }
+
+.chatGpt {
+    background-color: aquamarine;
+}
+
+.stackOverflow {
+    background-color: #f48024;
+}
+
+.vsCode {
+    background-color: none;
+}
+
+.github {
+    background-color: #24292e;
+}

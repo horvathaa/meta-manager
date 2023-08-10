@@ -89,6 +89,7 @@ export enum WEB_INFO_SOURCE {
     CHAT_GPT = 'CHAT_GPT',
     GITHUB = 'GITHUB',
     STACKOVERFLOW = 'STACKOVERFLOW',
+    VSCODE = 'VSCODE',
     OTHER = 'OTHER',
 }
 
@@ -144,4 +145,31 @@ interface Repo {
 export interface GitHubCopyBuffer {
     codeMetadata: Code;
     repo: Repo;
+}
+interface SerializedPosition {
+    line: number;
+    character: number;
+}
+export interface SerializedRangePlus {
+    start: SerializedPosition;
+    end: SerializedPosition;
+}
+
+export interface SerializedLocationPlus {
+    fsPath: string;
+    range: SerializedRangePlus;
+    content: string;
+    id?: string;
+}
+
+export interface SerializedReadableNode {
+    humanReadableKind: string;
+    location: SerializedLocationPlus;
+    id: string;
+}
+
+export interface SerializedDataController {
+    // changeBuffer: VscodeCopyBuffer[];
+    node: SerializedReadableNode;
+    webMetadata: CopyBuffer[];
 }

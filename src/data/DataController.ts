@@ -26,7 +26,11 @@ import TimelineEvent from './timeline/TimelineEvent';
 import { ParsedTsNode } from '../document/languageServiceProvider/LanguageServiceProvider';
 import { debounce } from '../utils/lib';
 import { patienceDiffPlus } from '../utils/PatienceDiff';
-import { CopyBuffer, VscodeCopyBuffer } from '../constants/types';
+import {
+    CopyBuffer,
+    SerializedDataController,
+    VscodeCopyBuffer,
+} from '../constants/types';
 import MetaInformationExtractor from '../comments/CommentCreator';
 import RangePlus from '../document/locationApi/range';
 import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
@@ -87,6 +91,7 @@ export class DataController {
     _vscNodeMetadata: ParsedTsNode | undefined;
     _disposable: Disposable | undefined;
     _debug: boolean = false;
+    _emit: boolean = false;
     _changeBuffer: ChangeBuffer[];
     // _pasteDisposable: Disposable;
 
@@ -214,22 +219,41 @@ export class DataController {
             // on change but that's probably due to the debounce for that...?
             // tbd
             this.container.onPaste((pasteEvent) => {
-                if (this.readableNode.location.contains(pasteEvent.location)) {
-                    console.log('PASTED', this, 'paste', pasteEvent);
+                if (
+                    this.readableNode.location.range.contains(
+                        pasteEvent.location.range.start
+                    )
+                ) {
+                    console.log(
+                        'PASTED',
+                        this,
+                        'paste',
+                        pasteEvent,
+                        this.container.copyBuffer
+                    );
+                    if (this.container.copyBuffer) {
+                        const { repository, ...rest } = this.container
+                            .gitController?.gitState as CurrentGitState;
+                        this._webMetaData.push({
+                            ...this.container.copyBuffer,
+                            location: pasteEvent.location,
+                            pasteTime: Date.now(),
+                            gitMetadata: rest,
+                        });
+                        this._debug = true;
+                        this._emit = true;
+                        console.log('posting', this.serialize());
+                    }
                 }
             }),
             this.readableNode.location.onChanged.event(
                 debounce(async (changeEvent: ChangeEvent) => {
-                    // console.log('hewwo???', location);
-                    // console.log('this', this);
                     const location = changeEvent.location;
                     const newContent = location.content;
                     const oldContent =
                         changeEvent.previousRangeContent.oldContent;
-                    // this._debug && console.log('chatgpt', this._chatGptData);
+
                     if (
-                        // newContent.replace(/\s/g, '') ===
-                        // oldContent.replace(/\s/g, '')
                         changeEvent.typeOfChange !==
                             TypeOfChange.CONTENT_ONLY &&
                         changeEvent.typeOfChange !==
@@ -238,30 +262,37 @@ export class DataController {
                         return;
                     }
 
-                    console.log(
-                        'changeEvent!!!!!!!',
-                        changeEvent,
-                        'this!!!!!',
-                        this
-                    );
-                    if (
-                        this.container.copyBuffer &&
-                        changeEvent.addedContent &&
-                        changeEvent.addedContent ===
-                            this.container.copyBuffer.code
-                    ) {
-                        this.addWebData(this.container.copyBuffer, {
-                            uri: location.uri,
-                            textDocumentContentChangeEvent:
-                                changeEvent.originalChangeEvent,
-                        });
-                    }
+                    this._debug &&
+                        console.log(
+                            'changeEvent!!!!!!!',
+                            changeEvent,
+                            'this!!!!!',
+                            this
+                        );
+                    // if (
+                    //     this.container.copyBuffer &&
+                    //     changeEvent.addedContent &&
+                    //     changeEvent.addedContent ===
+                    //         this.container.copyBuffer.code
+                    // ) {
+                    //     this.addWebData(this.container.copyBuffer, {
+                    //         uri: location.uri,
+                    //         textDocumentContentChangeEvent:
+                    //             changeEvent.originalChangeEvent,
+                    //     });
+                    // }
                     this.handleUpdateChangeBuffer(
                         oldContent,
                         newContent,
                         changeEvent
                     );
                     this.handleUpdateNodeMetadata(newContent, location);
+                    if (this._emit) {
+                        this.container.webviewController?.postMessage({
+                            command: 'updateWebData',
+                            data: this.serialize(),
+                        });
+                    }
                 })
             ),
             this.readableNode.location.onSelected.event(
@@ -297,25 +328,25 @@ export class DataController {
         return () => this.dispose();
     }
 
-    addWebData(data: CopyBuffer, initChatGptData: PasteData) {
-        const { uri, textDocumentContentChangeEvent } = initChatGptData;
-        console.log('gitcontroller', this.container.gitController);
-        const { repository, ...rest } = this.container.gitController
-            ?.gitState as CurrentGitState;
-        this._webMetaData?.push({
-            ...data,
-            location: new LocationPlus(
-                uri,
-                RangePlus.fromTextDocumentContentChangeEvent(
-                    textDocumentContentChangeEvent
-                )
-            ),
-            pasteTime: Date.now(),
-            gitMetadata: rest,
-            // gitMetadata: null,
-        });
-        this._debug = true;
-    }
+    // addWebData(data: CopyBuffer, initChatGptData: PasteData) {
+    //     const { uri, textDocumentContentChangeEvent } = initChatGptData;
+    //     console.log('gitcontroller', this.container.gitController);
+    //     const { repository, ...rest } = this.container.gitController
+    //         ?.gitState as CurrentGitState;
+    //     this._webMetaData?.push({
+    //         ...data,
+    //         location: new LocationPlus(
+    //             uri,
+    //             RangePlus.fromTextDocumentContentChangeEvent(
+    //                 textDocumentContentChangeEvent
+    //             )
+    //         ),
+    //         pasteTime: Date.now(),
+    //         gitMetadata: rest,
+    //         // gitMetadata: null,
+    //     });
+    //     this._debug = true;
+    // }
 
     getGitData() {
         return this.container.gitController?.gitLog(this.readableNode.location);
@@ -325,6 +356,13 @@ export class DataController {
         return await this.container.firestoreController?.query(
             this.readableNode.id
         );
+    }
+
+    serialize(): SerializedDataController {
+        return {
+            node: this.readableNode.serialize(),
+            webMetadata: this.webMetaData,
+        };
     }
 
     dispose() {

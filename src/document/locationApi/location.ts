@@ -15,9 +15,10 @@ import {
     TextDocument,
     TextDocumentContentChangeEvent,
 } from 'vscode';
-import RangePlus, { SerializedRangePlus } from './range';
+import RangePlus from './range';
 import { isTextDocument } from '../lib';
 import { debounce } from '../../utils/lib';
+import { SerializedLocationPlus } from '../../constants/types';
 
 export enum TypeOfChange {
     RANGE_ONLY = 'RANGE_ONLY',
@@ -31,13 +32,6 @@ export interface LocationPlusOptions {
     textEditorDecoration?: TextEditorDecorationType;
     doc?: TextDocument;
     rangeFromTextDocumentContentChangeEvent?: TextDocumentContentChangeEvent;
-}
-
-export interface SerializedLocationPlus {
-    fsPath: string;
-    range: SerializedRangePlus;
-    content: string;
-    id?: string;
 }
 
 export interface PreviousRangeContent {
@@ -254,17 +248,17 @@ export default class LocationPlus extends Location {
                         oldContent,
                         contentChangeRange
                     );
-                    console.log('ABOUT TO FIRE', {
-                        ...{
-                            location: this,
-                            typeOfChange,
-                            previousRangeContent,
-                            originalChangeEvent: change,
-                        },
-                        ...(change.text.length > 0 && {
-                            addedContent: change.text,
-                        }),
-                    });
+                    // console.log('ABOUT TO FIRE', {
+                    //     ...{
+                    //         location: this,
+                    //         typeOfChange,
+                    //         previousRangeContent,
+                    //         originalChangeEvent: change,
+                    //     },
+                    //     ...(change.text.length > 0 && {
+                    //         addedContent: change.text,
+                    //     }),
+                    // });
                     this.onChanged.fire({
                         ...{
                             location: this,

@@ -1,13 +1,15 @@
 import * as React from 'react';
-import ChatGptHistory from './ChatGptHistory/ChatGptHistory';
+import DataController from './DataController/DataController';
+// import ChatGptHistory from './ChatGptHistory/ChatGptHistory';
 
 export function App() {
-    // const [message, setMessage] = React.useState('HELLO!!!');
+    const [message, setMessage] = React.useState('HELLO!!!');
 
     return (
         <div>
             {/* <h1>{message}</h1> */}
-            <ChatGptHistory />
+            <DataController />
+            {/* <ChatGptHistory /> */}
         </div>
     );
 }

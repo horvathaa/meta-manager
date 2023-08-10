@@ -5,6 +5,7 @@ import {
     TextDocument,
     TextDocumentContentChangeEvent,
 } from 'vscode';
+import { SerializedRangePlus } from '../../constants/types';
 
 enum RangeIntersectionType {
     STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME,
@@ -36,16 +37,6 @@ interface ContentChangeContext {
     isSingleLineChange: boolean;
     rangeIntersectionType: RangeIntersectionType;
     isPaste?: boolean;
-}
-
-interface SerializedPosition {
-    line: number;
-    character: number;
-}
-
-export interface SerializedRangePlus {
-    start: SerializedPosition;
-    end: SerializedPosition;
 }
 
 class RangePlus extends Range {

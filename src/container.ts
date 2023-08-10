@@ -27,6 +27,7 @@ export interface ClipboardMetadata {
     text: string;
     location: LocationPlus;
     time: number;
+    webMetadata?: any;
 }
 
 export class Container {
@@ -276,6 +277,8 @@ export class Container {
     ) {
         // use the selected text that is being copied here
         // probably mark this in case the user copies from vs code into browser
+        // tbd on if we want to use copyBuffer for also keeping track of in-editor copy/paste
+        // probably????
         this._copyBuffer = null;
 
         //dispose of the overridden editor.action.clipboardCopyAction- back to default copy behavior

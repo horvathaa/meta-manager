@@ -1,7 +1,6 @@
 import * as ts from 'typescript';
 import LocationPlus, {
     ChangeEvent,
-    SerializedLocationPlus,
     TypeOfChange,
 } from '../document/locationApi/location';
 import { TextDocument } from 'vscode';
@@ -18,12 +17,7 @@ import {
 import { Container } from '../container';
 import { DataController } from '../data/DataController';
 import { debounce } from '../utils/lib';
-
-interface SerializedReadableNode {
-    humanReadableKind: string;
-    location: SerializedLocationPlus;
-    id: string;
-}
+import { SerializedReadableNode } from '../constants/types';
 
 export enum NodeState {
     UNCHANGED = 'UNCHANGED',

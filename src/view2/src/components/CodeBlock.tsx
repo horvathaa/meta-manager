@@ -9,9 +9,19 @@ import * as React from 'react';
 // ).colorTheme;
 // console.log('does this work lmao', theme);
 // https://www.makeuseof.com/react-syntax-highlighting-code-block/
-const CodeBlock = ({ codeString }: { codeString: string }) => {
+const CodeBlock = ({
+    codeString,
+    style,
+}: {
+    codeString: string;
+    style?: React.CSSProperties;
+}) => {
     return (
-        <SyntaxHighlighter language="javascript" style={vscDarkPlus}>
+        <SyntaxHighlighter
+            language="javascript"
+            style={vscDarkPlus}
+            customStyle={style}
+        >
             {codeString}
         </SyntaxHighlighter>
     );
