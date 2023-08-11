@@ -35,6 +35,10 @@ export async function activate(context: ExtensionContext) {
         //     container.webviewController?.postMessage({ command: 'hi' });
         // }, 10000);
     });
+    // container.onInitComplete(() => {
+    //     console.log('hewwo?', container);
+
+    // });
 
     // window.onDidWriteTerminalData((e) => {
     //     console.log('TERMINAL DATA E', e);

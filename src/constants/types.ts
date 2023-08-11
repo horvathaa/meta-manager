@@ -93,6 +93,13 @@ export enum WEB_INFO_SOURCE {
     OTHER = 'OTHER',
 }
 
+export interface SearchData {
+    searchTime: Date;
+    query: string;
+    url: string;
+    selectedPages: string[];
+}
+
 export interface CopyBuffer {
     code: string;
     url: string;
@@ -101,6 +108,7 @@ export interface CopyBuffer {
     timeCopied: number;
     id: string;
     additionalMetadata: AdditionalMetadata;
+    searchData: null | SearchData;
 }
 
 type AdditionalMetadata = ChatGptCopyBuffer | GitHubCopyBuffer | null;

@@ -64,6 +64,7 @@ class DocumentWatcher extends Disposable {
                         this._relativeFilePath
                     );
                     this._nodesInFile = this.initNodes(tree);
+
                     console.log('file parsed complete', this);
                 }
             }
@@ -75,9 +76,6 @@ class DocumentWatcher extends Disposable {
             }
         });
 
-        // const docChangeListener = workspace.onDidChangeTextDocument((e) =>
-        //     this.handleOnDocumentChange(e)
-        // );
         const saveListener = workspace.onDidSaveTextDocument((e) =>
             this.handleOnDidSaveDidClose(e)
         );
@@ -99,57 +97,11 @@ class DocumentWatcher extends Disposable {
     }
 
     handleOnDidSaveDidClose(event: TextDocument) {
-        // if (event === this.document) {
-        //     this._nodesInFile = this.initNodes(this._nodesInFile);
-        // }
+        console.log('calling write');
+        if (event.uri.fsPath === this.document.uri.fsPath) {
+            this.container.firestoreController?.write();
+        }
     }
-
-    // handleWebPaste(change: TextDocumentContentChangeEvent) {
-    //     const range = RangePlus.fromTextDocumentContentChangeEvent(change);
-    //     console.log('range', range);
-    //     const path = this._nodesInFile?.getLastNodeInPath((d: ReadableNode) => {
-    //         console.log('d!', d);
-    //         return !isEmpty(d) && d.location.range.contains(range);
-    //     });
-    //     // console.log('path', path, 'nopdes in file', this._nodesInFile);
-    //     if (!path) {
-    //         console.error(
-    //             'could not get path -- doc change',
-    //             change,
-    //             'copy buffer',
-    //             this.container.copyBuffer,
-    //             'nodes',
-    //             this._nodesInFile
-    //         );
-    //         return;
-    //     }
-    //     const n = path;
-    //     this.container.copyBuffer &&
-    //         n.dataController?.addWebData(this.container.copyBuffer, {
-    //             uri: this.document.uri,
-    //             textDocumentContentChangeEvent: change,
-    //         });
-    //     console.log('n', n);
-    //     n.dataController?.webMetaData &&
-    //         this.container.webviewController?.postMessage({
-    //             command: 'renderChatGptHistory',
-    //             payload: n.dataController.webMetaData,
-    //         });
-    // }
-
-    // handleOnDocumentChange(event: TextDocumentChangeEvent) {
-    //     if (event.document === this.document) {
-    //         for (const change of event.contentChanges) {
-    //             // console.log('change', change);
-    //             if (
-    //                 this.container.copyBuffer &&
-    //                 change.text === this.container.copyBuffer.code
-    //             ) {
-    //                 // this.handleWebPaste(change);
-    //             }
-    //         }
-    //     }
-    // }
 
     initNodes(oldTree?: SimplifiedTree<ReadableNode>) {
         const tree = this.traverse(oldTree);
@@ -167,20 +119,10 @@ class DocumentWatcher extends Disposable {
         let debug = false;
         let nodes: ts.Node[] = [];
         const docCopy = this.document;
-        // const nodeMetadata =
-        //     this.container.languageServiceProvider.parseCodeBlock(
-        //         docCopy.getText(),
-        //         // readableNode.readableNode.location.content,
-        //         docCopy
-        //     );
         const tree = new SimplifiedTree<ReadableNode>({
             name: this._relativeFilePath,
         });
         tree.initRoot(); // initialize the root node
-        // if (tree.name === 'source/viewHelper/viewHelper.ts') {
-        //     debug = true;
-        // }
-        // let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
         let otherTreeInstance: SimplifiedTree<ReadableNode> | undefined =

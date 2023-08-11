@@ -43,33 +43,39 @@ interface PasteData {
     textDocumentContentChangeEvent: TextDocumentContentChangeEvent;
 }
 
+type DiffLine = {
+    aIndex: number;
+    bIndex: number;
+    line: string;
+};
+type Diff =
+    | {
+          lines: DiffLine[];
+          lineCountDeleted: number;
+          lineCountInserted: number;
+          lineCountMoved: number;
+          aMove: any[];
+          aMoveIndex: any[];
+          bMove: any[];
+          bMoveIndex: any[];
+      }
+    | {
+          lines: DiffLine[];
+          lineCountDeleted: number;
+          lineCountInserted: number;
+          lineCountMoved: number;
+          aMove?: undefined;
+          aMoveIndex?: undefined;
+          bMove?: undefined;
+          bMoveIndex?: undefined;
+      };
+
 interface ChangeBuffer {
     location: LocationPlus;
     typeOfChange: TypeOfChange;
     changeContent: string;
     time: number;
-    diff:
-        | {
-              lines: any[];
-              lineCountDeleted: number;
-              lineCountInserted: number;
-              lineCountMoved: number;
-              aMove: any[];
-              aMoveIndex: any[];
-              bMove: any[];
-              bMoveIndex: any[];
-          }
-        | {
-              lines: any[];
-              lineCountDeleted: number;
-              lineCountInserted: number;
-              lineCountMoved: number;
-              aMove?: undefined;
-              aMoveIndex?: undefined;
-              bMove?: undefined;
-              bMoveIndex?: undefined;
-          };
-
+    diff: Diff;
     uid: string;
     changeInfo?: {
         newComments?: CodeComment[];
@@ -115,25 +121,6 @@ export class DataController {
         this.debug && console.log('init complete');
     }
 
-    // get readableNode() {
-    //     return this._readableNode;
-    // }
-
-    // serialize() {
-    //     return {
-    //         readableNode: this.readableNode.serialize(),
-    //     };
-    // }
-
-    // deserialize(data: any) {
-    //     // would be better if deserialize was static
-    //     this.readableNode = new ReadableNode(
-    //         '',
-    //         new LocationPlus(Uri.file(''), new Range(0, 0, 0, 0))
-    //     ).deserialize(data.readableNode);
-    //     return this.readableNode;
-    // }
-
     compare(other: ReadableNode): CompareSummary<ReadableNode> {
         return this.readableNode.compare(other);
     }
@@ -144,9 +131,10 @@ export class DataController {
         changeEvent: ChangeEvent
     ) {
         const diff = patienceDiffPlus(
-            oldContent.split(/[\[\](){}.,;:!?\s]/),
-            newContent.split(/[\[\](){}.,;:!?\s]/)
+            oldContent.split(/\n/),
+            newContent.split(/\n/)
         );
+        // this.parseDiff(diff);
         const oldComments = this._metaInformationExtractor.foundComments;
         this._metaInformationExtractor.updateMetaInformation(newContent);
         this._metaInformationExtractor.foundComments.forEach((c) => {
@@ -247,7 +235,8 @@ export class DataController {
                 }
             }),
             this.readableNode.location.onChanged.event(
-                debounce(async (changeEvent: ChangeEvent) => {
+                // debounce(async (changeEvent: ChangeEvent) => {
+                (changeEvent: ChangeEvent) => {
                     const location = changeEvent.location;
                     const newContent = location.content;
                     const oldContent =
@@ -293,8 +282,9 @@ export class DataController {
                             data: this.serialize(),
                         });
                     }
-                })
+                }
             ),
+            // ),
             this.readableNode.location.onSelected.event(
                 async (location: LocationPlus) => {
                     // can probably break these out into their own pages

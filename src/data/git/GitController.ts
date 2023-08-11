@@ -17,6 +17,7 @@ export interface CurrentGitState {
     branch: string;
     commit: string;
     repository: Repository;
+    projectName: string;
 }
 
 class GitController extends Disposable {
@@ -71,7 +72,26 @@ class GitController extends Disposable {
         return this._gitState;
     }
 
+    private getProjectName(url: string) {
+        const repoName = url.split('github.com/')[1];
+        if (!repoName) {
+            throw new Error('GitController: Invalid repository URL');
+        }
+        if (repoName.includes('.git')) {
+            return repoName.split('.git')[0];
+        }
+        return repoName;
+    }
+
     initGitState(r: Repository) {
+        const repoUrl = r?.state?.remotes[0]?.fetchUrl
+            ? r?.state?.remotes[0]?.fetchUrl
+            : r?.state?.remotes[0]?.pushUrl
+            ? r?.state?.remotes[0]?.pushUrl
+            : '';
+        if (repoUrl === '') {
+            throw new Error('GitController: No remote repository found');
+        }
         return {
             repo: r?.state?.remotes[0]?.fetchUrl
                 ? r?.state?.remotes[0]?.fetchUrl
@@ -81,6 +101,7 @@ class GitController extends Disposable {
             branch: r?.state?.HEAD?.name ? r?.state?.HEAD?.name : '',
             commit: r?.state?.HEAD?.commit ? r?.state?.HEAD?.commit : '',
             repository: r,
+            projectName: this.getProjectName(repoUrl),
         };
     }
 

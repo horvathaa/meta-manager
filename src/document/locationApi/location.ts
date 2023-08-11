@@ -235,6 +235,9 @@ export default class LocationPlus extends Location {
                     furtherNormalizedStart.start,
                     furtherNormalizedEnd.end
                 );
+                // the base Location property range
+                // is not staying in sync with our internal range so we need to update it
+                this.range = this._range;
                 // only fire the onchanged event after the user has stopped typing for 5 seconds
                 // can tinker with the wait time but 5 seconds seems ok for now
                 // we do this so the parser can do a smarter diff
@@ -248,17 +251,7 @@ export default class LocationPlus extends Location {
                         oldContent,
                         contentChangeRange
                     );
-                    // console.log('ABOUT TO FIRE', {
-                    //     ...{
-                    //         location: this,
-                    //         typeOfChange,
-                    //         previousRangeContent,
-                    //         originalChangeEvent: change,
-                    //     },
-                    //     ...(change.text.length > 0 && {
-                    //         addedContent: change.text,
-                    //     }),
-                    // });
+
                     this.onChanged.fire({
                         ...{
                             location: this,
@@ -270,12 +263,10 @@ export default class LocationPlus extends Location {
                             addedContent: change.text,
                         }),
                     });
-                    this.range = this._range;
                     this._range.updateRangeLength(document);
                 }, 5000);
             }
         }
-        // });
     }
 
     onDidChangeActiveTextEditor(textEditor: TextEditor | undefined) {

@@ -10,6 +10,8 @@ import {
     getDocs,
     onSnapshot,
     DocumentData,
+    doc,
+    setDoc,
 } from 'firebase/firestore';
 import { Functions, getFunctions } from 'firebase/functions';
 import { Auth, User, getAuth } from 'firebase/auth';
@@ -25,7 +27,8 @@ export type DB_REFS =
     | 'annotations'
     | 'vscode-annotations'
     | 'commits'
-    | 'web-meta';
+    | 'web-meta'
+    | 'play-toy';
 
 export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
     USERS: 'users',
@@ -33,6 +36,12 @@ export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
     CODE_ANNOTATIONS: 'vscode-annotations',
     COMMITS: 'commits',
     WEB_META: 'web-meta',
+    PLAY_TOY: 'play-toy',
+};
+
+const SUB_COLLECTIONS = {
+    FILES: 'files',
+    NODES: 'nodes',
 };
 
 class FirestoreController extends Disposable {
@@ -240,6 +249,61 @@ class FirestoreController extends Disposable {
             });
         });
         return () => unsubscribe();
+    }
+
+    // can probably have a smaller-scale, simpler write
+    // for just updating an individual node when ready
+    // or file when ready
+    write() {
+        if (
+            !this.container.gitController ||
+            !this.container.gitController.gitState
+        ) {
+            throw new Error(
+                'FirestoreController: Could not write to firestore -- no git state'
+            );
+        }
+        if (!this._firestore) {
+            throw new Error(
+                'FirestoreController: Could not write to firestore -- no firestore'
+            );
+        }
+        const topLevelCollectionId =
+            this.container.gitController.gitState.projectName.replace('/', '-');
+        if (!this.container.fileParser) {
+            throw new Error(
+                'FirestoreController: Could not write to firestore -- no parsed files'
+            );
+        }
+        // mark dirty files and only write those
+        const files = this.container.fileParser.docs;
+        // const dirtyFiles = files.filter((file) => file.dirty);
+        const refCollection = this._refs?.get(DB_COLLECTIONS.PLAY_TOY);
+        if (!refCollection) {
+            throw new Error(
+                'FirestoreController: Could not write to firestore -- no collection reference'
+            );
+        }
+        files.forEach((file) => {
+            const fileName = file.relativeFilePath.replace(/[\/\\]/g, '-');
+            const tree = file.nodesInFile?.toArray();
+            if (!tree) {
+                console.warn('no tree for file', file);
+                return;
+            }
+            console.log('writing file', fileName, 'to firestore');
+            tree.forEach((node) => {
+                const docRef = doc(
+                    refCollection,
+                    topLevelCollectionId,
+                    SUB_COLLECTIONS.FILES,
+                    fileName,
+                    SUB_COLLECTIONS.NODES,
+                    node.id
+                );
+                setDoc(docRef, node.serialize());
+            });
+        });
     }
 
     dispose() {
