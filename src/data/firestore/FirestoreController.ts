@@ -24,6 +24,7 @@ import { signInWithGithubCredential } from './functions/authFunctions';
 import { DataSourceType } from '../timeline/TimelineEvent';
 import { CopyBuffer } from '../../constants/types';
 import GitController from '../git/GitController';
+import { FirestoreControllerInterface } from '../DataController';
 
 export type DB_REFS =
     | 'users'
@@ -46,6 +47,7 @@ export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
 const SUB_COLLECTIONS = {
     FILES: 'files',
     NODES: 'nodes',
+    PAST_VERSIONS: 'past-versions',
 };
 
 export function getListFromSnapshots(
@@ -346,20 +348,84 @@ class FirestoreController extends Disposable {
         const data = await getDocs(filesRef);
         data.forEach(async (doc) => {
             // console.log('doc', doc.data());
-            const res = this._refs?.get(
-                `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}/${doc.id}/${SUB_COLLECTIONS.NODES}`
-            );
+            const parentRefPath = `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}/${doc.id}/${SUB_COLLECTIONS.NODES}`;
+            const res = this._refs?.get(parentRefPath);
             if (!res) {
                 console.error('could not find subcollection for', doc.id);
                 return;
             }
-            const subData = getListFromSnapshots(await getDocs(res));
+            const querySnapshot = await getDocs(res);
+            const { subData, dataMap } = this.initNodes(
+                querySnapshot,
+                parentRefPath
+            );
             // console.log('got this data', subData, 'for this doc', doc.id);
             this._onRead.fire({
                 filename: doc.id.replace(/-/g, '/'),
+                collectionPath: parentRefPath,
                 data: subData,
+                map: dataMap,
             });
         });
+    }
+
+    public getFileCollectionPath(filename: string) {
+        const topLevelCollectionId = this._projectName;
+        return `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${
+            SUB_COLLECTIONS.FILES
+        }/${filename.replace(/[\/\\]/g, '-')}/${SUB_COLLECTIONS.NODES}`;
+    }
+
+    public createNodeMetadata(
+        id: string,
+        parentCollectionPath: string
+    ): FirestoreControllerInterface {
+        const pastVersionsCollection = collection(
+            this._firestore!,
+            `${parentCollectionPath}/${id}/${SUB_COLLECTIONS.PAST_VERSIONS}`
+        );
+        const ref = doc(this._firestore!, `${parentCollectionPath}/${id}`);
+        const firestoreMetadata = {
+            ref,
+            pastVersionsCollection,
+            write: (newNode: any) => {
+                // change any to actual interface representing ver
+                console.log(
+                    'hewwo',
+                    ref,
+                    newNode,
+                    this._user,
+                    `${parentCollectionPath}/${id}`
+                );
+                setDoc(ref, newNode);
+            },
+            writeToPast: (versionId: string, newNode: any) => {
+                const docRef = doc(pastVersionsCollection, versionId);
+                setDoc(docRef, newNode);
+            },
+        };
+        return firestoreMetadata;
+    }
+
+    initNodes(
+        nodes: QuerySnapshot<DocumentData>,
+        parentCollectionPath: string
+    ) {
+        const formattedNodes: any[] = [];
+        const dataMap: Map<string, any> = new Map();
+        nodes.forEach((node) => {
+            const firestoreMetadata = this.createNodeMetadata(
+                node.id,
+                parentCollectionPath
+            );
+            dataMap.set(node.id, firestoreMetadata);
+            formattedNodes.push({
+                id: node.id, // i dont think this is necessary
+                firestore: firestoreMetadata,
+                ...node.data(),
+            });
+        });
+        return { subData: formattedNodes, dataMap };
     }
 
     // can probably have a smaller-scale, simpler write

@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 export interface FileParsedEvent {
     filename: string;
     data: any;
+    collectionPath: string;
+    map: Map<string, any>;
 }
 
 class FileSystemController extends Disposable {
@@ -60,16 +62,16 @@ class FileSystemController extends Disposable {
 
     public async readExtensionDirectory() {
         try {
-            const files = await workspace.fs.readDirectory(this._extensionDir);
-            for (const file of files) {
-                const filename = file[0];
-                const content = await this.openAndReadTextDocument(filename);
-                const parsed = JSON.parse(content);
-                this._onFileParsed.fire({
-                    filename: parsed.filename,
-                    data: parsed,
-                });
-            }
+            // const files = await workspace.fs.readDirectory(this._extensionDir);
+            // for (const file of files) {
+            //     const filename = file[0];
+            //     const content = await this.openAndReadTextDocument(filename);
+            //     const parsed = JSON.parse(content);
+            //     this._onFileParsed.fire({
+            //         filename: parsed.filename,
+            //         data: parsed,
+            //     });
+            // }
         } catch (err: any) {
             if (err.code === 'FileNotFound') {
                 // no metamanager directory exists so we will create one

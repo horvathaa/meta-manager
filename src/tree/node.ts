@@ -51,7 +51,8 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         location: LocationPlus,
         container?: Container,
         node?: ts.Node,
-        id?: string
+        id?: string,
+        firestore?: any
     ) {
         super();
         this.node = node;
@@ -176,33 +177,51 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     }
 
     compare(node: ReadableNode): CompareSummary<ReadableNode> {
-        if (this.visited) {
-            return {
-                status: SummaryStatus.UNKNOWN,
-            };
-        }
+        // if (this.visited) {
+        //     return {
+        //         status: SummaryStatus.UNKNOWN,
+        //     };
+        // }
         const res = {
             distanceDelta: this.location.compare(node.location),
-            bagOfWordsScore: this.getBagOfWordsScore(node),
+            // bagOfWordsScore: this.getBagOfWordsScore(node),
+            // bagOfWordsScore: calculateSimilarityProportion(
+            bagOfWordsScore: calculateBagOfWordsScore(
+                this.location.content,
+                node.location.content
+            ),
             isSameType: this.humanReadableKind === node.humanReadableKind,
+            isSameName: this.location.id === node.location.id,
         };
 
+        if (this.id === 'handleAddAnchor' || node.id === 'handleAddAnchor') {
+            console.log('what is HAPPENING', this, 'NODE', {
+                status: SummaryStatus.SAME,
+                bestMatch: this,
+                additionalData: res,
+                node,
+            });
+        }
         // paper said .9 or above pretty much meant it is the same
-        if (res.bagOfWordsScore >= 0.9 && res.isSameType) {
+        // if (res.bagOfWordsScore >= 0.9 && res.isSameType && res.isSameName) {
+        if (res.bagOfWordsScore >= 0.9) {
             this.visited = true;
             return {
                 status: SummaryStatus.SAME,
                 bestMatch: this,
+                additionalData: res,
             };
         } else if (res.bagOfWordsScore >= 0.5 && res.isSameType) {
             this.visited = true; // ?
             return {
                 status: SummaryStatus.MODIFIED,
                 modifiedNodes: this,
+                additionalData: res,
             };
         } else {
             return {
                 status: SummaryStatus.UNKNOWN,
+                additionalData: res,
             };
         }
     }
@@ -223,6 +242,60 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             (thisWordLengthProportion + otherWordLengthProportion)
         );
     }
+}
+
+function calculateBagOfWordsScore(str1: string, str2: string): number {
+    const words1 = str1.toLowerCase().split(/\s+/);
+    const words2 = str2.toLowerCase().split(/\s+/);
+
+    const uniqueWords = [...new Set([...words1, ...words2])];
+    const commonWordsCount = words1.filter((word) =>
+        words2.includes(word)
+    ).length;
+
+    const score = commonWordsCount / uniqueWords.length;
+    return score;
+}
+
+function calculateSimilarityProportion(str1: string, str2: string): number {
+    const words1 = str1.toLowerCase().split(/\s+/);
+    const words2 = str2.toLowerCase().split(/\s+/);
+
+    const combinedWords = [...new Set([...words1, ...words2])]; // Unique words from both strings
+
+    const wordFrequency1: { [word: string]: number } = {};
+    const wordFrequency2: { [word: string]: number } = {};
+
+    // Count word frequencies in the first string
+    for (const word of words1) {
+        if (wordFrequency1[word]) {
+            wordFrequency1[word]++;
+        } else {
+            wordFrequency1[word] = 1;
+        }
+    }
+
+    // Count word frequencies in the second string
+    for (const word of words2) {
+        if (wordFrequency2[word]) {
+            wordFrequency2[word]++;
+        } else {
+            wordFrequency2[word] = 1;
+        }
+    }
+
+    // Calculate the proportion of similarity
+    let commonWordsCount = 0;
+    for (const word of combinedWords) {
+        const frequency1 = wordFrequency1[word] || 0;
+        const frequency2 = wordFrequency2[word] || 0;
+        commonWordsCount += Math.min(frequency1, frequency2);
+    }
+
+    const totalWords = combinedWords.length;
+    const similarityProportion = commonWordsCount / totalWords;
+
+    return similarityProportion;
 }
 
 export default ReadableNode;

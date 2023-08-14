@@ -21,7 +21,10 @@ import * as ts from 'typescript';
 import ReadableNode, { NodeState } from '../tree/node';
 import LocationPlus from './locationApi/location';
 import { FileParsedEvent } from '../fs/FileSystemController';
-import { DataController } from '../data/DataController';
+import {
+    DataController,
+    FirestoreControllerInterface,
+} from '../data/DataController';
 import { v4 as uuidv4 } from 'uuid';
 // import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
 import RangePlus from './locationApi/range';
@@ -32,6 +35,7 @@ const tstraverse = require('tstraverse');
 class DocumentWatcher extends Disposable {
     _disposable: Disposable | undefined;
     readonly _relativeFilePath: string;
+    private _firestoreCollectionPath: string;
     _nodesInFile: SimplifiedTree<ReadableNode> | undefined;
 
     constructor(
@@ -43,6 +47,7 @@ class DocumentWatcher extends Disposable {
             workspace.name || getProjectName(this.document.uri.toString()),
             this.document.uri.fsPath
         ).replace(/\\/g, '/');
+        this._firestoreCollectionPath = '';
         console.log('relative file path', this._relativeFilePath);
 
         this._nodesInFile = undefined;
@@ -80,9 +85,10 @@ class DocumentWatcher extends Disposable {
         const firestoreReadListener = container.onRead(
             (event: FileParsedEvent) => {
                 // console.log('EVENT', event);
-                const { filename, data } = event;
+                const { filename, data, map, collectionPath } = event;
                 if (filename === this._relativeFilePath) {
                     console.log('HEWWWWOOOO!!!!!!!!!', event);
+                    this._firestoreCollectionPath = collectionPath;
                     const tree = new SimplifiedTree<ReadableNode>({
                         name: this._relativeFilePath,
                     }).deserialize(
@@ -97,18 +103,18 @@ class DocumentWatcher extends Disposable {
                         this._relativeFilePath
                     );
                     console.log('tree', tree);
-                    this._nodesInFile = this.initNodes(tree);
+                    this._nodesInFile = this.initNodes(tree, map);
 
                     console.log('file parsed complete', this);
                 }
             }
         );
 
-        const saveListener = workspace.onDidSaveTextDocument((e) =>
-            this.handleOnDidSaveDidClose(e)
-        );
+        // const saveListener = workspace.onDidSaveTextDocument((e) =>
+        //     this.handleOnDidSaveDidClose(e)
+        // );
         const listeners = [
-            saveListener,
+            // saveListener,
             // listener,
             otherListener,
             firestoreReadListener,
@@ -132,12 +138,15 @@ class DocumentWatcher extends Disposable {
         }
     }
 
-    initNodes(oldTree?: SimplifiedTree<ReadableNode>) {
-        const tree = this.traverse(oldTree);
+    initNodes(oldTree?: SimplifiedTree<ReadableNode>, map?: Map<string, any>) {
+        const tree = this.traverse(oldTree, map);
         return tree;
     }
 
-    traverse(oldTree?: SimplifiedTree<ReadableNode>) {
+    traverse(
+        oldTree?: SimplifiedTree<ReadableNode>,
+        map?: Map<string, FirestoreControllerInterface>
+    ) {
         // traverse the document and find the code anchors
         const sourceFile = ts.createSourceFile(
             this.document.fileName,
@@ -174,12 +183,14 @@ class DocumentWatcher extends Disposable {
                 // context.container
                 // );
                 // );
+                name === 'handleAddAnchor' && (debug = true);
                 debug && console.log('adding readable node', readableNode);
                 readableNode.dataController = new DataController(
                     readableNode,
                     context.container,
                     debug
                 );
+
                 debug &&
                     console.log(
                         'adding data node',
@@ -191,6 +202,11 @@ class DocumentWatcher extends Disposable {
                     const matchInfo = otherTreeInstance.getNodeOfBestMatch(
                         readableNode // .readableNode
                     );
+                    matchInfo.bestMatch &&
+                        matchInfo.bestMatch.id === 'handleAddAnchor' &&
+                        (debug = true);
+                    debug && console.log('wtf', readableNode, matchInfo);
+
                     if (
                         matchInfo.status === SummaryStatus.SAME &&
                         matchInfo.bestMatch
@@ -201,6 +217,15 @@ class DocumentWatcher extends Disposable {
                         const matchInfo = oldTree.getNodeOfBestMatch(
                             readableNode // .readableNode
                         );
+                        matchInfo.bestMatch &&
+                            matchInfo.bestMatch.id === 'handleAddAnchor' &&
+                            (debug = true);
+                        debug &&
+                            console.log(
+                                'wtf bigger search',
+                                readableNode,
+                                matchInfo
+                            );
                         if (
                             matchInfo.status === SummaryStatus.SAME &&
                             matchInfo.bestMatch
@@ -208,6 +233,12 @@ class DocumentWatcher extends Disposable {
                             name = matchInfo.bestMatch.id;
                             otherTreeInstance = matchInfo.subtree; // any :-(
                         } else {
+                            // console.log(
+                            //     'NO MATCH!!!!!!!!!!',
+                            //     readableNode,
+                            //     matchInfo,
+                            //     otherTreeInstance
+                            // );
                             otherTreeInstance = oldTree; // set back to top for future search
                         }
                     }
@@ -218,6 +249,21 @@ class DocumentWatcher extends Disposable {
                 }
 
                 readableNode.setId(name);
+                const firestoreCollectionPath = context._firestoreCollectionPath
+                    .length
+                    ? context._firestoreCollectionPath
+                    : context.container.firestoreController!.getFileCollectionPath(
+                          context.relativeFilePath
+                      );
+                if (!context._firestoreCollectionPath.length) {
+                    context._firestoreCollectionPath = firestoreCollectionPath;
+                }
+                readableNode.dataController.firestoreControllerInterface =
+                    map?.get(readableNode.id) ||
+                    context.container.firestoreController!.createNodeMetadata(
+                        readableNode.id,
+                        firestoreCollectionPath
+                    );
                 readableNode.registerListeners();
                 // v expensive to compute all this metadata
                 // tbd whether/how to speed it up
@@ -237,6 +283,7 @@ class DocumentWatcher extends Disposable {
                 );
                 // readableNode.dataController.tree = treeRef; // this is wrong lol
                 currTreeInstance.push(treeRef);
+                debug = false;
             }
         }
 

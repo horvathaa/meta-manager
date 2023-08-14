@@ -21,7 +21,11 @@ import LocationPlus, {
     TypeOfChange,
 } from '../document/locationApi/location';
 import { ListLogLine, DefaultLogFields } from 'simple-git';
-import { DocumentData } from 'firebase/firestore';
+import {
+    CollectionReference,
+    DocumentData,
+    DocumentReference,
+} from 'firebase/firestore';
 import TimelineEvent from './timeline/TimelineEvent';
 import { ParsedTsNode } from '../document/languageServiceProvider/LanguageServiceProvider';
 import { debounce } from '../utils/lib';
@@ -84,11 +88,19 @@ interface ChangeBuffer {
     };
 }
 
+export interface FirestoreControllerInterface {
+    ref: DocumentReference<DocumentData>;
+    pastVersionsCollection: CollectionReference<DocumentData>;
+    write: (newNode: any) => void;
+    writeToPast: (versionId: string, newNode: any) => void;
+}
+
 export class DataController {
     // extends AbstractTreeReadableNode<ReadableNode> {
     _gitData: TimelineEvent[] | undefined;
     _firestoreData: TimelineEvent[] | undefined;
     _outputData: OutputDataController | undefined;
+    _firestoreControllerInterface: FirestoreControllerInterface | undefined;
     _tree: SimplifiedTree<ReadableNode> | undefined;
     _metaInformationExtractor: MetaInformationExtractor;
     // _readableNode: ReadableNode;
@@ -313,7 +325,21 @@ export class DataController {
                     });
                     // console.log('this', this, 'location', location);
                 }
-            )
+            ),
+            workspace.onDidSaveTextDocument((document) => {
+                if (
+                    document.uri.fsPath ===
+                    this.readableNode.location.uri.fsPath
+                ) {
+                    this._debug = true;
+                    this._emit = true;
+                    console.log('posting', this.serialize());
+                    this._firestoreControllerInterface?.write({
+                        ...this.serialize(),
+                        message: 'I AM SAVING TO FIRESTORE',
+                    });
+                }
+            })
         );
         return () => this.dispose();
     }
@@ -379,5 +405,13 @@ export class DataController {
 
     get tree() {
         return this._tree;
+    }
+
+    get firestoreControllerInterface() {
+        return this._firestoreControllerInterface;
+    }
+
+    set firestoreControllerInterface(newFirestoreControllerInterface) {
+        this._firestoreControllerInterface = newFirestoreControllerInterface;
     }
 }

@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import { isEmpty, isEqual } from 'lodash';
-import { TextDocumentChangeEvent } from 'vscode';
+import { CompareDelta } from '../document/locationApi/range';
 
 export enum SummaryStatus {
     SAME = 'SAME',
@@ -15,6 +15,12 @@ export interface CompareSummary<T> {
     bestMatch?: T;
     modifiedNodes?: T;
     removedNodes?: T;
+    additionalData?: {
+        distanceDelta: CompareDelta;
+        bagOfWordsScore: number;
+        isSameType: boolean;
+        isSameName: boolean;
+    };
 }
 
 export abstract class AbstractTreeReadableNode<T> {
