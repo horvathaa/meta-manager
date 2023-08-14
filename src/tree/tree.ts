@@ -424,7 +424,9 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         });
         tree.initRoot();
         serialized.forEach((node: any) => {
-            const deserialized: T = instance.deserialize(node);
+            const deserialized: T = node.hasOwnProperty('node')
+                ? instance.deserialize(node.node)
+                : instance.deserialize(node);
             if (!deserialized) {
                 return;
             }

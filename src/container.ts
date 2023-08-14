@@ -36,6 +36,7 @@ export class Container {
     _disposables: Disposable[];
     _onInitComplete: EventEmitter<Container> = new EventEmitter<Container>();
     _onNodesComplete: EventEmitter<Container> = new EventEmitter<Container>();
+    _onRead: EventEmitter<any> = new EventEmitter<any>();
     _onCopy: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
     _onPaste: EventEmitter<ClipboardMetadata> =
@@ -143,6 +144,10 @@ export class Container {
         return this._onPaste.event;
     }
 
+    public get onRead() {
+        return this._onRead.event;
+    }
+
     static async create(context: ExtensionContext) {
         const newContainer = new Container(context);
         const newFileParser = await FileParser.create(context, newContainer);
@@ -154,6 +159,9 @@ export class Container {
         );
         newFirestoreController.onCopy((copyBuffer: CopyBuffer) => {
             newContainer._copyBuffer = copyBuffer;
+        });
+        newFirestoreController.onRead((event) => {
+            newContainer._onRead.fire(event);
         });
         newContainer._firestoreController = newFirestoreController;
         const newDebugController = DebugController.create(newContainer);

@@ -352,6 +352,8 @@ export class DataController {
         return {
             node: this.readableNode.serialize(),
             webMetadata: this.webMetaData,
+            changeBuffer: this._changeBuffer,
+            // vscNodeMetadata: this.vscodeNodeMetadata, // need to remove ts nodes
         };
     }
 

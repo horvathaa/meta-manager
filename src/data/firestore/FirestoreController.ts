@@ -12,6 +12,8 @@ import {
     DocumentData,
     doc,
     setDoc,
+    getDoc,
+    QuerySnapshot,
 } from 'firebase/firestore';
 import { Functions, getFunctions } from 'firebase/functions';
 import { Auth, User, getAuth } from 'firebase/auth';
@@ -21,6 +23,7 @@ import { getUserGithubData } from './functions/cloudFunctions';
 import { signInWithGithubCredential } from './functions/authFunctions';
 import { DataSourceType } from '../timeline/TimelineEvent';
 import { CopyBuffer } from '../../constants/types';
+import GitController from '../git/GitController';
 
 export type DB_REFS =
     | 'users'
@@ -28,7 +31,7 @@ export type DB_REFS =
     | 'vscode-annotations'
     | 'commits'
     | 'web-meta'
-    | 'play-toy';
+    | 'code-metadata';
 
 export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
     USERS: 'users',
@@ -36,13 +39,27 @@ export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
     CODE_ANNOTATIONS: 'vscode-annotations',
     COMMITS: 'commits',
     WEB_META: 'web-meta',
-    PLAY_TOY: 'play-toy',
+    CODE_METADATA: 'code-metadata',
+    // PLAY_TOY: 'play-toy',
 };
 
 const SUB_COLLECTIONS = {
     FILES: 'files',
     NODES: 'nodes',
 };
+
+export function getListFromSnapshots(
+    snapshots: QuerySnapshot<DocumentData>
+): any[] {
+    let out: any = [];
+    snapshots.forEach((snapshot) => {
+        out.push({
+            id: snapshot.id,
+            ...snapshot.data(),
+        });
+    });
+    return out;
+}
 
 class FirestoreController extends Disposable {
     _disposable: Disposable;
@@ -51,8 +68,10 @@ class FirestoreController extends Disposable {
     readonly _functions: Functions | undefined;
     readonly _auth: Auth | undefined;
     _user: User | undefined;
-    readonly _refs: Map<DB_REFS, CollectionReference> | undefined;
+    readonly _refs: Map<string, CollectionReference> | undefined;
     _onCopy: EventEmitter<CopyBuffer> = new EventEmitter<CopyBuffer>();
+    _onRead: EventEmitter<any> = new EventEmitter<any>();
+    _projectName: string = '';
     constructor(private readonly container: Container) {
         super(() => this.dispose());
         this._disposable = Disposable.from();
@@ -79,6 +98,10 @@ class FirestoreController extends Disposable {
 
     get onCopy() {
         return this._onCopy.event;
+    }
+
+    get onRead() {
+        return this._onRead.event;
     }
 
     private async setUpUser(
@@ -112,16 +135,59 @@ class FirestoreController extends Disposable {
         }
     }
 
+    async buildSubCollectionRefs() {
+        const topLevelCollectionId = this._projectName;
+        if (!this._refs) {
+            throw new Error(
+                'FirestoreController: Could not read from firestore -- no collection reference'
+            );
+        }
+        // const ref = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        // const topDoc = doc(
+        //     this._refs.get(DB_COLLECTIONS.CODE_METADATA)!,
+        //     topLevelCollectionId
+        // );
+        const collectionRef = collection(
+            this._firestore!,
+            `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}`
+        );
+        this._refs.set(
+            `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}`,
+            collectionRef
+        );
+        const docs = await getDocs(collectionRef);
+        docs.forEach((doc) => {
+            const subCollectionRef = collection(
+                this._firestore!,
+                `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}/${doc.id}/${SUB_COLLECTIONS.NODES}`
+            );
+            this._refs?.set(
+                `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}/${doc.id}/${SUB_COLLECTIONS.NODES}`,
+                subCollectionRef
+            );
+        });
+    }
+
+    private initProjectName(gitController: GitController) {
+        const { gitState } = gitController;
+        if (gitState) {
+            this._projectName = gitState.projectName.replace(/[\/\\]/g, '-');
+        }
+    }
+
     public static async create(container: Container) {
         const firestoreController = new FirestoreController(container);
         const event = firestoreController.container.onInitComplete(
             async (container) => {
                 const gitController = container.gitController;
                 if (gitController && gitController.authSession) {
-                    firestoreController.setUpUser(
+                    await firestoreController.setUpUser(
                         firestoreController,
                         gitController.authSession
                     );
+                    firestoreController.initProjectName(gitController);
+                    await firestoreController.buildSubCollectionRefs();
+                    firestoreController.readProject();
                 }
             }
         );
@@ -251,10 +317,55 @@ class FirestoreController extends Disposable {
         return () => unsubscribe();
     }
 
+    // how to read in data? probably just read in all the files and the most recent
+    // ver of each instance we have saved, if any, then use the tree deserialize function
+    // curr will have curr version of each node
+    // node can then query on its own time for its history maybe on file load or on selection?
+
+    async readProject() {
+        const topLevelCollectionId = this._projectName;
+        const ref = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        if (!ref) {
+            throw new Error(
+                'FirestoreController: Could not read from firestore -- no collection reference'
+            );
+        }
+        console.log('reading project', topLevelCollectionId, this._user);
+        // const docRef = doc(ref, topLevelCollectionId, SUB_COLLECTIONS.FILES);
+        // const docRef = doc(ref, 'OFLdwjrdH2xysb0uhLRO');
+        // const data = await getDocs(docRef);
+        const filesRef = this._refs!.get(
+            `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}`
+        );
+        if (!filesRef) {
+            throw new Error(
+                'FirestoreController: Could not read from firestore -- no files reference'
+            );
+        }
+
+        const data = await getDocs(filesRef);
+        data.forEach(async (doc) => {
+            // console.log('doc', doc.data());
+            const res = this._refs?.get(
+                `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}/${doc.id}/${SUB_COLLECTIONS.NODES}`
+            );
+            if (!res) {
+                console.error('could not find subcollection for', doc.id);
+                return;
+            }
+            const subData = getListFromSnapshots(await getDocs(res));
+            // console.log('got this data', subData, 'for this doc', doc.id);
+            this._onRead.fire({
+                filename: doc.id.replace(/-/g, '/'),
+                data: subData,
+            });
+        });
+    }
+
     // can probably have a smaller-scale, simpler write
     // for just updating an individual node when ready
     // or file when ready
-    write() {
+    async write() {
         if (
             !this.container.gitController ||
             !this.container.gitController.gitState
@@ -268,31 +379,67 @@ class FirestoreController extends Disposable {
                 'FirestoreController: Could not write to firestore -- no firestore'
             );
         }
-        const topLevelCollectionId =
-            this.container.gitController.gitState.projectName.replace('/', '-');
+        const topLevelCollectionId = this._projectName.length
+            ? this._projectName
+            : (this._projectName =
+                  this.container.gitController.gitState.projectName.replace(
+                      '/',
+                      '-'
+                  ));
         if (!this.container.fileParser) {
             throw new Error(
                 'FirestoreController: Could not write to firestore -- no parsed files'
             );
         }
+
         // mark dirty files and only write those
         const files = this.container.fileParser.docs;
         // const dirtyFiles = files.filter((file) => file.dirty);
-        const refCollection = this._refs?.get(DB_COLLECTIONS.PLAY_TOY);
+        const refCollection = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
         if (!refCollection) {
             throw new Error(
                 'FirestoreController: Could not write to firestore -- no collection reference'
             );
         }
-        files.forEach((file) => {
-            const fileName = file.relativeFilePath.replace(/[\/\\]/g, '-');
-            const tree = file.nodesInFile?.toArray();
+        const docRef = doc(
+            refCollection,
+            topLevelCollectionId
+            // SUB_COLLECTIONS.FILES,
+            // fileName,
+            // SUB_COLLECTIONS.NODES,
+            // node.id
+        );
+        await setDoc(
+            docRef,
+            { projectName: this._projectName } // can put git stuff here
+        );
+        // some async error where not every file is being written
+        // probably a stupid forEach not async safe this idk
+        // files.forEach((file) => {
+        for (const file of files) {
+            const [filename, docWatcher] = file;
+            console.log('filename', filename, 'doc', docWatcher);
+            const fileName = docWatcher.relativeFilePath.replace(
+                /[\/\\]/g,
+                '-'
+            );
+            const tree = docWatcher.nodesInFile?.toArray();
             if (!tree) {
                 console.warn('no tree for file', file);
                 return;
             }
             console.log('writing file', fileName, 'to firestore');
-            tree.forEach((node) => {
+            const fileDocRef = doc(
+                refCollection,
+                topLevelCollectionId,
+                SUB_COLLECTIONS.FILES,
+                fileName
+            );
+            await setDoc(
+                fileDocRef,
+                { filename: fileName } // can put git stuff here
+            );
+            for (const node of tree) {
                 const docRef = doc(
                     refCollection,
                     topLevelCollectionId,
@@ -301,9 +448,15 @@ class FirestoreController extends Disposable {
                     SUB_COLLECTIONS.NODES,
                     node.id
                 );
-                setDoc(docRef, node.serialize());
-            });
-        });
+                setDoc(
+                    docRef,
+                    node.dataController
+                        ? node.dataController.serialize()
+                        : node.serialize()
+                );
+            }
+        }
+        // });
     }
 
     dispose() {

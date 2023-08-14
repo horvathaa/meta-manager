@@ -180,4 +180,5 @@ export interface SerializedDataController {
     // changeBuffer: VscodeCopyBuffer[];
     node: SerializedReadableNode;
     webMetadata: CopyBuffer[];
+    changeBuffer?: any[];
 }

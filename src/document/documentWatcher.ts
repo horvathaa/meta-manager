@@ -42,18 +42,51 @@ class DocumentWatcher extends Disposable {
         this._relativeFilePath = getVisiblePath(
             workspace.name || getProjectName(this.document.uri.toString()),
             this.document.uri.fsPath
-        );
+        ).replace(/\\/g, '/');
+        console.log('relative file path', this._relativeFilePath);
 
         this._nodesInFile = undefined;
-        const listener = container.fileSystemController?.onFileParsed(
+        // const listener = container.fileSystemController?.onFileParsed(
+        //     (event: FileParsedEvent) => {
+        //         // console.log('EVENT', event);
+        //         const { filename, data } = event;
+        //         if (filename === this._relativeFilePath) {
+        //             const tree = new SimplifiedTree<ReadableNode>({
+        //                 name: this._relativeFilePath,
+        //             }).deserialize(
+        //                 data.data,
+        //                 new ReadableNode(
+        //                     '',
+        //                     new LocationPlus(
+        //                         this.document.uri,
+        //                         new Range(0, 0, 0, 0)
+        //                     )
+        //                 ),
+        //                 this._relativeFilePath
+        //             );
+        //             this._nodesInFile = this.initNodes(tree);
+
+        //             // console.log('file parsed complete', this);
+        //         }
+        //     }
+        // );
+        const otherListener = container.onNodesComplete(() => {
+            if (this._nodesInFile === undefined) {
+                this._nodesInFile = this.initNodes();
+                // console.log('NEW NODES', this._nodesInFile);
+            }
+        });
+
+        const firestoreReadListener = container.onRead(
             (event: FileParsedEvent) => {
                 // console.log('EVENT', event);
                 const { filename, data } = event;
                 if (filename === this._relativeFilePath) {
+                    console.log('HEWWWWOOOO!!!!!!!!!', event);
                     const tree = new SimplifiedTree<ReadableNode>({
                         name: this._relativeFilePath,
                     }).deserialize(
-                        data.data,
+                        data,
                         new ReadableNode(
                             '',
                             new LocationPlus(
@@ -63,26 +96,22 @@ class DocumentWatcher extends Disposable {
                         ),
                         this._relativeFilePath
                     );
+                    console.log('tree', tree);
                     this._nodesInFile = this.initNodes(tree);
 
                     console.log('file parsed complete', this);
                 }
             }
         );
-        const otherListener = container.onNodesComplete(() => {
-            if (this._nodesInFile === undefined) {
-                this._nodesInFile = this.initNodes();
-                // console.log('NEW NODES', this._nodesInFile);
-            }
-        });
 
         const saveListener = workspace.onDidSaveTextDocument((e) =>
             this.handleOnDidSaveDidClose(e)
         );
         const listeners = [
             saveListener,
-            listener,
+            // listener,
             otherListener,
+            firestoreReadListener,
             // docChangeListener,
         ].filter((d) => d) as Disposable[];
         this._disposable = Disposable.from(...listeners);
