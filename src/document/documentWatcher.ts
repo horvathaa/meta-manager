@@ -29,6 +29,7 @@ import { v4 as uuidv4 } from 'uuid';
 // import { VscodeTsNodeMetadata } from './languageServiceProvider/LanguageServiceProvider';
 import RangePlus from './locationApi/range';
 import { isEmpty } from 'lodash';
+import { SerializedReadableNode } from '../constants/types';
 // import { debounce } from '../lib';
 const tstraverse = require('tstraverse');
 
@@ -37,6 +38,7 @@ class DocumentWatcher extends Disposable {
     readonly _relativeFilePath: string;
     private _firestoreCollectionPath: string;
     _nodesInFile: SimplifiedTree<ReadableNode> | undefined;
+    _writeWholeFile: boolean = false;
 
     constructor(
         readonly document: TextDocument,
@@ -76,7 +78,9 @@ class DocumentWatcher extends Disposable {
         //     }
         // );
         const otherListener = container.onNodesComplete(() => {
+            // console.log('new project', this);
             if (this._nodesInFile === undefined) {
+                // console.log('hewwo????', this);
                 this._nodesInFile = this.initNodes();
                 // console.log('NEW NODES', this._nodesInFile);
             }
@@ -87,7 +91,7 @@ class DocumentWatcher extends Disposable {
                 // console.log('EVENT', event);
                 const { filename, data, map, collectionPath } = event;
                 if (filename === this._relativeFilePath) {
-                    console.log('HEWWWWOOOO!!!!!!!!!', event);
+                    // console.log('HEWWWWOOOO!!!!!!!!!', event);
                     this._firestoreCollectionPath = collectionPath;
                     const tree = new SimplifiedTree<ReadableNode>({
                         name: this._relativeFilePath,
@@ -131,11 +135,31 @@ class DocumentWatcher extends Disposable {
         return this._nodesInFile;
     }
 
-    handleOnDidSaveDidClose(event: TextDocument) {
-        console.log('calling write');
-        if (event.uri.fsPath === this.document.uri.fsPath) {
-            this.container.firestoreController?.write();
-        }
+    // handleOnDidSaveDidClose(event: TextDocument) {
+    //     console.log('calling write');
+    //     if (
+    //         event.uri.fsPath === this.document.uri.fsPath &&
+    //         this._writeWholeFile
+    //     ) {
+    //         // this.container.firestoreController?.write();
+    //         this.container.firestoreController?.writeFile(
+    //             this.initSerialize(),
+    //             this._firestoreCollectionPath
+    //         );
+    //         this._writeWholeFile = false;
+    //     }
+    // }
+
+    initSerialize() {
+        return (
+            this._nodesInFile?.serialize().map((n) => {
+                return {
+                    node: n as unknown as SerializedReadableNode, // bad
+                    changeBuffer: [],
+                    webMetadata: [],
+                };
+            }) || []
+        );
     }
 
     initNodes(oldTree?: SimplifiedTree<ReadableNode>, map?: Map<string, any>) {
@@ -180,15 +204,19 @@ class DocumentWatcher extends Disposable {
                 const readableNode = // context.initNode(
                     // new DataController(
                     ReadableNode.create(node, docCopy, context.container, name);
+
                 // context.container
                 // );
                 // );
-                name === 'handleAddAnchor' && (debug = true);
-                debug && console.log('adding readable node', readableNode);
+                (name.includes('getPathFromUrl') ||
+                    name.includes('If:3144403a-2ac6-4161-9475-6b2d6f4417dd')) &&
+                    (debug = true);
+                debug &&
+                    console.log('ADDING READABLE NODE', readableNode.copy());
                 readableNode.dataController = new DataController(
                     readableNode,
-                    context.container,
-                    debug
+                    context.container
+                    // debug
                 );
 
                 debug &&
@@ -199,53 +227,15 @@ class DocumentWatcher extends Disposable {
                 readableNode.location.updateContent(docCopy);
                 // we have a point of comparison
                 if (otherTreeInstance && oldTree) {
-                    const matchInfo = otherTreeInstance.getNodeOfBestMatch(
-                        readableNode // .readableNode
+                    const matchInfo = context.match(
+                        otherTreeInstance,
+                        oldTree,
+                        readableNode,
+                        name,
+                        debug
                     );
-                    matchInfo.bestMatch &&
-                        matchInfo.bestMatch.id === 'handleAddAnchor' &&
-                        (debug = true);
-                    debug && console.log('wtf', readableNode, matchInfo);
-
-                    if (
-                        matchInfo.status === SummaryStatus.SAME &&
-                        matchInfo.bestMatch
-                    ) {
-                        name = matchInfo.bestMatch.id;
-                        otherTreeInstance = matchInfo.subtree; // any :-(
-                    } else {
-                        const matchInfo = oldTree.getNodeOfBestMatch(
-                            readableNode // .readableNode
-                        );
-                        matchInfo.bestMatch &&
-                            matchInfo.bestMatch.id === 'handleAddAnchor' &&
-                            (debug = true);
-                        debug &&
-                            console.log(
-                                'wtf bigger search',
-                                readableNode,
-                                matchInfo
-                            );
-                        if (
-                            matchInfo.status === SummaryStatus.SAME &&
-                            matchInfo.bestMatch
-                        ) {
-                            name = matchInfo.bestMatch.id;
-                            otherTreeInstance = matchInfo.subtree; // any :-(
-                        } else {
-                            // console.log(
-                            //     'NO MATCH!!!!!!!!!!',
-                            //     readableNode,
-                            //     matchInfo,
-                            //     otherTreeInstance
-                            // );
-                            otherTreeInstance = oldTree; // set back to top for future search
-                        }
-                    }
-                }
-                // we do not have a point of comparison so we init new nodes
-                else {
-                    name = `${name}:${uuidv4()}`;
+                    name = matchInfo.name;
+                    otherTreeInstance = matchInfo.otherTreeInstance;
                 }
 
                 readableNode.setId(name);
@@ -255,24 +245,25 @@ class DocumentWatcher extends Disposable {
                     : context.container.firestoreController!.getFileCollectionPath(
                           context.relativeFilePath
                       );
+                // debug &&
+                //     console.log('after collection', firestoreCollectionPath);
                 if (!context._firestoreCollectionPath.length) {
                     context._firestoreCollectionPath = firestoreCollectionPath;
                 }
                 readableNode.dataController.firestoreControllerInterface =
-                    map?.get(readableNode.id) ||
-                    context.container.firestoreController!.createNodeMetadata(
-                        readableNode.id,
-                        firestoreCollectionPath
-                    );
-                readableNode.registerListeners();
-                // v expensive to compute all this metadata
-                // tbd whether/how to speed it up
-                // const nodeInfo: VscodeTsNodeMetadata[] = [];
-                //  nodeMetadata.filter((n) =>
-                //     readableNode.readableNode.location.range.contains(
-                //         n.location.range
-                //     )
+                    map?.get(readableNode.id);
+                // debug &&
+                //     console.log(
+                //         'after firestoreControllerInterface',
+                //         readableNode
+                //     );
+                // ||
+                // context.container.firestoreController!.createNodeMetadata(
+                //     readableNode.id,
+                //     firestoreCollectionPath
                 // );
+                readableNode.registerListeners();
+                // debug && console.log('after registerListeners', readableNode);
 
                 // readableNode.dataController.vscNodeMetadata = nodeInfo;
                 const treeRef = currTreeInstance[
@@ -281,8 +272,11 @@ class DocumentWatcher extends Disposable {
                     readableNode, // .readableNode,
                     { name }
                 );
+                // debug && console.log('after treeRef', treeRef);
                 // readableNode.dataController.tree = treeRef; // this is wrong lol
                 currTreeInstance.push(treeRef);
+                // debug &&
+                //     console.log('after currTreeInstance', currTreeInstance);
                 debug = false;
             }
         }
@@ -295,13 +289,111 @@ class DocumentWatcher extends Disposable {
             }
         }
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
-        if (!oldTree) {
-            this.container.fileSystemController?.writeToFile(
-                tree.serialize(),
-                tree.name
-            );
-        }
         return tree;
+    }
+
+    match(
+        otherTreeInstance: SimplifiedTree<ReadableNode>,
+        oldTree: SimplifiedTree<ReadableNode>,
+        readableNode: ReadableNode,
+        name: string,
+        debug: boolean
+    ) {
+        const matchInfo = otherTreeInstance.getNodeOfBestMatch(
+            readableNode // .readableNode
+        );
+        // matchInfo.bestMatch &&
+        //     matchInfo.bestMatch.id === 'handleSnapshotCode' &&
+        //     (debug = true);
+        debug && console.log('wtf', readableNode, matchInfo);
+
+        if (matchInfo.status === SummaryStatus.SAME && matchInfo.bestMatch) {
+            return {
+                name: matchInfo.bestMatch.id,
+                otherTreeInstance: matchInfo.subtree,
+            };
+            // name = matchInfo.bestMatch.id;
+            // otherTreeInstance = matchInfo.subtree; // any :-(
+            // debug &&
+            //     console.log(
+            //         'other tree instance',
+            //         otherTreeInstance,
+            //         'name',
+            //         name
+            //     );
+        } else if (matchInfo.status === SummaryStatus.MODIFIED) {
+            return {
+                name: matchInfo.modifiedNodes?.id || name,
+                otherTreeInstance: matchInfo.subtree,
+            };
+            // name = matchInfo.modifiedNodes?.id || name;
+            // otherTreeInstance = matchInfo.subtree;
+            // debug &&
+            //     console.log(
+            //         'MODIFIED',
+            //         otherTreeInstance,
+            //         'name',
+            //         name
+            //     );
+        } else {
+            const matchInfo = oldTree.getNodeOfBestMatch(
+                readableNode // .readableNode
+            );
+            debug &&
+                console.log(
+                    'wtf bigger search',
+                    readableNode,
+                    matchInfo,
+                    oldTree
+                );
+            if (
+                matchInfo.status === SummaryStatus.SAME &&
+                matchInfo.bestMatch
+            ) {
+                return {
+                    name: matchInfo.bestMatch.id,
+                    otherTreeInstance: matchInfo.subtree,
+                };
+                // name = matchInfo.bestMatch.id;
+                // otherTreeInstance = matchInfo.subtree; // any :-(
+                // debug &&
+                //     console.log(
+                //         'FOUND SOMETHINg',
+                //         otherTreeInstance,
+                //         matchInfo,
+                //         name
+                //     );
+            } else if (
+                matchInfo.status === SummaryStatus.MODIFIED // may want to do something smarter with this
+            ) {
+                return {
+                    name: matchInfo.modifiedNodes?.id || name,
+                    otherTreeInstance: matchInfo.subtree,
+                };
+                // name = matchInfo.modifiedNodes?.id || name;
+                // otherTreeInstance = matchInfo.subtree;
+                // debug &&
+                //     console.log(
+                //         'MODIFIED LARGER SEARCH',
+                //         otherTreeInstance,
+                //         'name',
+                //         name
+                //     );
+            } else {
+                // name = `${name}:${uuidv4()}`;
+                // otherTreeInstance = oldTree; // set back to top for future search
+                // debug &&
+                //     console.log(
+                //         'wtf nothing',
+                //         otherTreeInstance,
+                //         matchInfo
+                //     );
+                return {
+                    name: `${name}:${uuidv4()}`,
+                    otherTreeInstance: oldTree,
+                };
+            }
+        }
     }
 }
 

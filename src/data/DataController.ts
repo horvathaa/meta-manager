@@ -32,7 +32,10 @@ import { debounce } from '../utils/lib';
 import { patienceDiffPlus } from '../utils/PatienceDiff';
 import {
     CopyBuffer,
+    Event,
     SerializedDataController,
+    SerializedLocationPlus,
+    SerializedNodeDataController,
     VscodeCopyBuffer,
 } from '../constants/types';
 import MetaInformationExtractor from '../comments/CommentCreator';
@@ -75,16 +78,29 @@ type Diff =
       };
 
 interface ChangeBuffer {
-    location: LocationPlus;
+    location: LocationPlus | SerializedLocationPlus;
     typeOfChange: TypeOfChange;
     changeContent: string;
     time: number;
-    diff: Diff;
+    diff?: Diff;
     uid: string;
-    changeInfo?: {
-        newComments?: CodeComment[];
-        removedComments?: CodeComment[];
-        changedComments?: CodeComment[];
+    id: string;
+    eventData?: {
+        [Event.COMMENT]?: {
+            newComments?: CodeComment[];
+            removedComments?: CodeComment[];
+            changedComments?: CodeComment[];
+        };
+        [Event.COPY]?: {
+            copyContent: string;
+        };
+        [Event.PASTE]?: {
+            pasteContent: string;
+            nodeId?: string;
+        };
+        [Event.WEB]?: {
+            copyBuffer: CopyBuffer;
+        };
     };
 }
 
@@ -92,7 +108,7 @@ export interface FirestoreControllerInterface {
     ref: DocumentReference<DocumentData>;
     pastVersionsCollection: CollectionReference<DocumentData>;
     write: (newNode: any) => void;
-    writeToPast: (versionId: string, newNode: any) => void;
+    logVersion: (versionId: string, newNode: any) => void;
 }
 
 export class DataController {
@@ -103,6 +119,7 @@ export class DataController {
     _firestoreControllerInterface: FirestoreControllerInterface | undefined;
     _tree: SimplifiedTree<ReadableNode> | undefined;
     _metaInformationExtractor: MetaInformationExtractor;
+
     // _readableNode: ReadableNode;
     // _chatGptData: VscodeCopyBuffer[] | undefined = [];
     _webMetaData: VscodeCopyBuffer[] = [];
@@ -166,20 +183,44 @@ export class DataController {
                     ),
             };
         }
+        // this._changeBuffer.push({
+        //     ...(commentInfo && { changeInfo: commentInfo }), // condiiontal property add
+        //     ...{
+        //         diff,
+        //         location: changeEvent.location,
+        //         typeOfChange: changeEvent.typeOfChange,
+        //         changeContent: newContent,
+        //         time: Date.now(),
+        //         uid:
+        //             this.container.firestoreController?._user?.uid ||
+        //             'anonymous',
+        //     },
+        // });
         this._changeBuffer.push({
-            ...(commentInfo && { changeInfo: commentInfo }), // condiiontal property add
-            ...{
-                diff,
-                location: changeEvent.location,
-                typeOfChange: changeEvent.typeOfChange,
-                changeContent: newContent,
-                time: Date.now(),
-                uid:
-                    this.container.firestoreController?._user?.uid ||
-                    'anonymous',
-            },
+            ...(commentInfo && {
+                changeInfo: commentInfo.newComments.map((n) => {
+                    return {
+                        ...n,
+                        location: (n.location as RangePlus).serialize(),
+                    };
+                }),
+            }),
+            ...this.getBaseChangeBuffer(),
+            typeOfChange: changeEvent.typeOfChange,
+            changeContent: newContent,
         });
-        console.log('this!!!!', this);
+        // console.log('this!!!!', this);
+    }
+
+    private getBaseChangeBuffer() {
+        const time = Date.now();
+        return {
+            time: Date.now(),
+            uid: this.container.firestoreController?._user?.uid || 'anonymous',
+            id: `${this.readableNode.id}:${time}`,
+            location: this.readableNode.location.serialize(),
+            changeContent: this.readableNode.location.content,
+        };
     }
 
     async handleUpdateNodeMetadata(newContent: string, location: LocationPlus) {
@@ -212,6 +253,16 @@ export class DataController {
             this.container.onCopy((copyEvent) => {
                 if (this.readableNode.location.contains(copyEvent.location)) {
                     console.log('COPIED', this, 'copy', copyEvent);
+                    this._changeBuffer.push({
+                        ...this.getBaseChangeBuffer(),
+                        typeOfChange: TypeOfChange.CONTENT_ONLY,
+                        changeContent: this.readableNode.location.content,
+                        eventData: {
+                            [Event.COPY]: {
+                                copyContent: copyEvent.text,
+                            },
+                        },
+                    });
                 }
             }),
             // same questions as above for paste -- what to save
@@ -234,15 +285,38 @@ export class DataController {
                     if (this.container.copyBuffer) {
                         const { repository, ...rest } = this.container
                             .gitController?.gitState as CurrentGitState;
-                        this._webMetaData.push({
+                        const details = {
                             ...this.container.copyBuffer,
                             location: pasteEvent.location,
                             pasteTime: Date.now(),
                             gitMetadata: rest,
+                        };
+                        this._webMetaData.push(details);
+                        this._changeBuffer.push({
+                            ...this.getBaseChangeBuffer(),
+                            typeOfChange: TypeOfChange.CONTENT_ONLY,
+                            changeContent: pasteEvent.location.content,
+                            eventData: {
+                                [Event.WEB]: {
+                                    copyBuffer: this.container.copyBuffer,
+                                },
+                            },
                         });
                         this._debug = true;
                         this._emit = true;
                         console.log('posting', this.serialize());
+                    } else {
+                        this._changeBuffer.push({
+                            ...this.getBaseChangeBuffer(),
+                            typeOfChange: TypeOfChange.CONTENT_ONLY,
+                            changeContent: pasteEvent.location.content,
+                            eventData: {
+                                [Event.PASTE]: {
+                                    pasteContent: pasteEvent.location.content,
+                                    nodeId: this.readableNode.id, // replace with readable node id that was copiedd
+                                },
+                            },
+                        });
                     }
                 }
             }),
@@ -282,6 +356,7 @@ export class DataController {
                     //             changeEvent.originalChangeEvent,
                     //     });
                     // }
+                    this._emit = true;
                     this.handleUpdateChangeBuffer(
                         oldContent,
                         newContent,
@@ -329,15 +404,41 @@ export class DataController {
             workspace.onDidSaveTextDocument((document) => {
                 if (
                     document.uri.fsPath ===
-                    this.readableNode.location.uri.fsPath
+                        this.readableNode.location.uri.fsPath &&
+                    this._changeBuffer.length > 0
                 ) {
-                    this._debug = true;
-                    this._emit = true;
+                    // this._debug = true;
+                    // this._emit = false;
                     console.log('posting', this.serialize());
                     this._firestoreControllerInterface?.write({
                         ...this.serialize(),
-                        message: 'I AM SAVING TO FIRESTORE',
                     });
+                    if (this.container.gitController?.gitState) {
+                        console.log(
+                            'this.container.gitController',
+                            this.container.gitController
+                        );
+                        const { commit, branch } = this.container.gitController
+                            ?.gitState as CurrentGitState;
+                        // Promise.all(
+                        this._changeBuffer.forEach((c) => {
+                            this._firestoreControllerInterface?.logVersion(
+                                c.id,
+                                {
+                                    ...c,
+                                    commit, // tbd if we just want this as a subcollection
+                                    branch,
+                                }
+                            );
+                        });
+                        // );
+                        this._changeBuffer = [];
+                        // this.container.gitController?.commit(
+                        //     this.readableNode.location.uri,
+                        //     this.readableNode.location.range,
+                        //     this.readableNode.location.content
+                        // );
+                    }
                 }
             })
         );
@@ -374,11 +475,26 @@ export class DataController {
         );
     }
 
-    serialize(): SerializedDataController {
+    // serialize(): SerializedDataController {
+    serialize(): SerializedNodeDataController {
         return {
             node: this.readableNode.serialize(),
-            webMetadata: this.webMetaData,
-            changeBuffer: this._changeBuffer,
+            lastUpdatedTime: Date.now(),
+            lastUpdatedBy:
+                this.container.firestoreController?._user?.uid || 'anonymous',
+            setOfEventIds: this._changeBuffer // keep track of this since we reset change buffer on push
+                .filter((c) => c.eventData)
+                .map((c) => c.id),
+            // setOfEvents: this._changeBuffer.,
+            // webMetadata: this.webMetaData,
+            // changeBuffer: [],
+
+            // this._changeBuffer.map((c) => {
+            //     return {
+            //         ...c,
+            //         location: c.location.serialize(),
+            //     };
+            // }),
             // vscNodeMetadata: this.vscodeNodeMetadata, // need to remove ts nodes
         };
     }

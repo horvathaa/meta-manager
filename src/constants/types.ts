@@ -5,7 +5,7 @@ import {
     Location,
     OverviewRulerLane,
 } from 'vscode';
-import LocationPlus from '../document/locationApi/location';
+import LocationPlus, { TypeOfChange } from '../document/locationApi/location';
 
 export type LegalDataSource = 'github' | 'firestore' | 'git' | 'code' | 'web';
 
@@ -179,6 +179,33 @@ export interface SerializedReadableNode {
 export interface SerializedDataController {
     // changeBuffer: VscodeCopyBuffer[];
     node: SerializedReadableNode;
-    webMetadata: CopyBuffer[];
+    // id: string;
+    webMetadata?: CopyBuffer[];
     changeBuffer?: any[];
+}
+
+export enum Event {
+    WEB = 'WEB',
+    COPY = 'COPY',
+    PASTE = 'PASTE',
+    COMMENT = 'COMMENT',
+}
+
+export interface SerializedDataControllerEvent {
+    id: string;
+    uid: string;
+    time: number;
+    type: string;
+    // thingsThatHappened: WEB | CHANGE | NODE;
+    typeOfChange: TypeOfChange;
+    changeContent: string;
+    eventData: { [k in Event]: any };
+}
+
+export interface SerializedNodeDataController {
+    node: SerializedReadableNode;
+    lastUpdatedTime: number;
+    lastUpdatedBy: string;
+    // setOfEvents: Event[];
+    setOfEventIds: string[];
 }

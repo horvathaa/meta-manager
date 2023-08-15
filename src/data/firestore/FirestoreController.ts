@@ -22,9 +22,10 @@ import * as dotenv from 'dotenv';
 import { getUserGithubData } from './functions/cloudFunctions';
 import { signInWithGithubCredential } from './functions/authFunctions';
 import { DataSourceType } from '../timeline/TimelineEvent';
-import { CopyBuffer } from '../../constants/types';
+import { CopyBuffer, SerializedDataController } from '../../constants/types';
 import GitController from '../git/GitController';
 import { FirestoreControllerInterface } from '../DataController';
+import DocumentWatcher from '../../document/documentWatcher';
 
 export type DB_REFS =
     | 'users'
@@ -282,6 +283,43 @@ class FirestoreController extends Disposable {
         return arr;
     }
 
+    initProject() {
+        const topLevelCollectionId = this._projectName;
+        if (!this._refs) {
+            throw new Error(
+                'FirestoreController: Could not read from firestore -- no collection reference'
+            );
+        }
+        const ref = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        if (!ref) {
+            throw new Error(
+                'FirestoreController: Could not read from firestore -- no collection reference'
+            );
+        }
+        const docRef = doc(ref, topLevelCollectionId);
+        setDoc(docRef, { projectName: this._projectName });
+    }
+
+    async checkProjectExists() {
+        const topLevelCollectionId = this._projectName;
+        const ref = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        if (!ref) {
+            throw new Error(
+                'FirestoreController: Could not read from firestore -- no collection reference'
+            );
+        }
+        const docRef = doc(ref, topLevelCollectionId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            console.log('doc exists', docSnap.data());
+            return true;
+        } else {
+            // await this.write();
+            this.container._onNodesComplete.fire(this.container);
+            return false;
+        }
+    }
+
     listenForCopy() {
         const collectionRef = this._refs?.get(DB_COLLECTIONS.WEB_META);
         if (collectionRef === undefined) {
@@ -336,6 +374,13 @@ class FirestoreController extends Disposable {
         // const docRef = doc(ref, topLevelCollectionId, SUB_COLLECTIONS.FILES);
         // const docRef = doc(ref, 'OFLdwjrdH2xysb0uhLRO');
         // const data = await getDocs(docRef);
+        const doesExist = await this.checkProjectExists();
+        if (!doesExist) {
+            this.initProject();
+            console.log('does not exist', this.container.fileParser?.docs);
+            await this.initFile(this.container.fileParser?.docs!);
+            return;
+        }
         const filesRef = this._refs!.get(
             `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}`
         );
@@ -384,24 +429,21 @@ class FirestoreController extends Disposable {
             this._firestore!,
             `${parentCollectionPath}/${id}/${SUB_COLLECTIONS.PAST_VERSIONS}`
         );
+        const nodePath = `${parentCollectionPath}/${id}`;
         const ref = doc(this._firestore!, `${parentCollectionPath}/${id}`);
         const firestoreMetadata = {
             ref,
             pastVersionsCollection,
-            write: (newNode: any) => {
-                // change any to actual interface representing ver
-                console.log(
-                    'hewwo',
-                    ref,
-                    newNode,
-                    this._user,
-                    `${parentCollectionPath}/${id}`
-                );
-                setDoc(ref, newNode);
+            write: async (newNode: any) => {
+                // change any to actual interface representing ver -- serialized data controller
+                const docRef = doc(this._firestore!, nodePath);
+                await setDoc(docRef, newNode);
             },
-            writeToPast: (versionId: string, newNode: any) => {
+            logVersion: async (versionId: string, newNode: any) => {
+                console.log('new hewwo', versionId, newNode);
                 const docRef = doc(pastVersionsCollection, versionId);
-                setDoc(docRef, newNode);
+                console.log('SIGH', docRef);
+                await setDoc(docRef, newNode);
             },
         };
         return firestoreMetadata;
@@ -426,6 +468,95 @@ class FirestoreController extends Disposable {
             });
         });
         return { subData: formattedNodes, dataMap };
+    }
+
+    async initFile(map: Map<string, DocumentWatcher>) {
+        const refCollection = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        if (!refCollection) {
+            throw new Error(
+                'FirestoreController: Could not write to firestore -- no collection reference'
+            );
+        }
+        for (const file of map) {
+            const [filename, docWatcher] = file;
+            console.log('filename', filename, 'doc', docWatcher);
+            const fileName = docWatcher.relativeFilePath.replace(
+                /[\/\\]/g,
+                '-'
+            );
+
+            const fileDocRef = doc(
+                refCollection,
+                this._projectName,
+                SUB_COLLECTIONS.FILES,
+                fileName
+            );
+
+            await setDoc(
+                fileDocRef,
+                { filename: fileName } // can put git stuff here
+            );
+            // const tree = docWatcher.initSerialize();
+            const tree = docWatcher.nodesInFile?.toArray();
+            if (!tree?.length) {
+                console.warn('no tree for file', file);
+                continue;
+            }
+            console.log('writing file', fileName, 'to firestore');
+
+            for (const node of tree) {
+                node.dataController!._firestoreControllerInterface =
+                    this.createNodeMetadata(
+                        node.id,
+                        `${DB_COLLECTIONS.CODE_METADATA}/${this._projectName}/${SUB_COLLECTIONS.FILES}/${fileName}/${SUB_COLLECTIONS.NODES}`
+                    );
+                const docRef = doc(
+                    refCollection,
+                    this._projectName,
+                    SUB_COLLECTIONS.FILES,
+                    fileName,
+                    SUB_COLLECTIONS.NODES,
+                    node.id
+                );
+                setDoc(docRef, node.dataController!.serialize());
+            }
+        }
+    }
+
+    writeFile(tree: SerializedDataController[], filename: string) {
+        const topLevelCollectionId = this._projectName;
+        if (!this._refs) {
+            throw new Error(
+                'FirestoreController: Could not write to firestore -- no collection reference'
+            );
+        }
+        const refCollection = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        if (!refCollection) {
+            throw new Error(
+                'FirestoreController: Could not write to firestore -- no collection reference'
+            );
+        }
+        const docRef = doc(
+            refCollection,
+            topLevelCollectionId,
+            SUB_COLLECTIONS.FILES,
+            filename
+        );
+        setDoc(
+            docRef,
+            { filename: filename } // can put git stuff here
+        );
+        tree.forEach((node) => {
+            const docRef = doc(
+                refCollection,
+                topLevelCollectionId,
+                SUB_COLLECTIONS.FILES,
+                filename,
+                SUB_COLLECTIONS.NODES,
+                node.node.id
+            );
+            setDoc(docRef, node);
+        });
     }
 
     // can probably have a smaller-scale, simpler write

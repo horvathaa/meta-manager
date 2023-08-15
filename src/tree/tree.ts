@@ -1,6 +1,7 @@
 import * as ts from 'typescript';
 import { isEmpty, isEqual } from 'lodash';
 import { CompareDelta } from '../document/locationApi/range';
+import ReadableNode from './node';
 
 export enum SummaryStatus {
     SAME = 'SAME',
@@ -168,6 +169,7 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
                 ...node.data.serialize(),
                 parent: parentName,
                 depth: node.depth || 0,
+                // dataController: (node.data as ReadableNode).dataController
             };
         }
         return undefined;
@@ -338,14 +340,20 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
 
         if (this.root.data && this.root.data.compare) {
             const result = this.root.data.compare(node);
-            if (result.status === SummaryStatus.SAME) {
+            if (
+                result.status === SummaryStatus.SAME ||
+                result.status === SummaryStatus.MODIFIED
+            ) {
                 return { ...result, subtree: this };
             }
         }
 
         for (const child of this.root.children) {
             const result = child.getNodeOfBestMatch(node);
-            if (result.status === SummaryStatus.SAME) {
+            if (
+                result.status === SummaryStatus.SAME ||
+                result.status === SummaryStatus.MODIFIED
+            ) {
                 return {
                     ...result,
                     subtree: this,

@@ -264,7 +264,7 @@ export default class LocationPlus extends Location {
                         }),
                     });
                     this._range.updateRangeLength(document);
-                }, 5000);
+                }, 2000);
             }
         }
     }

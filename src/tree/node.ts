@@ -177,6 +177,8 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
     }
 
     compare(node: ReadableNode): CompareSummary<ReadableNode> {
+        // may want to bring this back too?
+        // idk
         // if (this.visited) {
         //     return {
         //         status: SummaryStatus.UNKNOWN,
@@ -184,8 +186,6 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
         // }
         const res = {
             distanceDelta: this.location.compare(node.location),
-            // bagOfWordsScore: this.getBagOfWordsScore(node),
-            // bagOfWordsScore: calculateSimilarityProportion(
             bagOfWordsScore: calculateBagOfWordsScore(
                 this.location.content,
                 node.location.content
@@ -194,17 +194,10 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             isSameName: this.location.id === node.location.id,
         };
 
-        if (this.id === 'handleAddAnchor' || node.id === 'handleAddAnchor') {
-            console.log('what is HAPPENING', this, 'NODE', {
-                status: SummaryStatus.SAME,
-                bestMatch: this,
-                additionalData: res,
-                node,
-            });
-        }
         // paper said .9 or above pretty much meant it is the same
-        // if (res.bagOfWordsScore >= 0.9 && res.isSameType && res.isSameName) {
-        if (res.bagOfWordsScore >= 0.9) {
+        if (res.bagOfWordsScore >= 0.9 && res.isSameType) {
+            // little skeptical about this but we shall see
+            // if (res.bagOfWordsScore >= 0.9) {
             this.visited = true;
             return {
                 status: SummaryStatus.SAME,
@@ -225,77 +218,24 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             };
         }
     }
-
-    // similar approach to this paper
-    // https://dl.acm.org/doi/abs/10.1145/2858036.2858442?casa_token=m_c4cxv1br8AAAAA:JSXZo8OMn9CV3YaYBawsRvZhZFhOsLJurX5qXfckEL_cO1dgBMS1hhbudI9P7JpM0F015wEzrJMf
-    private getBagOfWordsScore(node: ReadableNode) {
-        const contentWords = stripNonAlphanumeric(this.location.content);
-        const thisWordLengthProportion =
-            contentWords.length > 0 ? 1 / contentWords.length : 0;
-
-        const otherContentWords = stripNonAlphanumeric(node.location.content);
-        const otherWordLengthProportion =
-            otherContentWords.length > 0 ? 1 / otherContentWords.length : 0;
-        return (
-            0.5 *
-            intersectionBetweenStrings(contentWords, otherContentWords) *
-            (thisWordLengthProportion + otherWordLengthProportion)
-        );
-    }
 }
 
+// similar approach to this paper
+// https://dl.acm.org/doi/abs/10.1145/2858036.2858442?casa_token=m_c4cxv1br8AAAAA:JSXZo8OMn9CV3YaYBawsRvZhZFhOsLJurX5qXfckEL_cO1dgBMS1hhbudI9P7JpM0F015wEzrJMf
 function calculateBagOfWordsScore(str1: string, str2: string): number {
     const words1 = str1.toLowerCase().split(/\s+/);
     const words2 = str2.toLowerCase().split(/\s+/);
 
     const uniqueWords = [...new Set([...words1, ...words2])];
-    const commonWordsCount = words1.filter((word) =>
-        words2.includes(word)
-    ).length;
+    let commonWordsCount = 0;
+    uniqueWords.forEach((word) => {
+        if (words1.includes(word) && words2.includes(word)) {
+            commonWordsCount++;
+        }
+    });
 
     const score = commonWordsCount / uniqueWords.length;
     return score;
-}
-
-function calculateSimilarityProportion(str1: string, str2: string): number {
-    const words1 = str1.toLowerCase().split(/\s+/);
-    const words2 = str2.toLowerCase().split(/\s+/);
-
-    const combinedWords = [...new Set([...words1, ...words2])]; // Unique words from both strings
-
-    const wordFrequency1: { [word: string]: number } = {};
-    const wordFrequency2: { [word: string]: number } = {};
-
-    // Count word frequencies in the first string
-    for (const word of words1) {
-        if (wordFrequency1[word]) {
-            wordFrequency1[word]++;
-        } else {
-            wordFrequency1[word] = 1;
-        }
-    }
-
-    // Count word frequencies in the second string
-    for (const word of words2) {
-        if (wordFrequency2[word]) {
-            wordFrequency2[word]++;
-        } else {
-            wordFrequency2[word] = 1;
-        }
-    }
-
-    // Calculate the proportion of similarity
-    let commonWordsCount = 0;
-    for (const word of combinedWords) {
-        const frequency1 = wordFrequency1[word] || 0;
-        const frequency2 = wordFrequency2[word] || 0;
-        commonWordsCount += Math.min(frequency1, frequency2);
-    }
-
-    const totalWords = combinedWords.length;
-    const similarityProportion = commonWordsCount / totalWords;
-
-    return similarityProportion;
 }
 
 export default ReadableNode;

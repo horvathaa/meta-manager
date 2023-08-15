@@ -190,9 +190,10 @@ export class Container {
     }
 
     async initNodes() {
-        if (this._fileSystemController) {
-            await this._fileSystemController.readExtensionDirectory();
-            this._onNodesComplete.fire(this);
+        if (this._firestoreController) {
+            // await this._fileSystemController.readExtensionDirectory();
+            // this._onNodesComplete.fire(this);
+            // await this._firestoreController.initProject();
         }
     }
 
