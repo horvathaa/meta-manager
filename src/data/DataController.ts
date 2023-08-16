@@ -8,8 +8,9 @@ import {
     commands,
     TextEditor,
     TextEditorEdit,
+    TextDocument,
 } from 'vscode';
-import { Container } from '../container';
+import { ClipboardMetadata, Container } from '../container';
 import {
     AbstractTreeReadableNode,
     CompareSummary,
@@ -109,6 +110,7 @@ export interface FirestoreControllerInterface {
     pastVersionsCollection: CollectionReference<DocumentData>;
     write: (newNode: any) => void;
     logVersion: (versionId: string, newNode: any) => void;
+    readPastVersions: () => Promise<SerializedDataController[]>;
 }
 
 export class DataController {
@@ -119,7 +121,7 @@ export class DataController {
     _firestoreControllerInterface: FirestoreControllerInterface | undefined;
     _tree: SimplifiedTree<ReadableNode> | undefined;
     _metaInformationExtractor: MetaInformationExtractor;
-
+    _pastVersions: SerializedDataController[] = [];
     // _readableNode: ReadableNode;
     // _chatGptData: VscodeCopyBuffer[] | undefined = [];
     _webMetaData: VscodeCopyBuffer[] = [];
@@ -127,6 +129,7 @@ export class DataController {
     _disposable: Disposable | undefined;
     _debug: boolean = false;
     _emit: boolean = false;
+    _seen: boolean = false;
     _changeBuffer: ChangeBuffer[];
     // _pasteDisposable: Disposable;
 
@@ -152,6 +155,57 @@ export class DataController {
 
     compare(other: ReadableNode): CompareSummary<ReadableNode> {
         return this.readableNode.compare(other);
+    }
+
+    initListeners() {
+        this._disposable = Disposable.from(
+            // this._pasteDisposable,
+            // tbd how much info to copy in the copy event -- probably would need
+            // to transmit back to container? put in copy buffer
+            this.container.onCopy((copyEvent) => {
+                if (this.readableNode.location.contains(copyEvent.location)) {
+                    this.handleOnCopy(copyEvent);
+                }
+            }),
+            // same questions as above for paste -- what to save
+            // from console logs it seems like this event gets fired before the
+            // on change but that's probably due to the debounce for that...?
+            // tbd
+            this.container.onPaste((pasteEvent) => {
+                if (
+                    this.readableNode.location.range.contains(
+                        pasteEvent.location.range.start
+                    )
+                ) {
+                    this.handleOnPaste(pasteEvent);
+                }
+            }),
+            this.readableNode.location.onChanged.event(
+                // debounce(async (changeEvent: ChangeEvent) => {
+                (changeEvent: ChangeEvent) => this.handleOnChange(changeEvent)
+            ),
+            // ),
+            this.readableNode.location.onSelected.event(
+                async (location: LocationPlus) => {
+                    // can probably break these out into their own pages
+                    this.handleOnSelected(location);
+                }
+            ),
+            workspace.onDidSaveTextDocument((document) => {
+                if (
+                    document.uri.fsPath ===
+                        this.readableNode.location.uri.fsPath &&
+                    this._changeBuffer.length > 0
+                ) {
+                    this.handleOnSaveTextDocument(document);
+                }
+            }),
+            window.onDidChangeActiveTextEditor((editor) => {
+                // console.log('is this getting called lol', document);
+                this.handleOnDidChangeActiveTextEditor(editor?.document);
+            })
+        );
+        return () => this.dispose();
     }
 
     handleUpdateChangeBuffer(
@@ -183,19 +237,6 @@ export class DataController {
                     ),
             };
         }
-        // this._changeBuffer.push({
-        //     ...(commentInfo && { changeInfo: commentInfo }), // condiiontal property add
-        //     ...{
-        //         diff,
-        //         location: changeEvent.location,
-        //         typeOfChange: changeEvent.typeOfChange,
-        //         changeContent: newContent,
-        //         time: Date.now(),
-        //         uid:
-        //             this.container.firestoreController?._user?.uid ||
-        //             'anonymous',
-        //     },
-        // });
         this._changeBuffer.push({
             ...(commentInfo && {
                 changeInfo: commentInfo.newComments.map((n) => {
@@ -209,13 +250,12 @@ export class DataController {
             typeOfChange: changeEvent.typeOfChange,
             changeContent: newContent,
         });
-        // console.log('this!!!!', this);
     }
 
     private getBaseChangeBuffer() {
         const time = Date.now();
         return {
-            time: Date.now(),
+            time,
             uid: this.container.firestoreController?._user?.uid || 'anonymous',
             id: `${this.readableNode.id}:${time}`,
             location: this.readableNode.location.serialize(),
@@ -236,234 +276,154 @@ export class DataController {
                 doc,
                 location
             );
-        // console.log(
-        //     'newNodeMetadata',
-        //     newNodeMetadata,
-        //     'this',
-        //     this
-        // );
         this._vscNodeMetadata = newNodeMetadata;
     }
 
-    initListeners() {
-        this._disposable = Disposable.from(
-            // this._pasteDisposable,
-            // tbd how much info to copy in the copy event -- probably would need
-            // to transmit back to container? put in copy buffer
-            this.container.onCopy((copyEvent) => {
-                if (this.readableNode.location.contains(copyEvent.location)) {
-                    console.log('COPIED', this, 'copy', copyEvent);
-                    this._changeBuffer.push({
-                        ...this.getBaseChangeBuffer(),
-                        typeOfChange: TypeOfChange.CONTENT_ONLY,
-                        changeContent: this.readableNode.location.content,
-                        eventData: {
-                            [Event.COPY]: {
-                                copyContent: copyEvent.text,
-                            },
-                        },
-                    });
-                }
-            }),
-            // same questions as above for paste -- what to save
-            // from console logs it seems like this event gets fired before the
-            // on change but that's probably due to the debounce for that...?
-            // tbd
-            this.container.onPaste((pasteEvent) => {
-                if (
-                    this.readableNode.location.range.contains(
-                        pasteEvent.location.range.start
-                    )
-                ) {
-                    console.log(
-                        'PASTED',
-                        this,
-                        'paste',
-                        pasteEvent,
-                        this.container.copyBuffer
-                    );
-                    if (this.container.copyBuffer) {
-                        const { repository, ...rest } = this.container
-                            .gitController?.gitState as CurrentGitState;
-                        const details = {
-                            ...this.container.copyBuffer,
-                            location: pasteEvent.location,
-                            pasteTime: Date.now(),
-                            gitMetadata: rest,
-                        };
-                        this._webMetaData.push(details);
-                        this._changeBuffer.push({
-                            ...this.getBaseChangeBuffer(),
-                            typeOfChange: TypeOfChange.CONTENT_ONLY,
-                            changeContent: pasteEvent.location.content,
-                            eventData: {
-                                [Event.WEB]: {
-                                    copyBuffer: this.container.copyBuffer,
-                                },
-                            },
-                        });
-                        this._debug = true;
-                        this._emit = true;
-                        console.log('posting', this.serialize());
-                    } else {
-                        this._changeBuffer.push({
-                            ...this.getBaseChangeBuffer(),
-                            typeOfChange: TypeOfChange.CONTENT_ONLY,
-                            changeContent: pasteEvent.location.content,
-                            eventData: {
-                                [Event.PASTE]: {
-                                    pasteContent: pasteEvent.location.content,
-                                    nodeId: this.readableNode.id, // replace with readable node id that was copiedd
-                                },
-                            },
-                        });
-                    }
-                }
-            }),
-            this.readableNode.location.onChanged.event(
-                // debounce(async (changeEvent: ChangeEvent) => {
-                (changeEvent: ChangeEvent) => {
-                    const location = changeEvent.location;
-                    const newContent = location.content;
-                    const oldContent =
-                        changeEvent.previousRangeContent.oldContent;
-
-                    if (
-                        changeEvent.typeOfChange !==
-                            TypeOfChange.CONTENT_ONLY &&
-                        changeEvent.typeOfChange !==
-                            TypeOfChange.RANGE_AND_CONTENT
-                    ) {
-                        return;
-                    }
-
-                    this._debug &&
-                        console.log(
-                            'changeEvent!!!!!!!',
-                            changeEvent,
-                            'this!!!!!',
-                            this
-                        );
-                    // if (
-                    //     this.container.copyBuffer &&
-                    //     changeEvent.addedContent &&
-                    //     changeEvent.addedContent ===
-                    //         this.container.copyBuffer.code
-                    // ) {
-                    //     this.addWebData(this.container.copyBuffer, {
-                    //         uri: location.uri,
-                    //         textDocumentContentChangeEvent:
-                    //             changeEvent.originalChangeEvent,
-                    //     });
-                    // }
-                    this._emit = true;
-                    this.handleUpdateChangeBuffer(
-                        oldContent,
-                        newContent,
-                        changeEvent
-                    );
-                    this.handleUpdateNodeMetadata(newContent, location);
-                    if (this._emit) {
-                        this.container.webviewController?.postMessage({
-                            command: 'updateWebData',
-                            data: this.serialize(),
-                        });
-                    }
-                }
-            ),
-            // ),
-            this.readableNode.location.onSelected.event(
-                async (location: LocationPlus) => {
-                    // can probably break these out into their own pages
-                    this._debug = true;
-                    const gitRes = (await this.getGitData())?.all || [];
-                    if (gitRes.length > 0) {
-                        this._gitData = gitRes.map((r) => new TimelineEvent(r));
-                    } else {
-                        this._gitData = [];
-                    }
-                    const fireStoreRes = (await this.getFirestoreData()) || [];
-                    if (fireStoreRes.length > 0) {
-                        this._firestoreData = fireStoreRes.map(
-                            (r) => new TimelineEvent(r)
-                        );
-                    } else {
-                        this._firestoreData = [];
-                    }
-                    const allData = [...this._firestoreData, ...this._gitData];
-                    this.container.webviewController?.postMessage({
-                        command: 'updateTimeline',
-                        data: {
-                            id: this.readableNode.id,
-                            timelineData: allData,
-                        },
-                    });
-                    // console.log('this', this, 'location', location);
-                }
-            ),
-            workspace.onDidSaveTextDocument((document) => {
-                if (
-                    document.uri.fsPath ===
-                        this.readableNode.location.uri.fsPath &&
-                    this._changeBuffer.length > 0
-                ) {
-                    // this._debug = true;
-                    // this._emit = false;
-                    console.log('posting', this.serialize());
-                    this._firestoreControllerInterface?.write({
-                        ...this.serialize(),
-                    });
-                    if (this.container.gitController?.gitState) {
-                        console.log(
-                            'this.container.gitController',
-                            this.container.gitController
-                        );
-                        const { commit, branch } = this.container.gitController
-                            ?.gitState as CurrentGitState;
-                        // Promise.all(
-                        this._changeBuffer.forEach((c) => {
-                            this._firestoreControllerInterface?.logVersion(
-                                c.id,
-                                {
-                                    ...c,
-                                    commit, // tbd if we just want this as a subcollection
-                                    branch,
-                                }
-                            );
-                        });
-                        // );
-                        this._changeBuffer = [];
-                        // this.container.gitController?.commit(
-                        //     this.readableNode.location.uri,
-                        //     this.readableNode.location.range,
-                        //     this.readableNode.location.content
-                        // );
-                    }
-                }
-            })
-        );
-        return () => this.dispose();
+    handleOnCopy(copyEvent: ClipboardMetadata) {
+        if (this.readableNode.location.contains(copyEvent.location)) {
+            this._changeBuffer.push({
+                ...this.getBaseChangeBuffer(),
+                typeOfChange: TypeOfChange.CONTENT_ONLY,
+                changeContent: this.readableNode.location.content,
+                eventData: {
+                    [Event.COPY]: {
+                        copyContent: copyEvent.text,
+                    },
+                },
+            });
+        }
     }
 
-    // addWebData(data: CopyBuffer, initChatGptData: PasteData) {
-    //     const { uri, textDocumentContentChangeEvent } = initChatGptData;
-    //     console.log('gitcontroller', this.container.gitController);
-    //     const { repository, ...rest } = this.container.gitController
-    //         ?.gitState as CurrentGitState;
-    //     this._webMetaData?.push({
-    //         ...data,
-    //         location: new LocationPlus(
-    //             uri,
-    //             RangePlus.fromTextDocumentContentChangeEvent(
-    //                 textDocumentContentChangeEvent
-    //             )
-    //         ),
-    //         pasteTime: Date.now(),
-    //         gitMetadata: rest,
-    //         // gitMetadata: null,
-    //     });
-    //     this._debug = true;
-    // }
+    handleOnPaste(pasteEvent: ClipboardMetadata) {
+        console.log(
+            'PASTED',
+            this,
+            'paste',
+            pasteEvent,
+            this.container.copyBuffer
+        );
+        if (this.container.copyBuffer) {
+            const { repository, ...rest } = this.container.gitController
+                ?.gitState as CurrentGitState;
+            const details = {
+                ...this.container.copyBuffer,
+                location: pasteEvent.location,
+                pasteTime: Date.now(),
+                gitMetadata: rest,
+            };
+            this._webMetaData.push(details);
+            this._changeBuffer.push({
+                ...this.getBaseChangeBuffer(),
+                typeOfChange: TypeOfChange.CONTENT_ONLY,
+                changeContent: pasteEvent.location.content,
+                eventData: {
+                    [Event.WEB]: {
+                        copyBuffer: this.container.copyBuffer,
+                    },
+                },
+            });
+            this._debug = true;
+            this._emit = true;
+            console.log('posting', this.serialize());
+        } else {
+            this._changeBuffer.push({
+                ...this.getBaseChangeBuffer(),
+                typeOfChange: TypeOfChange.CONTENT_ONLY,
+                changeContent: pasteEvent.location.content,
+                eventData: {
+                    [Event.PASTE]: {
+                        pasteContent: pasteEvent.location.content,
+                        nodeId: this.readableNode.id, // replace with readable node id that was copiedd
+                    },
+                },
+            });
+        }
+    }
+
+    handleOnChange(changeEvent: ChangeEvent) {
+        const location = changeEvent.location;
+        const newContent = location.content;
+        const oldContent = changeEvent.previousRangeContent.oldContent;
+
+        if (
+            changeEvent.typeOfChange !== TypeOfChange.CONTENT_ONLY &&
+            changeEvent.typeOfChange !== TypeOfChange.RANGE_AND_CONTENT
+        ) {
+            return;
+        }
+
+        this._debug &&
+            console.log('changeEvent!!!!!!!', changeEvent, 'this!!!!!', this);
+        this._emit = true;
+        this.handleUpdateChangeBuffer(oldContent, newContent, changeEvent);
+        this.handleUpdateNodeMetadata(newContent, location);
+        if (this._emit) {
+            this.container.webviewController?.postMessage({
+                command: 'updateWebData',
+                data: this.serialize(),
+            });
+        }
+    }
+
+    async handleOnSelected(location: LocationPlus) {
+        this._debug = true;
+        const gitRes = (await this.getGitData())?.all || [];
+        if (gitRes.length > 0) {
+            this._gitData = gitRes.map((r) => new TimelineEvent(r));
+        } else {
+            this._gitData = [];
+        }
+        const fireStoreRes = (await this.getFirestoreData()) || [];
+        if (fireStoreRes.length > 0) {
+            this._firestoreData = fireStoreRes.map((r) => new TimelineEvent(r));
+        } else {
+            this._firestoreData = [];
+        }
+        const allData = [...this._firestoreData, ...this._gitData];
+        this.container.webviewController?.postMessage({
+            command: 'updateTimeline',
+            data: {
+                id: this.readableNode.id,
+                timelineData: allData,
+            },
+        });
+    }
+
+    handleOnSaveTextDocument(textDocument: TextDocument) {
+        console.log('posting', this.serialize());
+        this._firestoreControllerInterface?.write({
+            ...this.serialize(),
+        });
+        if (this.container.gitController?.gitState) {
+            const { commit, branch } = this.container.gitController
+                ?.gitState as CurrentGitState;
+            this._changeBuffer.forEach((c) => {
+                this._firestoreControllerInterface?.logVersion(c.id, {
+                    ...c,
+                    commit, // tbd if we just want this as a subcollection
+                    branch,
+                });
+            });
+            this._changeBuffer = [];
+        }
+    }
+
+    async handleOnDidChangeActiveTextEditor(
+        textDocument: TextDocument | undefined
+    ) {
+        if (
+            textDocument?.uri.fsPath ===
+                this.readableNode.location.uri.fsPath &&
+            !this._seen
+        ) {
+            console.log('opening', this);
+            this._seen = true;
+            this._pastVersions =
+                (await this._firestoreControllerInterface?.readPastVersions()) ||
+                [];
+            console.log('this', this);
+        }
+    }
 
     getGitData() {
         return this.container.gitController?.gitLog(this.readableNode.location);

@@ -41,6 +41,10 @@ export class Container {
         new EventEmitter<ClipboardMetadata>();
     _onPaste: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
+    // probably should add this and check on paste whether matches
+    // and update appropriate datacontroller with metadata about movement
+    // _onCut: EventEmitter<ClipboardMetadata> =
+    //     new EventEmitter<ClipboardMetadata>();
     constructor(
         readonly context: ExtensionContext,
         readonly launchTime = Date.now()

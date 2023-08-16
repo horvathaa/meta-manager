@@ -484,11 +484,21 @@ class FirestoreController extends Disposable {
                 const docRef = doc(this._firestore!, nodePath);
                 await setDoc(docRef, newNode);
             },
-            logVersion: async (versionId: string, newNode: any) => {
+            logVersion: async (
+                versionId: string,
+                newNode: SerializedDataController
+            ) => {
                 console.log('new hewwo', versionId, newNode);
                 const docRef = doc(pastVersionsCollection, versionId);
                 console.log('SIGH', docRef);
                 await setDoc(docRef, newNode);
+            },
+            readPastVersions: async () => {
+                const querySnapshot = await getDocs(pastVersionsCollection);
+                const list = getListFromSnapshots(
+                    querySnapshot
+                ) as SerializedDataController[];
+                return list;
             },
         };
         return firestoreMetadata;
@@ -499,7 +509,7 @@ class FirestoreController extends Disposable {
         parentCollectionPath: string
     ) {
         const formattedNodes: any[] = [];
-        const dataMap: Map<string, any> = new Map();
+        const dataMap: Map<string, any> = new Map(); // switch anys
         nodes.forEach((node) => {
             const firestoreMetadata = this.createNodeMetadata(
                 node.id,
