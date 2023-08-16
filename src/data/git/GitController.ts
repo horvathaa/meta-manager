@@ -11,6 +11,7 @@ import { SimpleGit, simpleGit } from 'simple-git';
 import { Container } from '../../container';
 import { isTextDocument } from '../../document/lib';
 import { API, APIState, Repository } from './gitApi/git';
+import { Octokit } from 'octokit';
 
 export interface CurrentGitState {
     repo: string;
@@ -30,6 +31,7 @@ class GitController extends Disposable {
         new EventEmitter<AuthenticationSession | undefined>();
     _gitState: CurrentGitState | undefined;
     _authSession: AuthenticationSession | undefined;
+    _octokit: Octokit | undefined;
     constructor(private readonly container: Container) {
         super(() => this.dispose());
         this._gitApi = extensions.getExtension('vscode.git')?.exports.getAPI(1);
@@ -49,14 +51,26 @@ class GitController extends Disposable {
     }
 
     async initAuth() {
-        const scopes = ['read:user', 'user:email', 'repo'];
-        const authSession = await authentication.getSession('github', scopes, {
-            createIfNone: true,
-        });
+        try {
+            const scopes = ['read:user', 'user:email', 'repo'];
+            const authSession = await authentication.getSession(
+                'github',
+                scopes,
+                {
+                    createIfNone: true,
+                }
+            );
 
-        if (authSession) {
-            this._authSession = authSession;
-            this._onDidChangeGitAuth.fire(authSession);
+            if (authSession) {
+                this._authSession = authSession;
+                this._octokit = new Octokit({
+                    auth: authSession.accessToken,
+                });
+                this._onDidChangeGitAuth.fire(authSession);
+            }
+        } catch (e) {
+            console.log('e', e);
+            throw new Error('GitController: Authentication Problem: ' + e);
         }
     }
 

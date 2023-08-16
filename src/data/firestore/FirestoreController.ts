@@ -1,4 +1,10 @@
-import { AuthenticationSession, Disposable, Uri, EventEmitter } from 'vscode';
+import {
+    AuthenticationSession,
+    Disposable,
+    Uri,
+    EventEmitter,
+    window,
+} from 'vscode';
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import {
     CollectionReference,
@@ -20,7 +26,10 @@ import { Auth, User, getAuth } from 'firebase/auth';
 import { Container } from '../../container';
 import * as dotenv from 'dotenv';
 import { getUserGithubData } from './functions/cloudFunctions';
-import { signInWithGithubCredential } from './functions/authFunctions';
+import {
+    signInWithEmailAndPassword,
+    signInWithGithubCredential,
+} from './functions/authFunctions';
 import { DataSourceType } from '../timeline/TimelineEvent';
 import { CopyBuffer, SerializedDataController } from '../../constants/types';
 import GitController from '../git/GitController';
@@ -125,10 +134,7 @@ class FirestoreController extends Disposable {
             if (authSession) {
                 setTimeout(async () => {
                     firestoreController._user =
-                        await firestoreController.initAuth(
-                            // @ts-ignore
-                            gitController.authSession // idk why it's saying this may be undefined
-                        );
+                        await firestoreController.initAuth(authSession);
                     if (firestoreController._user) {
                         console.log('user', firestoreController._user);
                         firestoreController.listenForCopy();
@@ -240,22 +246,61 @@ class FirestoreController extends Disposable {
         return refs;
     }
 
+    async initAuthWithEmailAndPassword(): Promise<User | undefined> {
+        const email = await window.showInputBox({
+            prompt: 'Please enter your email',
+            placeHolder: 'email',
+        });
+        if (email) {
+            const password = await window.showInputBox({
+                prompt: 'Please enter your password',
+                placeHolder: 'password',
+                password: true,
+            });
+            if (password) {
+                const res = await signInWithEmailAndPassword(
+                    this,
+                    email,
+                    password
+                );
+                if (res) {
+                    return res;
+                } else {
+                    // consider just creating a new user with email and password
+                    // will have to see if this issue with github credential persists
+                    // :-(
+                    throw new Error(
+                        'could not sign in with email and password'
+                    );
+                }
+            }
+        }
+    }
+
     private async initAuth(authSession: AuthenticationSession) {
         const { accessToken, account } = authSession;
         const { id } = account;
-        // console.log('calling this function', this, 'id', id);
-        const result = await getUserGithubData(this, {
-            id,
-            oauth: accessToken,
-        });
-        const { data } = result;
-        // console.log('data', data, 'this', this);
-        if (!data) {
-            throw new Error(
-                'Firestore Controller: could not retrieve user data'
+        try {
+            const result = await getUserGithubData(this, {
+                id,
+                oauth: accessToken,
+            });
+            const { data } = result;
+            if (!data) {
+                throw new Error(
+                    'Firestore Controller: could not retrieve user data'
+                );
+            } else {
+                const res = signInWithGithubCredential(this, data);
+                if (res) {
+                    return res;
+                }
+            }
+        } catch (e) {
+            console.error(
+                'could not sign in with firestore github credential -- using email and password instead'
             );
-        } else {
-            return signInWithGithubCredential(this, data);
+            return this.initAuthWithEmailAndPassword();
         }
     }
 
