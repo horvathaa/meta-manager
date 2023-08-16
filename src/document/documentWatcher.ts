@@ -116,11 +116,11 @@ class DocumentWatcher extends Disposable {
             }
         );
 
-        // const saveListener = workspace.onDidSaveTextDocument((e) =>
-        //     this.handleOnDidSaveDidClose(e)
-        // );
+        const saveListener = workspace.onDidSaveTextDocument((e) =>
+            this.handleOnDidSaveDidClose(e)
+        );
         const listeners = [
-            // saveListener,
+            saveListener,
             // listener,
             otherListener,
             firestoreReadListener,
@@ -137,20 +137,19 @@ class DocumentWatcher extends Disposable {
         return this._nodesInFile;
     }
 
-    // handleOnDidSaveDidClose(event: TextDocument) {
-    //     console.log('calling write');
-    //     if (
-    //         event.uri.fsPath === this.document.uri.fsPath &&
-    //         this._writeWholeFile
-    //     ) {
-    //         // this.container.firestoreController?.write();
-    //         this.container.firestoreController?.writeFile(
-    //             this.initSerialize(),
-    //             this._firestoreCollectionPath
-    //         );
-    //         this._writeWholeFile = false;
-    //     }
-    // }
+    handleOnDidSaveDidClose(event: TextDocument) {
+        if (event.uri.fsPath === this.document.uri.fsPath) {
+            // this.container.firestoreController?.write();
+            // this.container.firestoreController?.writeFile(
+            //     this.initSerialize(),
+            //     this._firestoreCollectionPath
+            // );
+            // this._writeWholeFile = false;
+            console.log('before traverse', this._nodesInFile);
+            this._nodesInFile = this.traverse(this._nodesInFile);
+            console.log('after traverse', this._nodesInFile);
+        }
+    }
 
     initSerialize() {
         return (
@@ -168,6 +167,11 @@ class DocumentWatcher extends Disposable {
         const tree = this.traverse(oldTree, map);
         return tree;
     }
+
+    // updateTree(oldTree: SimplifiedTree<ReadableNode>) {
+    //     const copy = oldTree.toArray()
+
+    // }
 
     traverse(
         oldTree?: SimplifiedTree<ReadableNode>,
@@ -191,6 +195,7 @@ class DocumentWatcher extends Disposable {
         const context = this;
         let otherTreeInstance: SimplifiedTree<ReadableNode> | undefined =
             oldTree;
+        const crazyIdeaMap = new Map<string, ReadableNode>();
         // Enter function will be executed as each node is first interacted with
         function enter(node: ts.Node) {
             nodes.push(node);
@@ -220,7 +225,7 @@ class DocumentWatcher extends Disposable {
                     context.container
                     // debug
                 );
-
+                let newNode = false;
                 debug &&
                     console.log(
                         'adding data node',
@@ -228,6 +233,7 @@ class DocumentWatcher extends Disposable {
                     );
                 readableNode.location.updateContent(docCopy);
                 // we have a point of comparison
+
                 if (otherTreeInstance && oldTree) {
                     const matchInfo = context.match(
                         otherTreeInstance,
@@ -238,6 +244,7 @@ class DocumentWatcher extends Disposable {
                     );
                     name = matchInfo.name;
                     otherTreeInstance = matchInfo.otherTreeInstance;
+                    newNode = matchInfo.new || false;
                 }
 
                 readableNode.setId(name);
@@ -254,31 +261,22 @@ class DocumentWatcher extends Disposable {
                 }
                 readableNode.dataController.firestoreControllerInterface =
                     map?.get(readableNode.id);
-                // debug &&
-                //     console.log(
-                //         'after firestoreControllerInterface',
-                //         readableNode
-                //     );
-                // ||
-                // context.container.firestoreController!.createNodeMetadata(
-                //     readableNode.id,
-                //     firestoreCollectionPath
-                // );
+                if (newNode && context.container.firestoreController) {
+                    readableNode.dataController._firestoreControllerInterface =
+                        context.container.firestoreController.createNodeMetadata(
+                            name,
+                            firestoreCollectionPath
+                        );
+                }
                 readableNode.registerListeners();
-                // debug && console.log('after registerListeners', readableNode);
-
-                // readableNode.dataController.vscNodeMetadata = nodeInfo;
                 const treeRef = currTreeInstance[
                     currTreeInstance.length - 1
                 ].insert(
                     readableNode, // .readableNode,
                     { name }
                 );
-                // debug && console.log('after treeRef', treeRef);
-                // readableNode.dataController.tree = treeRef; // this is wrong lol
                 currTreeInstance.push(treeRef);
-                // debug &&
-                //     console.log('after currTreeInstance', currTreeInstance);
+                crazyIdeaMap.set(name, readableNode);
                 debug = false;
             }
         }
@@ -287,7 +285,16 @@ class DocumentWatcher extends Disposable {
         function leave(node: ts.Node) {
             const topNode = nodes.pop();
             if (topNode && ts.isBlock(topNode)) {
-                currTreeInstance.pop();
+                const node = currTreeInstance.pop();
+                const nodeToUpdate = crazyIdeaMap.get(node?.name || '');
+                if (nodeToUpdate) {
+                    nodeToUpdate.dataController!._tree = node;
+                    context._relativeFilePath === 'source/utils/utils.ts' &&
+                        console.log('popping', nodeToUpdate);
+                    // can either have each node update itself and parents
+                    // then notify document that _nodesInFile has changed at whatever
+                    // level it is at
+                }
             }
         }
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
@@ -304,9 +311,6 @@ class DocumentWatcher extends Disposable {
         const matchInfo = otherTreeInstance.getNodeOfBestMatch(
             readableNode // .readableNode
         );
-        // matchInfo.bestMatch &&
-        //     matchInfo.bestMatch.id === 'handleSnapshotCode' &&
-        //     (debug = true);
         debug && console.log('wtf', readableNode, matchInfo);
 
         if (matchInfo.status === SummaryStatus.SAME && matchInfo.bestMatch) {
@@ -314,29 +318,11 @@ class DocumentWatcher extends Disposable {
                 name: matchInfo.bestMatch.id,
                 otherTreeInstance: matchInfo.subtree,
             };
-            // name = matchInfo.bestMatch.id;
-            // otherTreeInstance = matchInfo.subtree; // any :-(
-            // debug &&
-            //     console.log(
-            //         'other tree instance',
-            //         otherTreeInstance,
-            //         'name',
-            //         name
-            //     );
         } else if (matchInfo.status === SummaryStatus.MODIFIED) {
             return {
                 name: matchInfo.modifiedNodes?.id || name,
                 otherTreeInstance: matchInfo.subtree,
             };
-            // name = matchInfo.modifiedNodes?.id || name;
-            // otherTreeInstance = matchInfo.subtree;
-            // debug &&
-            //     console.log(
-            //         'MODIFIED',
-            //         otherTreeInstance,
-            //         'name',
-            //         name
-            //     );
         } else {
             const matchInfo = oldTree.getNodeOfBestMatch(
                 readableNode // .readableNode
@@ -356,15 +342,6 @@ class DocumentWatcher extends Disposable {
                     name: matchInfo.bestMatch.id,
                     otherTreeInstance: matchInfo.subtree,
                 };
-                // name = matchInfo.bestMatch.id;
-                // otherTreeInstance = matchInfo.subtree; // any :-(
-                // debug &&
-                //     console.log(
-                //         'FOUND SOMETHINg',
-                //         otherTreeInstance,
-                //         matchInfo,
-                //         name
-                //     );
             } else if (
                 matchInfo.status === SummaryStatus.MODIFIED // may want to do something smarter with this
             ) {
@@ -372,27 +349,12 @@ class DocumentWatcher extends Disposable {
                     name: matchInfo.modifiedNodes?.id || name,
                     otherTreeInstance: matchInfo.subtree,
                 };
-                // name = matchInfo.modifiedNodes?.id || name;
-                // otherTreeInstance = matchInfo.subtree;
-                // debug &&
-                //     console.log(
-                //         'MODIFIED LARGER SEARCH',
-                //         otherTreeInstance,
-                //         'name',
-                //         name
-                //     );
             } else {
-                // name = `${name}:${uuidv4()}`;
-                // otherTreeInstance = oldTree; // set back to top for future search
-                // debug &&
-                //     console.log(
-                //         'wtf nothing',
-                //         otherTreeInstance,
-                //         matchInfo
-                //     );
+                // console.log('NEWBIE!!!!!!!!!!!!!', name, oldTree, readableNode);
                 return {
                     name: `${name}:${uuidv4()}`,
                     otherTreeInstance: oldTree,
+                    new: true,
                 };
             }
         }

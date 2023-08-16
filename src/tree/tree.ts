@@ -175,6 +175,16 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         return undefined;
     }
 
+    // public tempTraverse(root: TreeReadableNode<T> | undefined, comparator: TreeReadableNode<T>) {
+    //     if(!root) {
+    //         return this;
+    //     }
+
+    //     for(const child of root.children) {
+    //         return this.tempTraverse(child.root, comparator);
+    //     }
+    // }
+
     private traversePreOrder(
         root: TreeReadableNode<T> | undefined,
         serialize?: boolean

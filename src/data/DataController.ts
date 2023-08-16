@@ -354,15 +354,16 @@ export class DataController {
 
         this._debug &&
             console.log('changeEvent!!!!!!!', changeEvent, 'this!!!!!', this);
-        this._emit = true;
+        // this._emit = true;
         this.handleUpdateChangeBuffer(oldContent, newContent, changeEvent);
         this.handleUpdateNodeMetadata(newContent, location);
-        if (this._emit) {
-            this.container.webviewController?.postMessage({
-                command: 'updateWebData',
-                data: this.serialize(),
-            });
-        }
+        this.handleUpdateTree(newContent);
+        // if (this._emit) {
+        //     this.container.webviewController?.postMessage({
+        //         command: 'updateWebData',
+        //         data: this.serialize(),
+        //     });
+        // }
     }
 
     async handleOnSelected(location: LocationPlus) {
@@ -423,6 +424,31 @@ export class DataController {
                 [];
             console.log('this', this);
         }
+    }
+
+    async handleUpdateTree(newContent: string) {
+        // const editor = window.activeTextEditor || window.visibleTextEditors[0];
+        // const doc =
+        //     editor.document.uri.fsPath === this.readableNode.location.uri.fsPath
+        //         ? editor.document
+        //         : await workspace.openTextDocument(this.readableNode.location.uri); // idk when this would ever happen??? maybe in a git pull where a whole bunch of docs are being updated
+        // const newTree = await this.container.treeCreator.createTree(
+        //     doc,
+        //     this.readableNode.location,
+        //     newContent
+        // );
+        // this._tree = newTree;
+        // compute parsed subtree when this node is marked as deleted
+        // or when count of function defs or ifs or whatever changes -- heuristic
+        // get parsed subtree -- how to do this though since typescript parser doesnt
+        // really like parsing a snippet out of context?
+        // look into this or have doc keep a reference to the parsed AST
+        // and request there
+        // update our instance of tree
+        // set parent's children to new tree (how to avoid race condition...)
+        // call parent's update
+        // recurse to top of tree
+        // to do this on save? or other time??
     }
 
     getGitData() {
