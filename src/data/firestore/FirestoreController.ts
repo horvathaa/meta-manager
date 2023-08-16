@@ -35,6 +35,30 @@ import { CopyBuffer, SerializedDataController } from '../../constants/types';
 import GitController from '../git/GitController';
 import { FirestoreControllerInterface } from '../DataController';
 import DocumentWatcher from '../../document/documentWatcher';
+// import {
+//     credential,
+//     initializeApp as initializeAppAdmin,
+// } from 'firebase-admin';
+// import { applicationDefault, cert } from 'firebase-admin/app';
+
+// GIVEN THE STUPID ISSUES WITH FIRESTORE JUST NOT WORKING WITH
+// OUR CREDENTAILS ANYMORE...
+// Consider just using the admin sdk instead
+// do this by getting the user's uid from the github credential
+
+// note this returns a UserRecord, not a User
+// so I think we could then use the admin SDK to write to the database
+// since we have the uid so we can associate the activity with them
+// even if they aren't technically logged in
+
+// var admin = require('firebase-admin');
+
+// var serviceAccount = require('../../../secrets.json');
+// const ok = admin.initializeApp({
+//     credential: admin.credential.cert(serviceAccount),
+// });
+
+// console.log('ok', ok);
 
 export type DB_REFS =
     | 'users'
@@ -73,12 +97,27 @@ export function getListFromSnapshots(
     return out;
 }
 
+// const secret = require('../../../secrets.json');
+// console.log('hewwo?', secret);
+// const huh = applicationDefault();
+// // console.log('huh', huh);
+// const certt = cert(secret);
+// console.log('cert', certt);
+// try {
+//     const adminFS = initializeAppAdmin();
+//     console.log('hewwo aaa?', adminFS);
+// } catch (e) {
+//     console.log('error initializing admin', e);
+// }
+
 class FirestoreController extends Disposable {
     _disposable: Disposable;
     readonly _firebaseApp: FirebaseApp | undefined;
     readonly _firestore: Firestore | undefined;
     readonly _functions: Functions | undefined;
     readonly _auth: Auth | undefined;
+    // readonly _admin: Admin | undefined;
+    // private readonly _serviceAccount = adminFS;
     _user: User | undefined;
     readonly _refs: Map<string, CollectionReference> | undefined;
     _onCopy: EventEmitter<CopyBuffer> = new EventEmitter<CopyBuffer>();
@@ -88,6 +127,7 @@ class FirestoreController extends Disposable {
         super(() => this.dispose());
         this._disposable = Disposable.from();
         this._firebaseApp = this.initFirebaseApp();
+        // console.log('im scared', this._serviceAccount);
         if (this._firebaseApp) {
             this._firestore = getFirestore(this._firebaseApp);
             this._functions = getFunctions(this._firebaseApp);
@@ -285,7 +325,10 @@ class FirestoreController extends Disposable {
                 id,
                 oauth: accessToken,
             });
+            console.log('res', result);
             const { data } = result;
+            // const user = await ok.auth().getUser(data.uid);
+            // console.log('user???', user);
             if (!data) {
                 throw new Error(
                     'Firestore Controller: could not retrieve user data'

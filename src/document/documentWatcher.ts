@@ -106,10 +106,12 @@ class DocumentWatcher extends Disposable {
                         ),
                         this._relativeFilePath
                     );
-                    console.log('tree', tree);
                     this._nodesInFile = this.initNodes(tree, map);
 
-                    console.log('file parsed complete', this);
+                    console.log(
+                        'file parsed complete for ' + this._relativeFilePath,
+                        this
+                    );
                 }
             }
         );
