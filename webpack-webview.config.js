@@ -12,7 +12,7 @@ const config = {
     entry: {
         // index: './src/view/src/timeline/TimelineController.ts',
         // index: './src/view/src/index.ts',
-        index: './src/view2/src/index.tsx',
+        index: './src/view/src/index.tsx',
         // filename: path.resolve(__dirname, 'dist/[name].js') ,
     },
     // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/

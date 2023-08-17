@@ -374,27 +374,40 @@ export class DataController {
     }
 
     async handleOnSelected(location: LocationPlus) {
-        this._debug = true;
-        const gitRes = (await this.getGitData())?.all || [];
-        if (gitRes.length > 0) {
-            this._gitData = gitRes.map((r) => new TimelineEvent(r));
-        } else {
-            this._gitData = [];
+        if (
+            this._tree &&
+            (this._tree.isLeaf ||
+                !this._tree.root?.children.some((c) =>
+                    c.root?.data.location.contains(location)
+                ))
+        ) {
+            const allData = this.serialize();
+            console.log('allData', {
+                ...allData,
+                pastVersions: this._pastVersions,
+            });
+            this.container.webviewController?.postMessage({
+                command: 'updateTimeline',
+                data: {
+                    id: this.readableNode.id,
+                    data: { ...allData, pastVersions: this._pastVersions },
+                },
+            });
         }
-        const fireStoreRes = (await this.getFirestoreData()) || [];
-        if (fireStoreRes.length > 0) {
-            this._firestoreData = fireStoreRes.map((r) => new TimelineEvent(r));
-        } else {
-            this._firestoreData = [];
-        }
-        const allData = [...this._firestoreData, ...this._gitData];
-        this.container.webviewController?.postMessage({
-            command: 'updateTimeline',
-            data: {
-                id: this.readableNode.id,
-                timelineData: allData,
-            },
-        });
+        // this._debug = true;
+        // const gitRes = (await this.getGitData())?.all || [];
+        // if (gitRes.length > 0) {
+        //     this._gitData = gitRes.map((r) => new TimelineEvent(r));
+        // } else {
+        //     this._gitData = [];
+        // }
+        // const fireStoreRes = (await this.getFirestoreData()) || [];
+        // if (fireStoreRes.length > 0) {
+        //     this._firestoreData = fireStoreRes.map((r) => new TimelineEvent(r));
+        // } else {
+        //     this._firestoreData = [];
+        // }
+        // const allData = [...this._firestoreData, ...this._gitData];
     }
 
     handleOnSaveTextDocument(textDocument: TextDocument) {

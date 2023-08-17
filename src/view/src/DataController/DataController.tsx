@@ -12,6 +12,7 @@ import CodeBlock from '../components/CodeBlock';
 import {
     CopyBuffer,
     SerializedDataController,
+    SerializedNodeDataController,
     WEB_INFO_SOURCE,
 } from '../types/types';
 
@@ -43,10 +44,12 @@ function getStyleFromSource(source: WEB_INFO_SOURCE) {
 
 export function DataController() {
     const [dataController, setDataController] =
-        React.useState<SerializedDataController>();
+        React.useState<SerializedNodeDataController>();
     const [codeBlocks, _setCodeBlocks] = React.useState<CodeBlockPartition[]>(
         []
     );
+    console.log('RENDERING');
+    const [name, setName] = React.useState<string>('');
     const codeBlocksRef = React.useRef<CodeBlockPartition[]>([]);
     const setCodeBlocks = (codeBlocks: CodeBlockPartition[]) => {
         codeBlocksRef.current = codeBlocks;
@@ -61,8 +64,25 @@ export function DataController() {
                 setDataController(data);
                 partition(data);
             }
+            if (command === 'updateTimeline') {
+                const { data } = e.data;
+                setDataController(data.data);
+                // partition(data);
+            }
         });
     });
+
+    React.useEffect(() => {
+        if (!dataController) {
+            return;
+        }
+        const { node } = dataController;
+        if (!node) {
+            return;
+        }
+        const { id } = node;
+        id.includes(':') ? setName(id.split(':')[0]) : setName(id);
+    }, [dataController]);
 
     function getSource(metadata: CopyBuffer) {
         switch (metadata.type) {
@@ -120,20 +140,41 @@ export function DataController() {
         console.log('codeBlocks', codeBlocks);
         setCodeBlocks(codeBlocks);
     }
-
-    return codeBlocksRef.current.length ? (
+    console.log('dataController', dataController);
+    return dataController ? (
         <div>
-            {codeBlocksRef.current.map((codeBlock, index) => (
-                <CodeBlock
-                    key={index}
-                    codeString={codeBlock.code}
-                    style={getStyleFromSource(codeBlock.source)}
-                />
-            ))}
+            <h2>{name}</h2>
+            <CodeBlock
+                key={dataController?.node.id}
+                codeString={dataController.node.location.content}
+                style={getStyleFromSource(WEB_INFO_SOURCE.VSCODE)}
+            />
+            {dataController.pastVersions?.map((v) => {
+                return (
+                    <CodeBlock
+                        key={v.id}
+                        codeString={v.changeContent}
+                        style={getStyleFromSource(WEB_INFO_SOURCE.VSCODE)}
+                    />
+                );
+            })}
         </div>
     ) : (
-        <div>Paste some code from online for it to be tracked</div>
+        <div>Waiting for data</div>
     );
+    // codeBlocksRef.current.length ? (
+    //     <div>
+    //         {codeBlocksRef.current.map((codeBlock, index) => (
+    //             <CodeBlock
+    //                 key={index}
+    //                 codeString={codeBlock.code}
+    //                 style={getStyleFromSource(codeBlock.source)}
+    //             />
+    //         ))}
+    //     </div>
+    // ) : (
+    //     <div>Paste some code from online for it to be tracked</div>
+    // );
 }
 
 export default DataController;

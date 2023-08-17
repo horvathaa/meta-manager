@@ -106,3 +106,37 @@ export interface SerializedDataController {
     node: SerializedReadableNode;
     webMetadata: CopyBuffer[];
 }
+
+export interface SerializedNodeDataController {
+    node: SerializedReadableNode;
+    lastUpdatedTime: number;
+    lastUpdatedBy: string;
+    // setOfEvents: Event[];
+    setOfEventIds: string[];
+    pastVersions?: SerializedDataControllerEvent[];
+}
+
+export interface SerializedDataControllerEvent {
+    id: string;
+    uid: string;
+    time: number;
+    type: string;
+    // thingsThatHappened: WEB | CHANGE | NODE;
+    typeOfChange: TypeOfChange;
+    changeContent: string;
+    eventData: { [k in Event]: any };
+}
+
+export enum Event {
+    WEB = 'WEB',
+    COPY = 'COPY',
+    PASTE = 'PASTE',
+    COMMENT = 'COMMENT',
+}
+
+export enum TypeOfChange {
+    RANGE_ONLY = 'RANGE_ONLY',
+    CONTENT_ONLY = 'CONTENT_ONLY',
+    RANGE_AND_CONTENT = 'RANGE_AND_CONTENT',
+    NO_CHANGE = 'NO_CHANGE',
+}
