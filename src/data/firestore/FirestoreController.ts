@@ -35,6 +35,7 @@ import { CopyBuffer, SerializedDataController } from '../../constants/types';
 import GitController from '../git/GitController';
 import { FirestoreControllerInterface } from '../DataController';
 import DocumentWatcher from '../../document/documentWatcher';
+import { isBoolean, isNumber } from 'lodash';
 // import {
 //     credential,
 //     initializeApp as initializeAppAdmin,
@@ -59,6 +60,60 @@ import DocumentWatcher from '../../document/documentWatcher';
 // });
 
 // console.log('ok', ok);
+
+// Code used for getting counts of users and annotations of Adamite and Catseye respectively
+// const InvalidUsers = new Set<string>([
+//     'hJyV36Xgy8gO67UJVmnQUrRgJih1',
+//     '0SylSmbCPfR86fK43hNboY5L8Y53',
+//     '32hZmxr9jueVXAKLyU3Q3sZqEi13',
+//     '5IYU4EPPANRdDyuyplFrWCQ92sO2',
+//     '6m84Ekq7pWT8DVrHrGJ8K2CmKqd2',
+//     'AmPkp5HM6QS1RwxGELrvuHRkimj1',
+//     'CBaINhdKcRQtrwK1LAmyvAg9Fmj1',
+//     'IXXnUJ1fDhSA7MkR1PmCBVIKw9o2',
+//     'OauK8Xpx02M7CRZEZGJ9JBa8pFr1',
+//     'aeL3LIzxQ2QVuu0jWUt2bQIzLVl1',
+//     'b3gQowRBRMezwipcWb7A2t4yxhY2',
+//     'bCrwiWVV23awMm7eQuxI',
+//     'iZKzal3YxydCTrEazd8tm2yCRnY2',
+//     'lZlbnc28uQc0qFnUnHrUav3XFop2',
+//     'nEW1uOgNiYUGZd5UDVHlHbSjWQq1',
+//     'nOaOlC0TEfX36OfIa76LZnh0FwA2',
+//     'pV24BEvX2thVkQA3dAvv1UQY9mG3',
+//     'rkckdgdrfzOrv1e263qApVx0wyA2',
+//     'uySjhiqllLUFPqZrhT2dL5LOLb92',
+//     'xsk048R301fE5wOFrPhccOXEVe32',
+// ]);
+
+// private async getCounts() {
+//     const webAnnotations = this._refs?.get(DB_COLLECTIONS.WEB_ANNOTATIONS);
+//     console.log('web annotations', webAnnotations);
+//     if (webAnnotations) {
+//         const webAnnotationsCount = getListFromSnapshots(
+//             await getDocs(webAnnotations)
+//         ).filter((a) => !InvalidUsers.has(a.authorId));
+//         console.log(
+//             'web annotations count',
+//             webAnnotationsCount.length,
+//             'web user count',
+//             new Set(webAnnotationsCount.map((a) => a.authorId)).size
+//         );
+//     }
+//     const codeAnnotations = this._refs?.get(
+//         DB_COLLECTIONS.CODE_ANNOTATIONS
+//     );
+//     if (codeAnnotations) {
+//         const codeAnnotationsCount = getListFromSnapshots(
+//             await getDocs(codeAnnotations)
+//         ).filter((a) => !InvalidUsers.has(a.authorId));
+//         console.log(
+//             'code annotations count',
+//             codeAnnotationsCount.length,
+//             'code user count',
+//             new Set(codeAnnotationsCount.map((a) => a.authorId)).size
+//         );
+//     }
+// }
 
 export type DB_REFS =
     | 'users'

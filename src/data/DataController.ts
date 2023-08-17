@@ -16,7 +16,11 @@ import {
     CompareSummary,
     SimplifiedTree,
 } from '../tree/tree';
-import ReadableNode from '../tree/node';
+import ReadableNode, {
+    NodeState,
+    TypeOfChangeToNodeState,
+    nodeContentChange,
+} from '../tree/node';
 import LocationPlus, {
     ChangeEvent,
     TypeOfChange,
@@ -43,6 +47,7 @@ import MetaInformationExtractor from '../comments/CommentCreator';
 import RangePlus from '../document/locationApi/range';
 import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
 import { CurrentGitState } from './git/GitController';
+import * as ts from 'typescript';
 
 export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
 
@@ -194,8 +199,9 @@ export class DataController {
             workspace.onDidSaveTextDocument((document) => {
                 if (
                     document.uri.fsPath ===
-                        this.readableNode.location.uri.fsPath &&
-                    this._changeBuffer.length > 0
+                    this.readableNode.location.uri.fsPath
+                    //     &&
+                    // this._changeBuffer.length > 0
                 ) {
                     this.handleOnSaveTextDocument(document);
                 }
@@ -346,8 +352,9 @@ export class DataController {
         const oldContent = changeEvent.previousRangeContent.oldContent;
 
         if (
-            changeEvent.typeOfChange !== TypeOfChange.CONTENT_ONLY &&
-            changeEvent.typeOfChange !== TypeOfChange.RANGE_AND_CONTENT
+            !nodeContentChange(
+                TypeOfChangeToNodeState(changeEvent.typeOfChange)
+            )
         ) {
             return;
         }
@@ -391,7 +398,58 @@ export class DataController {
     }
 
     handleOnSaveTextDocument(textDocument: TextDocument) {
-        console.log('posting', this.serialize());
+        // console.log('posting', this.serialize());
+        // if nothing has changed, don't do anything
+        // note change buffer wont update if the content is the same
+        // but range is different, may be worth updating db in that case but
+        // doing none of these other things
+        if (!this._changeBuffer.length) {
+            return;
+        }
+
+        // if the node has been deleted, notify the parent up until the parent no longer has the
+        // status of deleted and update db
+
+        if (
+            this.readableNode.state &&
+            this.readableNode.state === NodeState.DELETED
+        ) {
+            // this.readableNode.parent?.children = this.readableNode.parent?.children.filter((c) => c.id !== this.readableNode.id);
+            // this.readableNode.parent?.update();
+            // this._firestoreControllerInterface?.write({
+            //     ...this.serialize(),
+            // });
+            // return;
+        }
+
+        // if the node's content has changed, check for change in block and update db
+        if (
+            this.readableNode.state &&
+            nodeContentChange(this.readableNode.state)
+        ) {
+            // const sourceFile = ts.createSourceFile(
+            //     textDocument.fileName,
+            //     textDocument.getText(this.readableNode.location.range),
+            //     ts.ScriptTarget.Latest,
+            //     true
+            // );
+            // const blocks = (sourceFile.statements[0] as ts.Block).statements.filter(
+            //     (t) => ts.isBlock(t)
+            // );
+            // console.log('sourceFile', sourceFile, 'blocks', blocks, 'this', this);
+            // if (
+            //     blocks.length === this._tree?.root?.children.length
+            //     // ||
+            //     // (blocks.length === 1 && this._tree?.root?.children.length === 0)
+            // ) {
+            //     console.log('no need to update');
+            //     return;
+            // } else {
+            //     console.log('UPADTING!!!!!!');
+            //     return;
+            // }
+        }
+
         this._firestoreControllerInterface?.write({
             ...this.serialize(),
         });

@@ -19,6 +19,26 @@ import { DataController } from '../data/DataController';
 import { debounce } from '../utils/lib';
 import { SerializedReadableNode } from '../constants/types';
 
+export function nodeContentChange(nodeState: NodeState) {
+    return (
+        nodeState === NodeState.MODIFIED_CONTENT ||
+        nodeState === NodeState.MODIFIED_RANGE_AND_CONTENT
+    );
+}
+
+export function TypeOfChangeToNodeState(typeOfChange: TypeOfChange) {
+    switch (typeOfChange) {
+        case TypeOfChange.CONTENT_ONLY:
+            return NodeState.MODIFIED_CONTENT;
+        case TypeOfChange.RANGE_ONLY:
+            return NodeState.MODIFIED_RANGE;
+        case TypeOfChange.RANGE_AND_CONTENT:
+            return NodeState.MODIFIED_RANGE_AND_CONTENT;
+        default:
+            return NodeState.UNCHANGED;
+    }
+}
+
 export enum NodeState {
     UNCHANGED = 'UNCHANGED',
     MODIFIED_RANGE = 'MODIFIED_RANGE',

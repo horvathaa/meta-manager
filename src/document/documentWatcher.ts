@@ -289,8 +289,8 @@ class DocumentWatcher extends Disposable {
                 const nodeToUpdate = crazyIdeaMap.get(node?.name || '');
                 if (nodeToUpdate) {
                     nodeToUpdate.dataController!._tree = node;
-                    context._relativeFilePath === 'source/utils/utils.ts' &&
-                        console.log('popping', nodeToUpdate);
+                    // context._relativeFilePath === 'source/utils/utils.ts' &&
+                    //     console.log('popping', nodeToUpdate);
                     // can either have each node update itself and parents
                     // then notify document that _nodesInFile has changed at whatever
                     // level it is at
