@@ -45,7 +45,8 @@ export abstract class AbstractTreeReadableNode<T> {
 interface TreeReadableNode<T extends AbstractTreeReadableNode<T>> {
     data: T;
     children: SimplifiedTree<T>[];
-    parent?: TreeReadableNode<T>;
+    // parent?: TreeReadableNode<T>;
+    parent?: SimplifiedTree<T> | undefined;
     depth?: number;
 }
 
@@ -57,14 +58,16 @@ export enum Traversals {
 
 interface NodeMetadata<T extends AbstractTreeReadableNode<T>> {
     name: string;
-    parent?: NodeWithChildren<T> | undefined;
+    // parent?: NodeWithChildren<T> | undefined;
+    parent?: SimplifiedTree<T> | undefined;
     depth?: number;
 }
 
 export interface NodeWithChildren<T extends AbstractTreeReadableNode<T>> {
     data: T;
     children: SimplifiedTree<T>[];
-    parent?: NodeWithChildren<T>;
+    // parent?: NodeWithChildren<T>;
+    parent?: SimplifiedTree<T>;
     depth?: number;
 }
 
@@ -73,7 +76,8 @@ export interface NodeWithChildren<T extends AbstractTreeReadableNode<T>> {
 export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
     root: NodeWithChildren<T> | undefined;
     name: string;
-    parent?: NodeWithChildren<T>;
+    // parent?: NodeWithChildren<T>;
+    parent?: SimplifiedTree<T>;
     depth?: number;
     debug: boolean = false;
     isLeaf: boolean = true;
@@ -98,7 +102,7 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
 
         const newMetadata: NodeMetadata<T> = {
             ...metadata,
-            parent: this.root,
+            parent: this,
             depth: (this.depth || 0) + 1,
         };
         const child = new SimplifiedTree<T>(newMetadata);
@@ -108,11 +112,11 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         return child;
     }
 
-    public initRoot() {
+    public initRoot(fileData: T | undefined = undefined) {
         if (!this.root) {
             this.root = {
                 children: [],
-                data: {} as T,
+                data: fileData as T,
             };
         }
     }
@@ -162,8 +166,8 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
         if (node.data.serialize) {
             const { parent } = node;
             let parentName = '';
-            if (parent && parent.data.serialize) {
-                parentName = parent.data.serialize().id;
+            if (parent && parent.root?.data.serialize) {
+                parentName = parent.root.data.serialize().id;
             }
             return {
                 ...node.data.serialize(),

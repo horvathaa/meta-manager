@@ -145,9 +145,9 @@ class DocumentWatcher extends Disposable {
             //     this._firestoreCollectionPath
             // );
             // this._writeWholeFile = false;
-            console.log('before traverse', this._nodesInFile);
-            this._nodesInFile = this.traverse(this._nodesInFile);
-            console.log('after traverse', this._nodesInFile);
+            // console.log('before traverse', this._nodesInFile);
+            // this._nodesInFile = this.traverse(this._nodesInFile);
+            // console.log('after traverse', this._nodesInFile);
         }
     }
 
@@ -190,7 +190,27 @@ class DocumentWatcher extends Disposable {
         const tree = new SimplifiedTree<ReadableNode>({
             name: this._relativeFilePath,
         });
-        tree.initRoot(); // initialize the root node
+        const fileData = new ReadableNode(
+            'file',
+            new LocationPlus(
+                this.document.uri,
+                new Range(0, 0, docCopy.lineCount, 1000)
+            )
+        );
+        fileData.location.updateContent(docCopy);
+        fileData.dataController = new DataController(fileData, this.container);
+        fileData.dataController._tree = tree;
+        fileData.registerListeners();
+        tree.initRoot(fileData); // initialize the root node
+        // const fileLevelNode = new ReadableNode(
+        //     'file',
+        //     new LocationPlus(
+        //         this.document.uri,
+        //         new Range(0, 0, docCopy.lineCount, 1000)
+        //     )
+        // );
+
+        // tree.insert(fileLevelNode, { name: this._relativeFilePath });
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
         let otherTreeInstance: SimplifiedTree<ReadableNode> | undefined =

@@ -184,7 +184,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
             }
         );
         const selectedDisposable = this.location.onSelected.event(
-            async (location: LocationPlus) => {
+            async (location) => {
                 // placeholder
             }
         );

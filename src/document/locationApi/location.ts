@@ -14,6 +14,7 @@ import {
     TextEditorSelectionChangeEvent,
     TextDocument,
     TextDocumentContentChangeEvent,
+    Selection,
 } from 'vscode';
 import RangePlus from './range';
 import { isTextDocument } from '../lib';
@@ -56,7 +57,7 @@ export default class LocationPlus extends Location {
     _lastEditedTime: NodeJS.Timeout | null;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     onChanged: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
-    onSelected: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
+    onSelected: EventEmitter<Selection> = new EventEmitter<Selection>();
     constructor(
         uri: Uri,
         rangeOrPosition: Range | Position,
@@ -293,7 +294,7 @@ export default class LocationPlus extends Location {
             const { selections } = selectionEvent;
             const selection = selections[0];
             if (this._range.contains(selection.active)) {
-                this.onSelected.fire(this);
+                this.onSelected.fire(selection);
             }
         }
     }

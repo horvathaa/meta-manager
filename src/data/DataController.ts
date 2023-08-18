@@ -9,12 +9,14 @@ import {
     TextEditor,
     TextEditorEdit,
     TextDocument,
+    Selection,
 } from 'vscode';
 import { ClipboardMetadata, Container } from '../container';
 import {
     AbstractTreeReadableNode,
     CompareSummary,
     SimplifiedTree,
+    getSimplifiedTreeName,
 } from '../tree/tree';
 import ReadableNode, {
     NodeState,
@@ -48,7 +50,10 @@ import RangePlus from '../document/locationApi/range';
 import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
 import { CurrentGitState } from './git/GitController';
 import * as ts from 'typescript';
-
+import { v4 as uuidv4 } from 'uuid';
+import { getProjectName, getVisiblePath } from '../document/lib';
+// import { nodeToRange } from '../document/lib';
+const tstraverse = require('tstraverse');
 export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
 
 interface PasteData {
@@ -89,6 +94,8 @@ interface ChangeBuffer {
     changeContent: string;
     time: number;
     diff?: Diff;
+    addedBlock?: boolean;
+    removedBlock?: boolean;
     uid: string;
     id: string;
     eventData?: {
@@ -191,7 +198,7 @@ export class DataController {
             ),
             // ),
             this.readableNode.location.onSelected.event(
-                async (location: LocationPlus) => {
+                async (location: Selection) => {
                     // can probably break these out into their own pages
                     this.handleOnSelected(location);
                 }
@@ -214,6 +221,25 @@ export class DataController {
         return () => this.dispose();
     }
 
+    parseDiff(diff: Diff) {
+        console.log('diff', diff);
+        const removedLines = diff.lines.filter((l) => l.bIndex === -1);
+        const removedCode = removedLines.map((l) => l.line).join('\n');
+        const addedLines = diff.lines.filter((l) => l.aIndex === -1);
+        const addedCode = addedLines.map((l) => l.line).join('\n');
+        let diffState = {
+            addedBlock: false,
+            removedBlock: false,
+        };
+        if (addedCode.includes('{') && addedCode.includes('}')) {
+            diffState.addedBlock = true;
+        }
+        if (removedCode.includes('{') && removedCode.includes('}')) {
+            diffState.removedBlock = true;
+        }
+        return diffState;
+    }
+
     handleUpdateChangeBuffer(
         oldContent: string,
         newContent: string,
@@ -223,7 +249,7 @@ export class DataController {
             oldContent.split(/\n/),
             newContent.split(/\n/)
         );
-        // this.parseDiff(diff);
+        const { addedBlock, removedBlock } = this.parseDiff(diff);
         const oldComments = this._metaInformationExtractor.foundComments;
         this._metaInformationExtractor.updateMetaInformation(newContent);
         this._metaInformationExtractor.foundComments.forEach((c) => {
@@ -255,6 +281,9 @@ export class DataController {
             ...this.getBaseChangeBuffer(),
             typeOfChange: changeEvent.typeOfChange,
             changeContent: newContent,
+            diff,
+            addedBlock,
+            removedBlock,
         });
     }
 
@@ -373,12 +402,12 @@ export class DataController {
         // }
     }
 
-    async handleOnSelected(location: LocationPlus) {
+    async handleOnSelected(location: Selection) {
         if (
             this._tree &&
             (this._tree.isLeaf ||
                 !this._tree.root?.children.some((c) =>
-                    c.root?.data.location.contains(location)
+                    c.root?.data.location.range.contains(location)
                 ))
         ) {
             const allData = this.serialize();
@@ -427,6 +456,13 @@ export class DataController {
             this.readableNode.state &&
             this.readableNode.state === NodeState.DELETED
         ) {
+            this._tree?.parent?.remove(this.readableNode);
+            // this._tree?.root?.children.forEach((c) => {
+            //     if (c.root?.data.id === this.readableNode.id) {
+            //         c.root.data.state = NodeState.DELETED;
+            //         c.root.data.update();
+            //     }
+            // });
             // this.readableNode.parent?.children = this.readableNode.parent?.children.filter((c) => c.id !== this.readableNode.id);
             // this.readableNode.parent?.update();
             // this._firestoreControllerInterface?.write({
@@ -435,21 +471,33 @@ export class DataController {
             // return;
         }
 
+        console.log('this....', this);
         // if the node's content has changed, check for change in block and update db
         if (
             this.readableNode.state &&
-            nodeContentChange(this.readableNode.state)
+            nodeContentChange(this.readableNode.state) &&
+            this._changeBuffer.some((s) => s.addedBlock || s.removedBlock)
         ) {
-            // const sourceFile = ts.createSourceFile(
-            //     textDocument.fileName,
-            //     textDocument.getText(this.readableNode.location.range),
-            //     ts.ScriptTarget.Latest,
-            //     true
+            const sourceFile = ts.createSourceFile(
+                textDocument.fileName,
+                textDocument.getText(this.readableNode.location.range),
+                ts.ScriptTarget.Latest,
+                true
+            );
+
+            this.simpleTraverse(sourceFile, textDocument);
+
+            // const blocks = (
+            //     sourceFile.statements[0] as ts.Block
+            // ).statements.filter((t) => ts.isBlock(t));
+            // console.log(
+            //     'sourceFile',
+            //     sourceFile,
+            //     'blocks',
+            //     blocks,
+            //     'this',
+            //     this
             // );
-            // const blocks = (sourceFile.statements[0] as ts.Block).statements.filter(
-            //     (t) => ts.isBlock(t)
-            // );
-            // console.log('sourceFile', sourceFile, 'blocks', blocks, 'this', this);
             // if (
             //     blocks.length === this._tree?.root?.children.length
             //     // ||
@@ -497,7 +545,96 @@ export class DataController {
         }
     }
 
-    async handleUpdateTree(newContent: string) {
+    simpleTraverse(sourceFile: ts.SourceFile, docCopy: TextDocument) {
+        const context = this;
+        console.log('context before', context);
+        let nodes: ts.Node[] = [];
+        const seenNodes = new Set<string>();
+        function enter(node: ts.Node) {
+            nodes.push(node);
+            // probably need to add in other scopes such as object literals
+            // some of the scopes do not use the block node
+            // i'm not sure why
+            if (ts.isBlock(node)) {
+                const name = `${getSimplifiedTreeName(
+                    nodes.map((n) => n).reverse()
+                )}`;
+                const readableNode = ReadableNode.create(
+                    node,
+                    docCopy,
+                    context.container,
+                    ''
+                );
+                readableNode.location.range = (
+                    readableNode.location.range as RangePlus
+                ).translate(context.readableNode.location.range);
+                if (context._tree) {
+                    console.log('yes there is a tree', context._tree);
+                    const hasMatch = context._tree.root?.children.find((c) => {
+                        if (
+                            c.root?.data.location.contains(
+                                readableNode.location
+                            )
+                        ) {
+                            return true;
+                        }
+                        return false;
+                    });
+                    console.log('hasMatch', hasMatch);
+                    if (hasMatch) {
+                        seenNodes.add(hasMatch.root?.data.id || '');
+                        return;
+                    } else {
+                        readableNode.dataController = new DataController(
+                            readableNode,
+                            context.container
+                            // debug
+                        );
+                        console.log('new node', readableNode);
+                        const id = `${name}:${uuidv4()}`;
+                        context._tree.insert(readableNode, {
+                            name: id,
+                        });
+                        readableNode.setId(id);
+                        readableNode.registerListeners();
+                        readableNode.dataController._firestoreControllerInterface =
+                            context.container.firestoreController!.createNodeMetadata(
+                                name,
+                                context.container.firestoreController!.getFileCollectionPath(
+                                    getVisiblePath(
+                                        workspace.name ||
+                                            getProjectName(
+                                                context.readableNode.location.uri.toString()
+                                            ),
+                                        context.readableNode.location.uri.fsPath
+                                    )
+                                )
+                            );
+                        seenNodes.add(id);
+                        console.log('finish init', readableNode);
+                    }
+                }
+            }
+        }
+
+        function leave(node: ts.Node) {
+            nodes.pop();
+            // console.log('leaving', node);
+        }
+
+        tstraverse.traverse(sourceFile, { enter, leave });
+        this._tree?.root?.children.forEach((c) => {
+            if (seenNodes.has(c.root?.data.id || '')) {
+                return;
+            } else {
+                c.root!.data.state = NodeState.DELETED;
+                this._tree?.remove(c.root!.data);
+            }
+        });
+        console.log('context after', context);
+    }
+
+    async handleUpdateTree(content: string) {
         // const editor = window.activeTextEditor || window.visibleTextEditors[0];
         // const doc =
         //     editor.document.uri.fsPath === this.readableNode.location.uri.fsPath
