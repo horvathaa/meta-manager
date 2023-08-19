@@ -15,6 +15,7 @@ import { ClipboardMetadata, Container } from '../container';
 import {
     AbstractTreeReadableNode,
     CompareSummary,
+    NodeWithChildren,
     SimplifiedTree,
     getSimplifiedTreeName,
 } from '../tree/tree';
@@ -175,7 +176,11 @@ export class DataController {
             // tbd how much info to copy in the copy event -- probably would need
             // to transmit back to container? put in copy buffer
             this.container.onCopy((copyEvent) => {
-                if (this.readableNode.location.contains(copyEvent.location)) {
+                if (
+                    this.readableNode.location.containsPartOf(
+                        copyEvent.location
+                    )
+                ) {
                     this.handleOnCopy(copyEvent);
                 }
             }),
@@ -185,8 +190,8 @@ export class DataController {
             // tbd
             this.container.onPaste((pasteEvent) => {
                 if (
-                    this.readableNode.location.range.contains(
-                        pasteEvent.location.range.start
+                    this.readableNode.location.containsStart(
+                        pasteEvent.location
                     )
                 ) {
                     this.handleOnPaste(pasteEvent);
@@ -439,6 +444,18 @@ export class DataController {
         // const allData = [...this._firestoreData, ...this._gitData];
     }
 
+    updateChild(tree: SimplifiedTree<ReadableNode>) {
+        const childToUpdate = this._tree?.root?.children.find((c) => {
+            if (c.root?.data.id === tree.root?.data.id) {
+                return true;
+            }
+            return false;
+        });
+        // if(childToUpdate) {
+        //     (this._tree.root as NodeWithChildren<ReadableNode>).children = this._tree?.root?.children.map((c) => c.root?.data.id !== childToUpdate.root?.data.id ? c : tree);
+        // }
+    }
+
     handleOnSaveTextDocument(textDocument: TextDocument) {
         // console.log('posting', this.serialize());
         // if nothing has changed, don't do anything
@@ -476,7 +493,8 @@ export class DataController {
         if (
             this.readableNode.state &&
             nodeContentChange(this.readableNode.state) &&
-            this._changeBuffer.some((s) => s.addedBlock || s.removedBlock)
+            this._changeBuffer.some((s) => s.addedBlock || s.removedBlock) &&
+            this._tree?.isLeaf
         ) {
             const sourceFile = ts.createSourceFile(
                 textDocument.fileName,
@@ -485,8 +503,15 @@ export class DataController {
                 true
             );
 
-            this.simpleTraverse(sourceFile, textDocument);
+            // this._tree?.root?.children.forEach((c) => {
+            //     c = c.root!.data.dataController!.simpleTraverse(
+            //         sourceFile,
+            //         textDocument
+            //     );
+            // });
 
+            this._tree = this.simpleTraverse(sourceFile, textDocument);
+            // this._tree?.parent?.root?.data.dataController?.simpleTraverse();
             // const blocks = (
             //     sourceFile.statements[0] as ts.Block
             // ).statements.filter((t) => ts.isBlock(t));
@@ -559,15 +584,23 @@ export class DataController {
                 const name = `${getSimplifiedTreeName(
                     nodes.map((n) => n).reverse()
                 )}`;
+                console.log('name', name, 'node', node, 'docCopy', docCopy);
                 const readableNode = ReadableNode.create(
                     node,
                     docCopy,
                     context.container,
                     ''
                 );
+                console.log(
+                    'omgggg',
+                    readableNode,
+                    'context node',
+                    context.readableNode
+                );
                 readableNode.location.range = (
                     readableNode.location.range as RangePlus
                 ).translate(context.readableNode.location.range);
+                console.log('readableNode in if enter block', readableNode);
                 if (context._tree) {
                     console.log('yes there is a tree', context._tree);
                     const hasMatch = context._tree.root?.children.find((c) => {
@@ -595,8 +628,11 @@ export class DataController {
                         context._tree.insert(readableNode, {
                             name: id,
                         });
+                        console.log('inserted', context._tree);
                         readableNode.setId(id);
+                        console.log('set id', readableNode);
                         readableNode.registerListeners();
+                        console.log('registered listeners', readableNode);
                         readableNode.dataController._firestoreControllerInterface =
                             context.container.firestoreController!.createNodeMetadata(
                                 name,
@@ -610,6 +646,10 @@ export class DataController {
                                     )
                                 )
                             );
+                        console.log(
+                            'created node metadata',
+                            readableNode.dataController
+                        );
                         seenNodes.add(id);
                         console.log('finish init', readableNode);
                     }
@@ -632,6 +672,10 @@ export class DataController {
             }
         });
         console.log('context after', context);
+        return (
+            this._tree ||
+            new SimplifiedTree<ReadableNode>({ name: 'PROBLEM!!!!!!' })
+        );
     }
 
     async handleUpdateTree(content: string) {

@@ -334,4 +334,21 @@ export default class LocationPlus extends Location {
             this._range.contains(otherLocation.range)
         );
     }
+
+    containsStart(otherLocation: Location) {
+        return (
+            this.uri.toString() === otherLocation.uri.toString() &&
+            this._range.contains(otherLocation.range.start)
+        );
+    }
+
+    containsPartOf(otherLocation: Location) {
+        return (
+            (this.uri.toString() === otherLocation.uri.toString() &&
+                this.range.contains(otherLocation.range.start)) ||
+            this.range.contains(otherLocation.range.end) ||
+            otherLocation.range.contains(this.range.start) ||
+            otherLocation.range.contains(this.range.end)
+        );
+    }
 }
