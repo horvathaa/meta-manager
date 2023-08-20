@@ -46,6 +46,7 @@ export interface ChangeEvent {
     previousRangeContent: PreviousRangeContent;
     originalChangeEvent: TextDocumentContentChangeEvent;
     addedContent?: string;
+    insertedRange: RangePlus | null;
 }
 
 export default class LocationPlus extends Location {
@@ -55,6 +56,7 @@ export default class LocationPlus extends Location {
     _id?: string;
     _textEditorDecoration?: TextEditorDecorationType;
     _lastEditedTime: NodeJS.Timeout | null;
+    _tempInsertedRange: RangePlus | null = null;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     onChanged: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
     onSelected: EventEmitter<Selection> = new EventEmitter<Selection>();
@@ -207,6 +209,19 @@ export default class LocationPlus extends Location {
         return RangePlus.fromPositions(start, end);
     }
 
+    private cleanRange(range: RangePlus, document: TextDocument) {
+        const updated = RangePlus.fromRange(document.validateRange(range));
+        const furtherNormalizedStart =
+            document.getWordRangeAtPosition(updated.start) || updated;
+        const furtherNormalizedEnd =
+            document.getWordRangeAtPosition(updated.end) || updated;
+        const cleaned = RangePlus.fromPositions(
+            furtherNormalizedStart.start,
+            furtherNormalizedEnd.end
+        );
+        return cleaned;
+    }
+
     onTextDocumentChanged(
         onTextDocumentChanged: TextDocumentChangeEvent,
         thisArg?: any
@@ -215,6 +230,16 @@ export default class LocationPlus extends Location {
         const { document, contentChanges } = onTextDocumentChanged;
         if (this.uri.fsPath === document.uri.fsPath) {
             for (const change of contentChanges) {
+                // let justAdded = false;
+                if (!this._tempInsertedRange && change.text.length > 0) {
+                    this._tempInsertedRange =
+                        RangePlus.fromTextDocumentContentChangeEvent(change);
+                    // justAdded = true;
+                    console.log(
+                        'init temp inserted',
+                        this._tempInsertedRange.copy()
+                    );
+                }
                 const oldRange = this._range.copy();
                 const oldContent = this._content;
                 const previousRangeContent: PreviousRangeContent = {
@@ -223,19 +248,21 @@ export default class LocationPlus extends Location {
                 };
                 // console.log('change', change);
                 const updated = this._range.update(change);
-                this._range = RangePlus.fromRange(
-                    document.validateRange(updated)
-                );
-                const furtherNormalizedStart =
-                    document.getWordRangeAtPosition(this._range.start) ||
-                    this._range;
-                const furtherNormalizedEnd =
-                    document.getWordRangeAtPosition(this._range.end) ||
-                    this._range;
-                this._range = RangePlus.fromPositions(
-                    furtherNormalizedStart.start,
-                    furtherNormalizedEnd.end
-                );
+                if (this._tempInsertedRange) {
+                    const updated = this._tempInsertedRange.update(change);
+                    this._tempInsertedRange = this.cleanRange(
+                        updated,
+                        document
+                    );
+                    // // this._tempInsertedRange = updated;
+                    // console.log(
+                    //     'updated temp inserted',
+                    //     this._tempInsertedRange.copy(),
+                    //     'change',
+                    //     change
+                    // );
+                }
+                this._range = this.cleanRange(updated, document);
                 // the base Location property range
                 // is not staying in sync with our internal range so we need to update it
                 this.range = this._range;
@@ -252,19 +279,42 @@ export default class LocationPlus extends Location {
                         oldContent,
                         contentChangeRange
                     );
-
+                    // if (this._tempInsertedRange) {
+                    //     console.log(
+                    //         'this._tempInsertedRange',
+                    //         this._tempInsertedRange,
+                    //         'this range',
+                    //         this._range,
+                    //         'change',
+                    //         change,
+                    //         'contentChangeRange',
+                    //         contentChangeRange
+                    //     );
+                    //     // this._tempInsertedRange = new RangePlus(
+                    //     //     this._tempInsertedRange.start,
+                    //     //     contentChangeRange.end
+                    //     // );
+                    // }
                     this.onChanged.fire({
                         ...{
                             location: this,
                             typeOfChange,
                             previousRangeContent,
                             originalChangeEvent: change,
+                            insertedRange: this._tempInsertedRange,
                         },
-                        ...(change.text.length > 0 && {
-                            addedContent: change.text,
+                        ...(change.text.length > 0 &&
+                            this._tempInsertedRange && {
+                                addedContent: document.getText(
+                                    this._tempInsertedRange
+                                ),
+                            }),
+                        ...(change.text.length === 0 && {
+                            removedRange: change.range,
                         }),
                     });
                     this._range.updateRangeLength(document);
+                    this._tempInsertedRange = null;
                 }, 2000);
             }
         }

@@ -144,6 +144,7 @@ export class DataController {
     _emit: boolean = false;
     _seen: boolean = false;
     _changeBuffer: ChangeBuffer[];
+    _ownedLocations: LocationPlus[] = [];
     // _pasteDisposable: Disposable;
 
     constructor(
@@ -238,6 +239,7 @@ export class DataController {
         };
         if (addedCode.includes('{') && addedCode.includes('}')) {
             diffState.addedBlock = true;
+            // if(this._tree && this._tree.isLeaf || this._tree?.root?.children.some(c => c.root?.data.lo))
         }
         if (removedCode.includes('{') && removedCode.includes('}')) {
             diffState.removedBlock = true;
@@ -245,11 +247,89 @@ export class DataController {
         return diffState;
     }
 
+    private addBlockToTree(
+        b: ts.Block,
+        name: string,
+        insertedRange: RangePlus
+    ) {
+        // const name = `test:${uuidv4()}`;
+        const readableNode = ReadableNode.create(
+            b,
+            new LocationPlus(this.readableNode.location.uri, insertedRange),
+            this.container,
+            `${name}:${uuidv4()}`
+        );
+        readableNode.dataController = new DataController(
+            readableNode,
+            this.container
+        );
+        readableNode.setId(name);
+        readableNode.registerListeners();
+        readableNode.dataController._firestoreControllerInterface =
+            this.container.firestoreController!.createNodeMetadata(
+                name,
+                this.container.firestoreController!.getFileCollectionPath(
+                    getVisiblePath(
+                        workspace.name ||
+                            getProjectName(
+                                this.readableNode.location.uri.toString()
+                            ),
+                        this.readableNode.location.uri.fsPath
+                    )
+                )
+            );
+
+        const tree = this._tree?.insert(readableNode, {
+            name: readableNode.id,
+        });
+        readableNode.dataController._tree = tree;
+    }
+
     handleUpdateChangeBuffer(
         oldContent: string,
         newContent: string,
         changeEvent: ChangeEvent
     ) {
+        const { addedContent, insertedRange } = changeEvent;
+        if (
+            addedContent &&
+            insertedRange &&
+            addedContent.includes('{') &&
+            addedContent.includes('}')
+        ) {
+            this._debug = true;
+            if (
+                this._tree &&
+                (this._tree.isLeaf ||
+                    !this._tree?.root?.children.some((c) =>
+                        c.root?.data.location.range.contains(insertedRange)
+                    ))
+            ) {
+                const sourceFile = ts.createSourceFile(
+                    this.readableNode.location.uri.fsPath,
+                    addedContent,
+                    ts.ScriptTarget.Latest,
+                    true
+                );
+                const blocks = this.evenSimplerTraverse(sourceFile);
+                // sourceFile.statements.filter((t) =>
+                //     ts.isBlock(t)
+                // );
+                console.log(
+                    'tree before',
+                    this._tree,
+                    'blocks',
+                    blocks,
+                    'sf',
+                    sourceFile
+                );
+                blocks.forEach((b) => {
+                    this.addBlockToTree(b.node, b.name, insertedRange);
+                });
+                console.log('tree after', this._tree);
+            }
+        }
+
         const diff = patienceDiffPlus(
             oldContent.split(/\n/),
             newContent.split(/\n/)
@@ -393,8 +473,9 @@ export class DataController {
             return;
         }
 
-        this._debug &&
-            console.log('changeEvent!!!!!!!', changeEvent, 'this!!!!!', this);
+        // this._debug &&
+        console.log('changeEvent!!!!!!!', changeEvent, 'this!!!!!', this);
+
         // this._emit = true;
         this.handleUpdateChangeBuffer(oldContent, newContent, changeEvent);
         this.handleUpdateNodeMetadata(newContent, location);
@@ -444,16 +525,44 @@ export class DataController {
         // const allData = [...this._firestoreData, ...this._gitData];
     }
 
-    updateChild(tree: SimplifiedTree<ReadableNode>) {
-        const childToUpdate = this._tree?.root?.children.find((c) => {
-            if (c.root?.data.id === tree.root?.data.id) {
-                return true;
+    // updateChild(tree: SimplifiedTree<ReadableNode>) {
+    //     const childToUpdate = this._tree?.root?.children.find((c) => {
+    //         if (c.root?.data.id === tree.root?.data.id) {
+    //             return true;
+    //         }
+    //         return false;
+    //     });
+    //     if (childToUpdate) {
+    //         (this._tree!.root as NodeWithChildren<ReadableNode>).children =
+    //             this._tree!.root!.children.map((c) =>
+    //                 c.root?.data.id !== childToUpdate.root?.data.id ? c : tree
+    //             );
+    //         this._tree!.root!.data.dataController?.updateChild(this._tree!);
+    //     }
+    // }
+
+    evenSimplerTraverse(sourceFile: ts.SourceFile) {
+        const nodes: ts.Node[] = [];
+        const blocks: { [k: string]: any }[] = [];
+        function enter(node: ts.Node) {
+            nodes.push(node);
+            if (ts.isBlock(node)) {
+                const readableNodeArrayCopy = nodes.map((n) => n);
+                let name = `${getSimplifiedTreeName(
+                    readableNodeArrayCopy.reverse()
+                )}`;
+                // todo: add position using node offset within inserted range because
+                // inserted ranges can be a bit wonky
+                blocks.push({ node, name: `${name}:${uuidv4()}` });
             }
-            return false;
-        });
-        // if(childToUpdate) {
-        //     (this._tree.root as NodeWithChildren<ReadableNode>).children = this._tree?.root?.children.map((c) => c.root?.data.id !== childToUpdate.root?.data.id ? c : tree);
-        // }
+        }
+
+        function leave(node: ts.Node) {
+            nodes.pop();
+        }
+
+        tstraverse.traverse(sourceFile, { enter, leave });
+        return blocks;
     }
 
     handleOnSaveTextDocument(textDocument: TextDocument) {
@@ -490,51 +599,53 @@ export class DataController {
 
         console.log('this....', this);
         // if the node's content has changed, check for change in block and update db
-        if (
-            this.readableNode.state &&
-            nodeContentChange(this.readableNode.state) &&
-            this._changeBuffer.some((s) => s.addedBlock || s.removedBlock) &&
-            this._tree?.isLeaf
-        ) {
-            const sourceFile = ts.createSourceFile(
-                textDocument.fileName,
-                textDocument.getText(this.readableNode.location.range),
-                ts.ScriptTarget.Latest,
-                true
-            );
+        // if (
+        //     this.readableNode.state &&
+        //     nodeContentChange(this.readableNode.state) &&
+        //     this._changeBuffer.some((s) => s.addedBlock || s.removedBlock) &&
+        //     this._tree?.isLeaf
+        // ) {
+        //     const sourceFile = ts.createSourceFile(
+        //         textDocument.fileName,
+        //         textDocument.getText(this.readableNode.location.range),
+        //         ts.ScriptTarget.Latest,
+        //         true
+        //     );
 
-            // this._tree?.root?.children.forEach((c) => {
-            //     c = c.root!.data.dataController!.simpleTraverse(
-            //         sourceFile,
-            //         textDocument
-            //     );
-            // });
+        //     // this._tree?.root?.children.forEach((c) => {
+        //     //     c = c.root!.data.dataController!.simpleTraverse(
+        //     //         sourceFile,
+        //     //         textDocument
+        //     //     );
+        //     // });
 
-            this._tree = this.simpleTraverse(sourceFile, textDocument);
-            // this._tree?.parent?.root?.data.dataController?.simpleTraverse();
-            // const blocks = (
-            //     sourceFile.statements[0] as ts.Block
-            // ).statements.filter((t) => ts.isBlock(t));
-            // console.log(
-            //     'sourceFile',
-            //     sourceFile,
-            //     'blocks',
-            //     blocks,
-            //     'this',
-            //     this
-            // );
-            // if (
-            //     blocks.length === this._tree?.root?.children.length
-            //     // ||
-            //     // (blocks.length === 1 && this._tree?.root?.children.length === 0)
-            // ) {
-            //     console.log('no need to update');
-            //     return;
-            // } else {
-            //     console.log('UPADTING!!!!!!');
-            //     return;
-            // }
-        }
+        //     this._tree = this.simpleTraverse(sourceFile, textDocument);
+        //     this._tree?.parent?.root?.data.dataController?.updateChild(
+        //         this._tree
+        //     );
+        //     // const blocks = (
+        //     //     sourceFile.statements[0] as ts.Block
+        //     // ).statements.filter((t) => ts.isBlock(t));
+        //     // console.log(
+        //     //     'sourceFile',
+        //     //     sourceFile,
+        //     //     'blocks',
+        //     //     blocks,
+        //     //     'this',
+        //     //     this
+        //     // );
+        //     // if (
+        //     //     blocks.length === this._tree?.root?.children.length
+        //     //     // ||
+        //     //     // (blocks.length === 1 && this._tree?.root?.children.length === 0)
+        //     // ) {
+        //     //     console.log('no need to update');
+        //     //     return;
+        //     // } else {
+        //     //     console.log('UPADTING!!!!!!');
+        //     //     return;
+        //     // }
+        // }
 
         this._firestoreControllerInterface?.write({
             ...this.serialize(),

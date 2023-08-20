@@ -582,7 +582,7 @@ class RangePlus extends Range {
             case RangeIntersectionType.STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME:
                 return this;
             default:
-                return this.start.isEqual(contentChangeRange.start)
+                return this.start.isBeforeOrEqual(contentChangeRange.start)
                     ? RangePlus.fromPositions(
                           this.start,
                           this.end.translate(0, text.length)
@@ -660,6 +660,7 @@ class RangePlus extends Range {
                         endTextLength + this._rangeLength
                     )
                 );
+            // I think there's a bug here for when the user has something like "if() { }" and adds a new line between the curly braces
             case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END:
             case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_ON_OUR_END:
             case RangeIntersectionType.STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END:
