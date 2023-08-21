@@ -1,3 +1,5 @@
+import { Location } from 'vscode';
+
 export function getNonce() {
     let text = '';
     const possible =
@@ -15,4 +17,8 @@ export function debounce(func: Function, timeout = 300) {
         // @ts-ignore
         timer = setTimeout(() => func.apply(this, args), timeout);
     };
+}
+
+export function isLocation(location: any): location is Location {
+    return location.hasOwnProperty('uri') && location.hasOwnProperty('range');
 }

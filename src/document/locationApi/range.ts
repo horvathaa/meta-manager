@@ -15,6 +15,7 @@ enum RangeIntersectionType {
     STARTS_ON_OUR_START_ENDS_BEFORE_OUR_END,
     STARTS_ON_OUR_START_ENDS_ON_OUR_END,
     STARTS_ON_OUR_START_ENDS_AFTER_OUR_END,
+    STARTS_ON_OUR_END_ENDS_AFTER_OUR_END,
     STARTS_AFTER_OUR_START_ENDS_BEFORE_OUR_END,
     STARTS_AFTER_OUR_START_ENDS_ON_OUR_END,
     STARTS_AFTER_OUR_START_ENDS_AFTER_OUR_END,
@@ -94,18 +95,34 @@ class RangePlus extends Range {
 
     public static fromRangeAndText(range: Range, text: string) {
         const numNewlines = text.split('\n').length - 1;
+        // console.log('range', range, 'num new', numNewlines);
         if (numNewlines) {
             const end = new Position(
                 range.start.line + numNewlines,
                 text.substring(text.lastIndexOf('\n')).length
             );
+            // console.log(
+            //     'returning this big num',
+            //     RangePlus.fromPositions(range.start, end)
+            // );
             return RangePlus.fromPositions(range.start, end);
         } else {
+            // console.log(
+            //     'returning this',
+            //     RangePlus.fromPositions(
+            //         range.start,
+            //         range.end.translate(0, text.length)
+            //     )
+            // );
             return RangePlus.fromPositions(
                 range.start,
                 range.end.translate(0, text.length)
             );
         }
+    }
+
+    public toRange() {
+        return new Range(this.start, this.end);
     }
 
     public static fromTextDocumentContentChangeEvent(
@@ -289,7 +306,9 @@ class RangePlus extends Range {
             changeContext.rangeIntersectionType ===
                 RangeIntersectionType.UNKNOWN ||
             changeContext.rangeIntersectionType ===
-                RangeIntersectionType.STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END
+                RangeIntersectionType.STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END ||
+            changeContext.rangeIntersectionType ===
+                RangeIntersectionType.STARTS_ON_OUR_END_ENDS_AFTER_OUR_END
         ) {
             return this;
         }
@@ -791,6 +810,9 @@ const getRangeIntersectionType = (
     }
     if (changeRange.contains(ourRange)) {
         return RangeIntersectionType.STARTS_BEFORE_ENDS_AFTER_OUR_END;
+    }
+    if (ourRange.end.isEqual(changeRange.start)) {
+        return RangeIntersectionType.STARTS_ON_OUR_END_ENDS_AFTER_OUR_END;
     }
     if (ourRange.isAfter(changeRange)) {
         if (ourRange.isAfterNotSameLine(changeRange)) {

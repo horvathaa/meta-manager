@@ -427,7 +427,10 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
             return;
         }
 
-        if (isEqual(this.root.data, node)) {
+        if (
+            this.root.data.id === node.data.id ||
+            isEqual(this.root.data, node)
+        ) {
             this.root.data = nodeToSwap;
             return;
         }

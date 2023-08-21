@@ -10,6 +10,7 @@ import {
     WorkspaceEdit,
     commands,
     TextEditorEdit,
+    Location,
 } from 'vscode';
 import { DataController } from './data/DataController';
 import FileParser from './document/fileParser';
@@ -25,9 +26,10 @@ import RangePlus from './document/locationApi/range';
 
 export interface ClipboardMetadata {
     text: string;
-    location: LocationPlus;
+    location: Location;
     time: number;
     webMetadata?: any;
+    vscodeMetadata?: any;
 }
 
 export class Container {
@@ -41,6 +43,7 @@ export class Container {
         new EventEmitter<ClipboardMetadata>();
     _onPaste: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
+    _copyVscodeMetadata: any;
     // probably should add this and check on paste whether matches
     // and update appropriate datacontroller with metadata about movement
     // _onCut: EventEmitter<ClipboardMetadata> =
@@ -239,16 +242,21 @@ export class Container {
                     );
                 this.context.subscriptions.push(this._clipboardPasteDisposable);
                 // });
-                const location: LocationPlus = new LocationPlus(
+                const location: Location = new Location(
                     textEditor.document.uri,
-                    RangePlus.fromRangeAndText(textEditor.selection, pastedText)
+                    RangePlus.fromRangeAndText(
+                        textEditor.selection,
+                        pastedText
+                    ).toRange()
                 );
 
                 this._onPaste.fire({
                     text: pastedText,
                     location,
                     time: Date.now(),
+                    vscodeMetadata: this._copyVscodeMetadata,
                 });
+                this._copyVscodeMetadata = null;
             });
         // console.log('textEditor', textEditor);
         // console.log('edit', edit);
@@ -331,5 +339,9 @@ export class Container {
                     time: Date.now(),
                 });
             });
+    }
+
+    updateClipboardMetadata(copyVscodeMetadata: any) {
+        this._copyVscodeMetadata = copyVscodeMetadata;
     }
 }

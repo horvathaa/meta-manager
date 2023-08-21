@@ -10,6 +10,7 @@ import {
     TextEditorEdit,
     TextDocument,
     Selection,
+    Location,
 } from 'vscode';
 import { ClipboardMetadata, Container } from '../container';
 import {
@@ -36,7 +37,7 @@ import {
 } from 'firebase/firestore';
 import TimelineEvent from './timeline/TimelineEvent';
 import { ParsedTsNode } from '../document/languageServiceProvider/LanguageServiceProvider';
-import { debounce } from '../utils/lib';
+import { debounce, isLocation } from '../utils/lib';
 import { patienceDiffPlus } from '../utils/PatienceDiff';
 import {
     CopyBuffer,
@@ -44,6 +45,7 @@ import {
     SerializedDataController,
     SerializedLocationPlus,
     SerializedNodeDataController,
+    SerializedReadableNode,
     VscodeCopyBuffer,
 } from '../constants/types';
 import MetaInformationExtractor from '../comments/CommentCreator';
@@ -107,10 +109,16 @@ interface ChangeBuffer {
         };
         [Event.COPY]?: {
             copyContent: string;
+            nodeId: string;
         };
         [Event.PASTE]?: {
             pasteContent: string;
             nodeId?: string;
+            vscodeMetadata?: {
+                code: string;
+                id: string;
+                node: SerializedReadableNode;
+            };
         };
         [Event.WEB]?: {
             copyBuffer: CopyBuffer;
@@ -124,6 +132,12 @@ export interface FirestoreControllerInterface {
     write: (newNode: any) => void;
     logVersion: (versionId: string, newNode: any) => void;
     readPastVersions: () => Promise<SerializedDataController[]>;
+}
+
+interface PasteDetails {
+    location: Location;
+    pasteContent: string;
+    pasteMetadata: ChangeBuffer;
 }
 
 export class DataController {
@@ -143,6 +157,7 @@ export class DataController {
     _debug: boolean = false;
     _emit: boolean = false;
     _seen: boolean = false;
+    _didPaste: PasteDetails | null = null;
     _changeBuffer: ChangeBuffer[];
     _ownedLocations: LocationPlus[] = [];
     // _pasteDisposable: Disposable;
@@ -150,7 +165,8 @@ export class DataController {
     constructor(
         private readonly readableNode: ReadableNode,
         private readonly container: Container,
-        private readonly debug = false
+        private readonly debug = readableNode.id ===
+            'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}'
     ) {
         // super();
         // this._readableNode = readableNode;
@@ -169,6 +185,12 @@ export class DataController {
 
     compare(other: ReadableNode): CompareSummary<ReadableNode> {
         return this.readableNode.compare(other);
+    }
+
+    setTree(tree: SimplifiedTree<ReadableNode>) {
+        this._tree = tree;
+        this.readableNode.id === 'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}' &&
+            console.log('tree set', this._tree);
     }
 
     initListeners() {
@@ -247,18 +269,64 @@ export class DataController {
         return diffState;
     }
 
+    private initReadableNode(
+        readableNodeParam: ReadableNode,
+        name: string,
+        changeBuffer?: ChangeBuffer
+    ) {
+        const readableNode = readableNodeParam.copy();
+        readableNode.dataController = new DataController(
+            readableNode,
+            this.container
+        );
+        readableNode.setId(name);
+        readableNode.registerListeners();
+        readableNode.dataController._firestoreControllerInterface =
+            this.container.firestoreController!.createNodeMetadata(
+                name,
+                this.container.firestoreController!.getFileCollectionPath(
+                    getVisiblePath(
+                        workspace.name ||
+                            getProjectName(
+                                this.readableNode.location.uri.toString()
+                            ),
+                        this.readableNode.location.uri.fsPath
+                    )
+                )
+            );
+
+        // const tree = this._tree?.insert(readableNode, {
+        //     name: readableNode.id,
+        // });
+        // readableNode.dataController._tree = tree;
+        changeBuffer &&
+            readableNode.dataController._changeBuffer.push(changeBuffer);
+        return readableNode;
+    }
+
     private addBlockToTree(
         b: ts.Block,
         name: string,
-        insertedRange: RangePlus
+        insertedRange: Range,
+        changeBuffer?: ChangeBuffer
     ) {
-        // const name = `test:${uuidv4()}`;
+        const newLocation = new LocationPlus(
+            this.readableNode.location.uri,
+            insertedRange
+        );
+        newLocation.updateContent(
+            window.activeTextEditor || window.visibleTextEditors[0]
+        );
         const readableNode = ReadableNode.create(
             b,
-            new LocationPlus(this.readableNode.location.uri, insertedRange),
+            newLocation,
             this.container,
             `${name}:${uuidv4()}`
         );
+
+        const sigh = newLocation.deriveRangeFromOffset(b.pos, b.end);
+        console.log('pwease....', sigh, newLocation);
+
         readableNode.dataController = new DataController(
             readableNode,
             this.container
@@ -283,6 +351,57 @@ export class DataController {
             name: readableNode.id,
         });
         readableNode.dataController._tree = tree;
+        changeBuffer &&
+            readableNode.dataController._changeBuffer.push(changeBuffer);
+    }
+
+    handleInsertBlock(
+        addedContent: string,
+        insertedRange: Range,
+        changeBuffer?: ChangeBuffer
+    ) {
+        if (
+            this._tree &&
+            (this._tree.isLeaf ||
+                !this._tree?.root?.children.some((c) =>
+                    c.root?.data.location.range.contains(insertedRange)
+                ))
+        ) {
+            const sourceFile = ts.createSourceFile(
+                this.readableNode.location.uri.fsPath,
+                addedContent,
+                ts.ScriptTarget.Latest,
+                true
+            );
+            setTimeout(() => {
+                const blocks = this.evenSimplerTraverse(
+                    sourceFile,
+                    window.activeTextEditor?.document ||
+                        window.visibleTextEditors[0].document,
+                    changeBuffer
+                );
+                // sourceFile.statements.filter((t) =>
+                //     ts.isBlock(t)
+                // );
+                console.log(
+                    'tree before',
+                    this._tree,
+                    'blocks',
+                    blocks,
+                    'sf',
+                    sourceFile
+                );
+                // blocks.forEach((b) => {
+                //     this.addBlockToTree(
+                //         b.node,
+                //         b.name,
+                //         insertedRange,
+                //         changeBuffer
+                //     );
+                // });
+                console.log('tree after', this._tree);
+            }, 3000);
+        }
     }
 
     handleUpdateChangeBuffer(
@@ -295,39 +414,19 @@ export class DataController {
             addedContent &&
             insertedRange &&
             addedContent.includes('{') &&
-            addedContent.includes('}')
+            addedContent.includes('}') &&
+            (!this._didPaste ||
+                !addedContent.includes(this._didPaste.pasteContent)) && // yeesh not good
+            addedContent !== this.readableNode.location.content
         ) {
+            console.log(
+                'this._didPaste',
+                this._didPaste,
+                'added',
+                addedContent
+            );
             this._debug = true;
-            if (
-                this._tree &&
-                (this._tree.isLeaf ||
-                    !this._tree?.root?.children.some((c) =>
-                        c.root?.data.location.range.contains(insertedRange)
-                    ))
-            ) {
-                const sourceFile = ts.createSourceFile(
-                    this.readableNode.location.uri.fsPath,
-                    addedContent,
-                    ts.ScriptTarget.Latest,
-                    true
-                );
-                const blocks = this.evenSimplerTraverse(sourceFile);
-                // sourceFile.statements.filter((t) =>
-                //     ts.isBlock(t)
-                // );
-                console.log(
-                    'tree before',
-                    this._tree,
-                    'blocks',
-                    blocks,
-                    'sf',
-                    sourceFile
-                );
-                blocks.forEach((b) => {
-                    this.addBlockToTree(b.node, b.name, insertedRange);
-                });
-                console.log('tree after', this._tree);
-            }
+            this.handleInsertBlock(addedContent, insertedRange);
         }
 
         const diff = patienceDiffPlus(
@@ -370,6 +469,7 @@ export class DataController {
             addedBlock,
             removedBlock,
         });
+        // this._didPaste = false;
     }
 
     private getBaseChangeBuffer() {
@@ -408,9 +508,16 @@ export class DataController {
                 eventData: {
                     [Event.COPY]: {
                         copyContent: copyEvent.text,
+                        nodeId: this.readableNode.id,
                     },
                 },
             });
+            this.isOwnerOfRange(copyEvent.location) &&
+                this.container.updateClipboardMetadata({
+                    code: copyEvent.text,
+                    id: this.readableNode.id,
+                    node: this.readableNode.serialize(),
+                });
         }
     }
 
@@ -422,6 +529,7 @@ export class DataController {
             pasteEvent,
             this.container.copyBuffer
         );
+        let eventObj: ChangeBuffer | undefined;
         if (this.container.copyBuffer) {
             const { repository, ...rest } = this.container.gitController
                 ?.gitState as CurrentGitState;
@@ -432,31 +540,56 @@ export class DataController {
                 gitMetadata: rest,
             };
             this._webMetaData.push(details);
-            this._changeBuffer.push({
+            eventObj = {
                 ...this.getBaseChangeBuffer(),
+                location: LocationPlus.fromLocation(
+                    pasteEvent.location
+                ).serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
-                changeContent: pasteEvent.location.content,
+                changeContent: pasteEvent.text,
                 eventData: {
                     [Event.WEB]: {
                         copyBuffer: this.container.copyBuffer,
                     },
                 },
-            });
+            };
+            this._changeBuffer.push(eventObj);
             this._debug = true;
             this._emit = true;
-            console.log('posting', this.serialize());
+            // console.log('posting', this.serialize());
         } else {
-            this._changeBuffer.push({
+            const { vscodeMetadata } = pasteEvent;
+            eventObj = {
                 ...this.getBaseChangeBuffer(),
+                location: LocationPlus.fromLocation(
+                    pasteEvent.location
+                ).serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
-                changeContent: pasteEvent.location.content,
+                changeContent: pasteEvent.text,
                 eventData: {
                     [Event.PASTE]: {
-                        pasteContent: pasteEvent.location.content,
+                        pasteContent: pasteEvent.text,
                         nodeId: this.readableNode.id, // replace with readable node id that was copiedd
+                        vscodeMetadata,
                     },
                 },
-            });
+            };
+            this._changeBuffer.push(eventObj);
+        }
+
+        this._didPaste = {
+            location: pasteEvent.location,
+            pasteContent: pasteEvent.text,
+            pasteMetadata: eventObj,
+        };
+        if (pasteEvent.text.includes('{') && pasteEvent.text.includes('}')) {
+            this.handleInsertBlock(
+                pasteEvent.text,
+                pasteEvent.location.range,
+                eventObj
+            );
+            console.log('DID INSERT BLOCK', this);
+            // return;
         }
     }
 
@@ -471,6 +604,18 @@ export class DataController {
             )
         ) {
             return;
+        }
+
+        if (this._didPaste) {
+            const { location, pasteContent } = this._didPaste;
+            const { addedContent, insertedRange } = changeEvent;
+            if (
+                (insertedRange && location.range.isEqual(insertedRange)) ||
+                addedContent === pasteContent
+            ) {
+                console.log('IN HERE');
+                return;
+            }
         }
 
         // this._debug &&
@@ -488,7 +633,19 @@ export class DataController {
         // }
     }
 
+    private isOwnerOfRange(location: Selection | Location) {
+        const comparator = isLocation(location) ? location.range : location;
+        return (
+            this._tree &&
+            (this._tree.isLeaf ||
+                !this._tree.root?.children.some((c) =>
+                    c.root?.data.location.range.contains(comparator)
+                ))
+        );
+    }
+
     async handleOnSelected(location: Selection) {
+        console.log('SELECTED', this);
         if (
             this._tree &&
             (this._tree.isLeaf ||
@@ -541,31 +698,84 @@ export class DataController {
     //     }
     // }
 
-    evenSimplerTraverse(sourceFile: ts.SourceFile) {
+    evenSimplerTraverse(
+        sourceFile: ts.SourceFile,
+        docCopy: TextDocument,
+        changeBuffer?: ChangeBuffer
+    ) {
         const nodes: ts.Node[] = [];
-        const blocks: { [k: string]: any }[] = [];
+        // const blocks: { [k: string]: any }[] = [];
+        let currTreeInstance: SimplifiedTree<ReadableNode>[] = [this._tree!];
+        const code = docCopy.getText();
+        const context = this;
+        const bigLocation = new LocationPlus(
+            docCopy.uri,
+            new Range(0, 0, docCopy.lineCount, 1000)
+        );
+        bigLocation.updateContent(docCopy);
         function enter(node: ts.Node) {
             nodes.push(node);
             if (ts.isBlock(node)) {
                 const readableNodeArrayCopy = nodes.map((n) => n);
                 let name = `${getSimplifiedTreeName(
                     readableNodeArrayCopy.reverse()
-                )}`;
+                )}:${uuidv4()}`;
+                const offsetStart = code.indexOf(node.getText());
+                // console.log(
+                //     'offsetStart',
+                //     offsetStart,
+                //     'node text',
+                //     node.getText(),
+                //     'code',
+                //     code
+                // );
+                const offsetEnd = offsetStart + node.getText().length;
+                // console.log('end', offsetEnd);
+                const newLocation = new LocationPlus(
+                    docCopy.uri,
+                    bigLocation.deriveRangeFromOffset(offsetStart, offsetEnd)
+                );
+                newLocation.updateContent(docCopy);
+                const readableNode = context.initReadableNode(
+                    ReadableNode.create(
+                        node,
+                        newLocation,
+                        context.container,
+                        name
+                    ),
+                    name
+                );
+                console.log('made this', readableNode);
+                const treeRef = currTreeInstance[
+                    currTreeInstance.length - 1
+                ].insert(readableNode, {
+                    name: name,
+                });
+                readableNode.dataController?.setTree(treeRef);
+                changeBuffer &&
+                    readableNode.dataController?._changeBuffer.push(
+                        changeBuffer
+                    );
+                currTreeInstance.push(treeRef);
                 // todo: add position using node offset within inserted range because
                 // inserted ranges can be a bit wonky
-                blocks.push({ node, name: `${name}:${uuidv4()}` });
+                // blocks.push({ node, name: `${name}` });
             }
         }
 
         function leave(node: ts.Node) {
-            nodes.pop();
+            const topNode = nodes.pop();
+            if (topNode && ts.isBlock(node)) {
+                currTreeInstance.pop();
+            }
         }
 
         tstraverse.traverse(sourceFile, { enter, leave });
-        return blocks;
+        console.log('jesus christ', this);
+        // return blocks;
     }
 
-    handleOnSaveTextDocument(textDocument: TextDocument) {
+    async handleOnSaveTextDocument(textDocument: TextDocument) {
         // console.log('posting', this.serialize());
         // if nothing has changed, don't do anything
         // note change buffer wont update if the content is the same
@@ -583,69 +793,9 @@ export class DataController {
             this.readableNode.state === NodeState.DELETED
         ) {
             this._tree?.parent?.remove(this.readableNode);
-            // this._tree?.root?.children.forEach((c) => {
-            //     if (c.root?.data.id === this.readableNode.id) {
-            //         c.root.data.state = NodeState.DELETED;
-            //         c.root.data.update();
-            //     }
-            // });
-            // this.readableNode.parent?.children = this.readableNode.parent?.children.filter((c) => c.id !== this.readableNode.id);
-            // this.readableNode.parent?.update();
-            // this._firestoreControllerInterface?.write({
-            //     ...this.serialize(),
-            // });
-            // return;
         }
 
         console.log('this....', this);
-        // if the node's content has changed, check for change in block and update db
-        // if (
-        //     this.readableNode.state &&
-        //     nodeContentChange(this.readableNode.state) &&
-        //     this._changeBuffer.some((s) => s.addedBlock || s.removedBlock) &&
-        //     this._tree?.isLeaf
-        // ) {
-        //     const sourceFile = ts.createSourceFile(
-        //         textDocument.fileName,
-        //         textDocument.getText(this.readableNode.location.range),
-        //         ts.ScriptTarget.Latest,
-        //         true
-        //     );
-
-        //     // this._tree?.root?.children.forEach((c) => {
-        //     //     c = c.root!.data.dataController!.simpleTraverse(
-        //     //         sourceFile,
-        //     //         textDocument
-        //     //     );
-        //     // });
-
-        //     this._tree = this.simpleTraverse(sourceFile, textDocument);
-        //     this._tree?.parent?.root?.data.dataController?.updateChild(
-        //         this._tree
-        //     );
-        //     // const blocks = (
-        //     //     sourceFile.statements[0] as ts.Block
-        //     // ).statements.filter((t) => ts.isBlock(t));
-        //     // console.log(
-        //     //     'sourceFile',
-        //     //     sourceFile,
-        //     //     'blocks',
-        //     //     blocks,
-        //     //     'this',
-        //     //     this
-        //     // );
-        //     // if (
-        //     //     blocks.length === this._tree?.root?.children.length
-        //     //     // ||
-        //     //     // (blocks.length === 1 && this._tree?.root?.children.length === 0)
-        //     // ) {
-        //     //     console.log('no need to update');
-        //     //     return;
-        //     // } else {
-        //     //     console.log('UPADTING!!!!!!');
-        //     //     return;
-        //     // }
-        // }
 
         this._firestoreControllerInterface?.write({
             ...this.serialize(),
@@ -654,11 +804,17 @@ export class DataController {
             const { commit, branch } = this.container.gitController
                 ?.gitState as CurrentGitState;
             this._changeBuffer.forEach((c) => {
-                this._firestoreControllerInterface?.logVersion(c.id, {
-                    ...c,
+                const { diff, ...rest } = c;
+                const obj = {
+                    ...rest,
                     commit, // tbd if we just want this as a subcollection
                     branch,
+                };
+                this._pastVersions.push({
+                    ...obj,
+                    node: this.readableNode.serialize(),
                 });
+                this._firestoreControllerInterface?.logVersion(c.id, obj);
             });
             this._changeBuffer = [];
         }
@@ -672,12 +828,12 @@ export class DataController {
                 this.readableNode.location.uri.fsPath &&
             !this._seen
         ) {
-            console.log('opening', this);
+            // console.log('opening', this);
             this._seen = true;
             this._pastVersions =
                 (await this._firestoreControllerInterface?.readPastVersions()) ||
                 [];
-            console.log('this', this);
+            // console.log('this', this);
         }
     }
 
@@ -831,9 +987,10 @@ export class DataController {
             lastUpdatedTime: Date.now(),
             lastUpdatedBy:
                 this.container.firestoreController?._user?.uid || 'anonymous',
-            setOfEventIds: this._changeBuffer // keep track of this since we reset change buffer on push
-                .filter((c) => c.eventData)
-                .map((c) => c.id),
+            setOfEventIds: [],
+            // this._changeBuffer // keep track of this since we reset change buffer on push
+            //     .filter((c) => c?.eventData)
+            //     .map((c) => c.id),
             // setOfEvents: this._changeBuffer.,
             // webMetadata: this.webMetaData,
             // changeBuffer: [],

@@ -114,7 +114,7 @@ export interface CopyBuffer {
 type AdditionalMetadata = ChatGptCopyBuffer | GitHubCopyBuffer | null;
 
 export interface VscodeCopyBuffer extends CopyBuffer {
-    location: LocationPlus;
+    location: Location;
     pasteTime: number;
     gitMetadata: any;
 }

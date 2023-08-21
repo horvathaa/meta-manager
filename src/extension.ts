@@ -7,6 +7,7 @@ import {
 } from 'vscode';
 import ViewLoaderProvider from './viewProvider/ViewLoaderProvider';
 import { Container } from './container';
+import ViewLoader from './webviewPane/ViewLoader';
 
 // import TimelineController from './view/src/timeline/TimelineController';
 // import ViewHandler from './view/src';
@@ -18,6 +19,7 @@ export async function activate(context: ExtensionContext) {
     // This line of code will only be executed once when your extension is activated
 
     const view = new ViewLoaderProvider(context.extensionUri);
+    // const otherView = new ViewLoader(context.extensionUri);
     context.subscriptions.push(
         window.registerWebviewViewProvider(ViewLoaderProvider.viewType, view, {
             webviewOptions: { retainContextWhenHidden: true },

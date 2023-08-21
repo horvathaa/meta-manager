@@ -53,30 +53,6 @@ class DocumentWatcher extends Disposable {
         console.log('relative file path', this._relativeFilePath);
 
         this._nodesInFile = undefined;
-        // const listener = container.fileSystemController?.onFileParsed(
-        //     (event: FileParsedEvent) => {
-        //         // console.log('EVENT', event);
-        //         const { filename, data } = event;
-        //         if (filename === this._relativeFilePath) {
-        //             const tree = new SimplifiedTree<ReadableNode>({
-        //                 name: this._relativeFilePath,
-        //             }).deserialize(
-        //                 data.data,
-        //                 new ReadableNode(
-        //                     '',
-        //                     new LocationPlus(
-        //                         this.document.uri,
-        //                         new Range(0, 0, 0, 0)
-        //                     )
-        //                 ),
-        //                 this._relativeFilePath
-        //             );
-        //             this._nodesInFile = this.initNodes(tree);
-
-        //             // console.log('file parsed complete', this);
-        //         }
-        //     }
-        // );
         const otherListener = container.onNodesComplete(() => {
             // console.log('new project', this);
             if (this._nodesInFile === undefined) {
@@ -295,6 +271,23 @@ class DocumentWatcher extends Disposable {
                     readableNode, // .readableNode,
                     { name }
                 );
+                if (name === 'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}') {
+                    console.log(
+                        'TREE REF',
+                        treeRef,
+                        'currTreeInstance',
+                        currTreeInstance,
+                        'map',
+                        crazyIdeaMap,
+                        'name',
+                        name,
+                        'readableNode',
+                        readableNode,
+                        'tree',
+                        tree
+                    );
+                }
+                readableNode.dataController.setTree(treeRef);
                 currTreeInstance.push(treeRef);
                 crazyIdeaMap.set(name, readableNode);
                 debug = false;
@@ -306,14 +299,46 @@ class DocumentWatcher extends Disposable {
             const topNode = nodes.pop();
             if (topNode && ts.isBlock(topNode)) {
                 const node = currTreeInstance.pop();
+                if (node?.name === 'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}') {
+                    console.log(
+                        'POPPPPPPINGGGGGG',
+                        node,
+                        'map',
+                        crazyIdeaMap,
+                        'top',
+                        topNode
+                    );
+                }
                 const nodeToUpdate = crazyIdeaMap.get(node?.name || '');
-                if (nodeToUpdate) {
-                    nodeToUpdate.dataController!._tree = node;
+                if (nodeToUpdate && node) {
+                    nodeToUpdate.dataController!.setTree(node);
+                    tree.swapNodes(node.root!.data, nodeToUpdate);
+                    if (
+                        node?.name ===
+                        'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}'
+                    ) {
+                        console.log(
+                            'POST SET!!!!!!!!!!',
+                            node,
+                            'map',
+                            crazyIdeaMap,
+                            'top',
+                            nodeToUpdate,
+                            'tree',
+                            tree
+                        );
+                    }
                     // context._relativeFilePath === 'source/utils/utils.ts' &&
                     //     console.log('popping', nodeToUpdate);
                     // can either have each node update itself and parents
                     // then notify document that _nodesInFile has changed at whatever
                     // level it is at
+                } else {
+                    console.log(
+                        'WHEN DOES THIS HAPPEN',
+                        node?.name,
+                        crazyIdeaMap
+                    );
                 }
             }
         }

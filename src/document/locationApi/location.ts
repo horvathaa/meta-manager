@@ -197,6 +197,7 @@ export default class LocationPlus extends Location {
 
     posToLine(pos: number) {
         const code = this.content.slice(0, pos).split('\n');
+        // console.log('CODE???', code);
         return new Position(
             this.range.start.line + code.length - 1,
             code[code.length - 1].length
@@ -205,6 +206,7 @@ export default class LocationPlus extends Location {
 
     deriveRangeFromOffset(offsetStart: number, offsetEnd: number) {
         const start = this.posToLine(offsetStart);
+        // console.log('START', start);
         const end = this.posToLine(offsetEnd);
         return RangePlus.fromPositions(start, end);
     }
@@ -235,10 +237,10 @@ export default class LocationPlus extends Location {
                     this._tempInsertedRange =
                         RangePlus.fromTextDocumentContentChangeEvent(change);
                     // justAdded = true;
-                    console.log(
-                        'init temp inserted',
-                        this._tempInsertedRange.copy()
-                    );
+                    // console.log(
+                    //     'init temp inserted',
+                    //     this._tempInsertedRange.copy()
+                    // );
                 }
                 const oldRange = this._range.copy();
                 const oldContent = this._content;
@@ -254,13 +256,6 @@ export default class LocationPlus extends Location {
                         updated,
                         document
                     );
-                    // // this._tempInsertedRange = updated;
-                    // console.log(
-                    //     'updated temp inserted',
-                    //     this._tempInsertedRange.copy(),
-                    //     'change',
-                    //     change
-                    // );
                 }
                 this._range = this.cleanRange(updated, document);
                 // the base Location property range

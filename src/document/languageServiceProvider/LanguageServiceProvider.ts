@@ -72,7 +72,7 @@ class LanguageServiceProvider {
             this._languageService = this.getLanguageService();
             this._filenames = this.initFilenames();
             this._docNodeMap = new Map();
-            console.log('this', this);
+            // console.log('this', this);
         }
     }
 
