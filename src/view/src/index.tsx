@@ -1,6 +1,8 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import { App } from './App';
+import App from './App';
+import TimelineController from './timeline/TimelineController';
+new TimelineController();
 // import { App } from './App';
 // import { useFlatConfigStore } from './store';
 // import './vscode.css';
@@ -12,6 +14,8 @@ import { App } from './App';
 // let gitRepo = '';
 
 const root = document.getElementById('root');
+// root?.clientWidth = window.innerWidth;
+// root?.clientHeight = window.innerHeight;
 
 if (root) {
     // workspace = root.getAttribute('data-workspace') || '';
@@ -37,8 +41,6 @@ if (root) {
 // });
 
 ReactDOM.render(
-    <React.StrictMode>
-        <App />
-    </React.StrictMode>,
+    <React.StrictMode>{/* <App /> */}</React.StrictMode>,
     document.getElementById('root')
 );

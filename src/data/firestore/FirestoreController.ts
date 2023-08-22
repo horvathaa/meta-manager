@@ -31,7 +31,11 @@ import {
     signInWithGithubCredential,
 } from './functions/authFunctions';
 import { DataSourceType } from '../timeline/TimelineEvent';
-import { CopyBuffer, SerializedDataController } from '../../constants/types';
+import {
+    CopyBuffer,
+    SerializedChangeBuffer,
+    SerializedDataController,
+} from '../../constants/types';
 import GitController from '../git/GitController';
 import { FirestoreControllerInterface } from '../DataController';
 import DocumentWatcher from '../../document/documentWatcher';
@@ -595,7 +599,7 @@ class FirestoreController extends Disposable {
                 const querySnapshot = await getDocs(pastVersionsCollection);
                 const list = getListFromSnapshots(
                     querySnapshot
-                ) as SerializedDataController[];
+                ) as SerializedChangeBuffer[];
                 return list;
             },
         };

@@ -6,6 +6,7 @@ import {
     OverviewRulerLane,
 } from 'vscode';
 import LocationPlus, { TypeOfChange } from '../document/locationApi/location';
+import { CodeComment } from '../comments/commentCreatorUtils';
 
 export type LegalDataSource = 'github' | 'firestore' | 'git' | 'code' | 'web';
 
@@ -195,11 +196,12 @@ export interface SerializedDataControllerEvent {
     id: string;
     uid: string;
     time: number;
-    type: string;
+    // type: string;
     // thingsThatHappened: WEB | CHANGE | NODE;
+    node: SerializedReadableNode;
     typeOfChange: TypeOfChange;
     changeContent: string;
-    eventData: { [k in Event]: any };
+    eventData?: { [k in Event]: any };
 }
 
 export interface SerializedNodeDataController {
@@ -208,4 +210,71 @@ export interface SerializedNodeDataController {
     lastUpdatedBy: string;
     // setOfEvents: Event[];
     setOfEventIds: string[];
+}
+
+type DiffLine = {
+    aIndex: number;
+    bIndex: number;
+    line: string;
+};
+
+export type Diff =
+    | {
+          lines: DiffLine[];
+          lineCountDeleted: number;
+          lineCountInserted: number;
+          lineCountMoved: number;
+          aMove: any[];
+          aMoveIndex: any[];
+          bMove: any[];
+          bMoveIndex: any[];
+      }
+    | {
+          lines: DiffLine[];
+          lineCountDeleted: number;
+          lineCountInserted: number;
+          lineCountMoved: number;
+          aMove?: undefined;
+          aMoveIndex?: undefined;
+          bMove?: undefined;
+          bMoveIndex?: undefined;
+      };
+
+export interface ChangeBuffer {
+    location: LocationPlus | SerializedLocationPlus;
+    typeOfChange: TypeOfChange;
+    changeContent: string;
+    time: number;
+    diff?: Diff;
+    addedBlock?: boolean;
+    removedBlock?: boolean;
+    uid: string;
+    id: string;
+    eventData?: {
+        [Event.COMMENT]?: {
+            newComments?: CodeComment[];
+            removedComments?: CodeComment[];
+            changedComments?: CodeComment[];
+        };
+        [Event.COPY]?: {
+            copyContent: string;
+            nodeId: string;
+        };
+        [Event.PASTE]?: {
+            pasteContent: string;
+            nodeId?: string;
+            vscodeMetadata?: {
+                code: string;
+                id: string;
+                node: SerializedReadableNode;
+            };
+        };
+        [Event.WEB]?: {
+            copyBuffer: CopyBuffer;
+        };
+    };
+}
+
+export interface SerializedChangeBuffer extends ChangeBuffer {
+    node: SerializedReadableNode;
 }

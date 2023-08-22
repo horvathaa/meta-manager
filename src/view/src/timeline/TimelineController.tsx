@@ -1,13 +1,61 @@
-// import TimelinesChart, {
-//     Group,
-//     TS,
-//     TimelinesChartInstance,
-//     Val,
-// } from 'timelines-chart';
-// import Range from 'timelines-chart';
-// import TimelineEvent from '../../../data/timeline/TimelineEvent';
-// import { VSCodeWrapper } from '../vscode/VSCodeApi';
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import * as d3 from 'd3';
+import GraphController from './GraphController';
 
+class TimelineController {
+    private readonly _ref;
+    _graphController: GraphController;
+    constructor() {
+        const container =
+            document.getElementById('root') || document.createElement('div');
+        this._ref = createRoot(container);
+        this._graphController = new GraphController();
+        this.initListeners();
+        // this.constructGraph();
+    }
+
+    initListeners() {
+        window.addEventListener('message', (e) =>
+            this.handleIncomingMessage(e, this)
+        );
+        return () =>
+            window.removeEventListener('message', (e) =>
+                this.handleIncomingMessage(e, this)
+            );
+    }
+
+    updateTimeline(title: string, data: any[]) {
+        this._graphController.constructGraph(data);
+        this.renderMetadata();
+    }
+
+    renderMetadata() {
+        this._ref.render(
+            <div>
+                <h1>Metadata</h1>
+            </div>
+        );
+    }
+
+    handleIncomingMessage(e: MessageEvent<any>, context: TimelineController) {
+        const message = e.data; // The JSON data our extension sent
+        switch (message.command) {
+            case 'updateTimeline': {
+                const { data } = message;
+                const { id, metadata } = data;
+                console.log('stuff', data, id, metadata);
+                context.updateTimeline(id, metadata);
+                break;
+            }
+            default: {
+                console.log('default');
+            }
+        }
+    }
+}
+// new TimelineController();
+export default TimelineController;
 // class TimelineController {
 //     _title: string;
 //     _data: Map<string, TimelineEvent[]>;

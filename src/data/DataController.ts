@@ -35,14 +35,18 @@ import {
     DocumentData,
     DocumentReference,
 } from 'firebase/firestore';
-import TimelineEvent from './timeline/TimelineEvent';
+import TimelineEvent, { GitType } from './timeline/TimelineEvent';
 import { ParsedTsNode } from '../document/languageServiceProvider/LanguageServiceProvider';
 import { debounce, isLocation } from '../utils/lib';
 import { patienceDiffPlus } from '../utils/PatienceDiff';
 import {
+    ChangeBuffer,
     CopyBuffer,
+    Diff,
     Event,
+    SerializedChangeBuffer,
     SerializedDataController,
+    SerializedDataControllerEvent,
     SerializedLocationPlus,
     SerializedNodeDataController,
     SerializedReadableNode,
@@ -57,73 +61,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { getProjectName, getVisiblePath } from '../document/lib';
 // import { nodeToRange } from '../document/lib';
 const tstraverse = require('tstraverse');
-export type LegalDataType = (DefaultLogFields & ListLogLine) | DocumentData; // not sure this is the right place for this but whatever
+export type LegalDataType =
+    | (DefaultLogFields & ListLogLine)
+    | DocumentData
+    | SerializedChangeBuffer
+    | GitType; // not sure this is the right place for this but whatever
 
 interface PasteData {
     uri: Uri;
     textDocumentContentChangeEvent: TextDocumentContentChangeEvent;
-}
-
-type DiffLine = {
-    aIndex: number;
-    bIndex: number;
-    line: string;
-};
-type Diff =
-    | {
-          lines: DiffLine[];
-          lineCountDeleted: number;
-          lineCountInserted: number;
-          lineCountMoved: number;
-          aMove: any[];
-          aMoveIndex: any[];
-          bMove: any[];
-          bMoveIndex: any[];
-      }
-    | {
-          lines: DiffLine[];
-          lineCountDeleted: number;
-          lineCountInserted: number;
-          lineCountMoved: number;
-          aMove?: undefined;
-          aMoveIndex?: undefined;
-          bMove?: undefined;
-          bMoveIndex?: undefined;
-      };
-
-interface ChangeBuffer {
-    location: LocationPlus | SerializedLocationPlus;
-    typeOfChange: TypeOfChange;
-    changeContent: string;
-    time: number;
-    diff?: Diff;
-    addedBlock?: boolean;
-    removedBlock?: boolean;
-    uid: string;
-    id: string;
-    eventData?: {
-        [Event.COMMENT]?: {
-            newComments?: CodeComment[];
-            removedComments?: CodeComment[];
-            changedComments?: CodeComment[];
-        };
-        [Event.COPY]?: {
-            copyContent: string;
-            nodeId: string;
-        };
-        [Event.PASTE]?: {
-            pasteContent: string;
-            nodeId?: string;
-            vscodeMetadata?: {
-                code: string;
-                id: string;
-                node: SerializedReadableNode;
-            };
-        };
-        [Event.WEB]?: {
-            copyBuffer: CopyBuffer;
-        };
-    };
 }
 
 export interface FirestoreControllerInterface {
@@ -131,7 +77,7 @@ export interface FirestoreControllerInterface {
     pastVersionsCollection: CollectionReference<DocumentData>;
     write: (newNode: any) => void;
     logVersion: (versionId: string, newNode: any) => void;
-    readPastVersions: () => Promise<SerializedDataController[]>;
+    readPastVersions: () => Promise<SerializedChangeBuffer[]>;
 }
 
 interface PasteDetails {
@@ -148,7 +94,7 @@ export class DataController {
     _firestoreControllerInterface: FirestoreControllerInterface | undefined;
     _tree: SimplifiedTree<ReadableNode> | undefined;
     _metaInformationExtractor: MetaInformationExtractor;
-    _pastVersions: SerializedDataController[] = [];
+    _pastVersions: SerializedChangeBuffer[] = [];
     // _readableNode: ReadableNode;
     // _chatGptData: VscodeCopyBuffer[] | undefined = [];
     _webMetaData: VscodeCopyBuffer[] = [];
@@ -360,13 +306,7 @@ export class DataController {
         insertedRange: Range,
         changeBuffer?: ChangeBuffer
     ) {
-        if (
-            this._tree &&
-            (this._tree.isLeaf ||
-                !this._tree?.root?.children.some((c) =>
-                    c.root?.data.location.range.contains(insertedRange)
-                ))
-        ) {
+        if (this.isOwnerOfRange(insertedRange)) {
             const sourceFile = ts.createSourceFile(
                 this.readableNode.location.uri.fsPath,
                 addedContent,
@@ -374,32 +314,12 @@ export class DataController {
                 true
             );
             setTimeout(() => {
-                const blocks = this.evenSimplerTraverse(
+                this.evenSimplerTraverse(
                     sourceFile,
                     window.activeTextEditor?.document ||
                         window.visibleTextEditors[0].document,
                     changeBuffer
                 );
-                // sourceFile.statements.filter((t) =>
-                //     ts.isBlock(t)
-                // );
-                console.log(
-                    'tree before',
-                    this._tree,
-                    'blocks',
-                    blocks,
-                    'sf',
-                    sourceFile
-                );
-                // blocks.forEach((b) => {
-                //     this.addBlockToTree(
-                //         b.node,
-                //         b.name,
-                //         insertedRange,
-                //         changeBuffer
-                //     );
-                // });
-                console.log('tree after', this._tree);
             }, 3000);
         }
     }
@@ -633,7 +553,7 @@ export class DataController {
         // }
     }
 
-    private isOwnerOfRange(location: Selection | Location) {
+    private isOwnerOfRange(location: Range | Location) {
         const comparator = isLocation(location) ? location.range : location;
         return (
             this._tree &&
@@ -644,35 +564,81 @@ export class DataController {
         );
     }
 
+    private async initGitData() {
+        const gitRes = (await this.getGitData()) || [];
+        if (gitRes.length > 0) {
+            this._gitData = gitRes.map((r) => new TimelineEvent(r));
+        } else {
+            this._gitData = [];
+        }
+    }
+
+    private getMinDate() {
+        const items = this._gitData?.concat(
+            this._pastVersions.map((v) => new TimelineEvent(v))
+        );
+        return items?.reduce(
+            (min, p) => (p._formattedData.x < min ? p._formattedData.x : min),
+            0
+        );
+    }
+
+    private getMaxDate() {
+        const items = this._gitData?.concat(
+            this._pastVersions.map((v) => new TimelineEvent(v))
+        );
+        return items?.reduce(
+            (min, p) => (p._formattedData.x > min ? p._formattedData.x : min),
+            0
+        );
+    }
+
+    private getMaxY() {
+        const items = this._gitData?.concat(
+            this._pastVersions.map((v) => new TimelineEvent(v))
+        );
+        return items?.reduce(
+            (min, p) => (p._formattedData.y > min ? p._formattedData.y : min),
+            0
+        );
+    }
+
     async handleOnSelected(location: Selection) {
         console.log('SELECTED', this);
-        if (
-            this._tree &&
-            (this._tree.isLeaf ||
-                !this._tree.root?.children.some((c) =>
-                    c.root?.data.location.range.contains(location)
-                ))
-        ) {
+        if (this.isOwnerOfRange(location)) {
             const allData = this.serialize();
             console.log('allData', {
                 ...allData,
                 pastVersions: this._pastVersions,
             });
+            if (!this._gitData?.length) {
+                await this.initGitData();
+            }
             this.container.webviewController?.postMessage({
                 command: 'updateTimeline',
                 data: {
                     id: this.readableNode.id,
-                    data: { ...allData, pastVersions: this._pastVersions },
+                    metadata: {
+                        ...allData,
+                        pastVersions: this._pastVersions,
+                        formattedPastVersions: this._pastVersions.map(
+                            (v) => new TimelineEvent(v)
+                        ),
+                        gitData: this._gitData,
+                        items: this._gitData?.concat(
+                            this._pastVersions.map((v) => new TimelineEvent(v))
+                        ),
+                        xDomain: [
+                            new Date(this.getMinDate() || 0),
+                            new Date(this.getMaxDate() || 0),
+                        ],
+                        yDomain: [0, this.getMaxY()],
+                    },
                 },
             });
         }
         // this._debug = true;
-        // const gitRes = (await this.getGitData())?.all || [];
-        // if (gitRes.length > 0) {
-        //     this._gitData = gitRes.map((r) => new TimelineEvent(r));
-        // } else {
-        //     this._gitData = [];
-        // }
+
         // const fireStoreRes = (await this.getFirestoreData()) || [];
         // if (fireStoreRes.length > 0) {
         //     this._firestoreData = fireStoreRes.map((r) => new TimelineEvent(r));

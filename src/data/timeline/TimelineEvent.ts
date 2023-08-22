@@ -3,22 +3,34 @@ import { LegalDataType } from '../DataController';
 import { DefaultLogFields, ListLogLine } from 'simple-git';
 import { TS } from 'timelines-chart';
 import { DocumentData } from 'firebase/firestore';
+import { SerializedChangeBuffer } from '../../constants/types';
+
+export interface GitType extends DefaultLogFields, ListLogLine {
+    code: string;
+}
 
 interface TimelineData {
     timeRange: [TS, TS];
     val: string;
     labelVal?: string;
+    x: number;
+    y: number;
+    source?: string;
+    user?: string;
 }
 
 export enum DataSourceType {
     GIT = 'git',
     FIRESTORE = 'firestore',
+    META_PAST_VERSION = 'meta-past-version',
 }
 
-function isLogResult(
-    data: LegalDataType
-): data is DefaultLogFields & ListLogLine {
+function isLogResult(data: LegalDataType): data is GitType {
     return (data as DefaultLogFields & ListLogLine).hash !== undefined;
+}
+
+function isMetaPastVersion(data: any): data is SerializedChangeBuffer {
+    return data?.typeOfChange !== undefined;
 }
 
 class TimelineEvent extends Disposable {
@@ -34,19 +46,25 @@ class TimelineEvent extends Disposable {
         if (isLogResult(this.originalData)) {
             return DataSourceType.GIT;
         }
+        if (isMetaPastVersion(this.originalData)) {
+            return DataSourceType.META_PAST_VERSION;
+        }
         return DataSourceType.FIRESTORE; // will need more of these probably later
     }
 
     formatData(): TimelineData {
         switch (this._dataSourceType) {
             case DataSourceType.GIT: {
-                const data = this.originalData as DefaultLogFields &
-                    ListLogLine;
+                const data = this.originalData as GitType;
                 return {
+                    x: new Date(data.date).getTime(),
+                    y: data.code.split('\n').length,
                     timeRange: [
                         new Date(data.date).getTime(),
                         new Date(data.date).getTime() + 10000000,
                     ],
+                    user: data.author_email,
+                    source: 'git',
                     val: DataSourceType.GIT,
                     labelVal: `${data.hash.slice(0, 6) || ''} ${
                         data.message
@@ -59,6 +77,9 @@ class TimelineEvent extends Disposable {
                     ? data.deletedTimestamp
                     : data.editedTimestamp || data.createdTimestamp;
                 return {
+                    x: new Date(data.createdTimestamp).getTime(),
+                    y: 1,
+                    user: data.uid,
                     timeRange: [
                         new Date(data.createdTimestamp).getTime(),
                         new Date(endTimestamp).getTime(),
@@ -67,10 +88,23 @@ class TimelineEvent extends Disposable {
                     labelVal: `${data.createdTimestamp} - ${endTimestamp}`,
                 };
             }
+            case DataSourceType.META_PAST_VERSION: {
+                const data = this.originalData as SerializedChangeBuffer;
+                return {
+                    x: data.time,
+                    y: data.changeContent.split('\n').length,
+                    user: data.uid,
+                    timeRange: [data.time, data.time + 10000000],
+                    val: DataSourceType.META_PAST_VERSION,
+                    labelVal: `${data.time}`,
+                };
+            }
             default: {
                 return {
                     timeRange: [0, 1],
                     val: 'val',
+                    x: 0,
+                    y: 0,
                 };
             }
         }

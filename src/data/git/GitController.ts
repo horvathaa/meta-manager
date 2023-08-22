@@ -6,6 +6,7 @@ import {
     extensions,
     authentication,
     AuthenticationSession,
+    Range,
 } from 'vscode';
 import { SimpleGit, simpleGit } from 'simple-git';
 import { Container } from '../../container';
@@ -173,10 +174,28 @@ class GitController extends Disposable {
         }
         try {
             const result = await this._simpleGit.log(opts);
+            const otherRes = await this._simpleGit.raw([
+                'log',
+                '-C',
+                `-L${(input as Location).range.start.line + 1},${
+                    (input as Location).range.end.line + 1
+                }:${input.uri.fsPath}`,
+            ]);
+            const arr = otherRes.split('commit');
+            const res = result.all.map((r, i) => {
+                return {
+                    ...r,
+                    code: arr[i].substring(arr[i].lastIndexOf('@@') + 2),
+                    // authorDate: new Date(r.authorDate),
+                    // commitDate: new Date(r.commitDate),
+                };
+            });
+            console.log('otherRes??', otherRes, res);
             // const result = await this._gitState?.repository.log(opts); // doesnt have line-level API! annoying!
-            return result;
+            return res;
         } catch (e) {
-            throw new Error('GitController: API Request Problem: ' + e);
+            console.error('GitController: API Request Problem: ', e);
+            return [];
         }
     }
 
