@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import TimelineController from './TimelineController';
 
 const color = d3.scaleOrdinal(
     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
@@ -15,7 +16,7 @@ class GraphController {
     private readonly totalWidth = window.innerWidth;
     chart: any;
 
-    constructor() {
+    constructor(private readonly timelineController: TimelineController) {
         // this.constructGraph(data);
     }
 
@@ -28,52 +29,52 @@ class GraphController {
         y: d3.ScaleLinear<number, number, never>
     ) {
         console.log('are u silently failing idk what yielding does', data);
-        const area = d3
-            .area()
-            .curve(d3.curveStep)
-            // @ts-ignore
-            .x((d) => {
-                console.log('d', d);
-                // @ts-ignore
-                return x(d._formattedData.x);
-            })
-            .y0(y(0))
-            // @ts-ignore
-            .y1((d) => y(d._formattedData.y));
+        // const area = d3
+        //     .area()
+        //     .curve(d3.curveStep)
+        //     // @ts-ignore
+        //     .x((d) => {
+        //         console.log('d', d);
+        //         // @ts-ignore
+        //         return x(d._formattedData.x);
+        //     })
+        //     .y0(y(0))
+        //     // @ts-ignore
+        //     .y1((d) => y(d._formattedData.y));
         // Create a div that holds two svg elements: one for the main chart and horizontal axis,
         // which moves as the user scrolls the content; the other for the vertical axis (which
         // doesn’t scroll).
-        const parent = d3.create('div');
+        // const parent = d3.create('div');
 
-        // Create the svg with the vertical axis.
-        parent
-            .append('svg')
-            .attr('width', this.width)
-            .attr('height', this.height)
-            .style('position', 'absolute')
-            .style('pointer-events', 'none')
-            .style('z-index', 1)
-            .append('g')
-            .attr('transform', `translate(${this.marginLeft},0)`)
-            .call(d3.axisLeft(y).ticks(6))
-            .call((g) => g.select('.domain').remove())
-            .call((g) =>
-                g
-                    .select('.tick:last-of-type text')
-                    .clone()
-                    .attr('x', 3)
-                    .attr('text-anchor', 'start')
-                    .attr('font-weight', 'bold')
-                    .text('$ Close')
-            );
+        // // Create the svg with the vertical axis.
+        // parent
+        //     .append('svg')
+        //     .attr('width', this.width)
+        //     .attr('height', this.height)
+        //     .style('position', 'absolute')
+        //     .style('pointer-events', 'none')
+        //     .style('z-index', 1)
+        //     .append('g')
+        //     .attr('transform', `translate(${this.marginLeft},0)`)
+        //     .call(d3.axisLeft(y).ticks(6))
+        //     .call((g) => g.select('.domain').remove())
+        //     .call((g) =>
+        //         g
+        //             .select('.tick:last-of-type text')
+        //             .clone()
+        //             .attr('x', 3)
+        //             .attr('text-anchor', 'start')
+        //             .attr('font-weight', 'bold')
+        //             .text('$ Close')
+        //     );
 
-        // Create a scrolling div containing the area shape and the horizontal axis.
-        const body = parent
-            .append('div')
-            .style('overflow-x', 'scroll')
-            .style('-webkit-overflow-scrolling', 'touch');
+        // // Create a scrolling div containing the area shape and the horizontal axis.
+        // const body = parent
+        //     .append('div')
+        //     .style('overflow-x', 'scroll')
+        //     .style('-webkit-overflow-scrolling', 'touch');
 
-        console.log('body', body, 'svg', svg, 'parent', parent);
+        // console.log('body', body, 'svg', svg, 'parent', parent);
         // @ts-ignore
         // svg = body
         //     .append('svg')
@@ -93,76 +94,58 @@ class GraphController {
         //             .tickSizeOuter(0)
         //     );
 
-        svg.append('path')
-            .datum(data)
-            .attr('fill', 'steelblue')
-            .attr('d', area);
-
-        console.log('wtf', parent.node());
-        yield parent.node();
-
-        // Initialize the scroll offset after yielding the chart to the DOM.
-        return body.node()?.scrollBy(this.totalWidth, 0);
-    }
-
-    // https://observablehq.com/@d3/icelandic-population-by-age-1841-2019?intent=fork
-    populateGraph(
-        data: any,
-        svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
-        x: d3.ScaleTime<number, number, never>,
-        y: d3.ScaleLinear<number, number, never>
-    ) {
-        // svg.append('g').call(xAxis);
-
-        // svg.append('g').call(yAxis);
-
+        const points = data.map((d) => [
+            x(d._formattedData.x),
+            y(d._formattedData.y),
+            d,
+        ]);
         const group = svg.append('g');
 
         let rect = group.selectAll('rect');
+        rect = rect.data(data).join(
+            // (enter) => enter.append(area),
+            (enter) =>
+                enter
+                    .append('rect')
+                    .style('mix-blend-mode', 'darken')
+                    .attr('fill', (d: any) => color(d._formattedData.user))
+                    .attr('x', (d: any) => {
+                        console.log('d', d);
+                        return x(d._formattedData.x); // + 100;
+                    })
+                    .attr('y', (d: any) => y(d._formattedData.y))
+                    .attr('height', (d: any) => y(0) - y(d._formattedData.y))
+                    .attr('width', 10),
+            // .attr('width', 100)
+            // .attr('height', this.height),
+            (update) => update,
+            (exit) =>
+                exit.call((rect) =>
+                    rect
+                        .transition(
+                            svg.transition().ease(d3.easeLinear).duration(3000)
+                        )
+                        .remove()
+                        .attr('y', y(0))
+                        .attr('height', 0)
+                )
+        );
 
-        console.log('hewwwooo????', data);
-        // @ts-ignore
-        return Object.assign(svg.node(), {
-            update(event: any) {
-                // const dx = (x.step() * (year - yearMin)) / yearStep;
+        svg.on('pointermove', (e) => this.pointermoved(e, points)).on(
+            'pointerleft',
+            () => this.pointerleft()
+        );
+        // svg.append('path');
+        // .datum(data)
 
-                console.log('event???', event);
-                const t = svg.transition().ease(d3.easeLinear).duration(3000);
+        // .attr('fill', 'steelblue');
+        // .attr('d', area);
 
-                rect = rect
-                    .data(
-                        // data.items.filter((d: any) => d.year === event),
-                        data.items,
-                        (d: any) => `${d.val}:${d.uid}`
-                    )
-                    .join(
-                        (enter) =>
-                            enter
-                                .append('rect')
-                                .style('mix-blend-mode', 'darken')
-                                .attr('fill', (d: any) => color(d.uid))
-                                .attr('x', (d: any) => x(d.x) + 100)
-                                .attr('y', (d: any) => y(d.y))
-                                .attr('width', 100)
-                                .attr('height', 0),
-                        (update) => update,
-                        (exit) =>
-                            exit.call((rect) =>
-                                rect
-                                    .transition(t)
-                                    .remove()
-                                    .attr('y', y(0))
-                                    .attr('height', 0)
-                            )
-                    );
+        // console.log('wtf', parent.node());
+        // yield parent.node();
 
-                rect.transition(t)
-                    .attr('y', (d: any) => y(d.y))
-                    .attr('height', (d: any) => y(0) - y(d.y));
-
-                group.transition(t).attr('transform', `translate(${-1000},0)`);
-            },
-        });
+        // // Initialize the scroll offset after yielding the chart to the DOM.
+        // return body.node()?.scrollBy(this.totalWidth, 0);
     }
 
     constructGraph(data: any) {
@@ -206,6 +189,95 @@ class GraphController {
         return val;
         // return svg.node();
     }
+
+    pointermoved(event: any, points: any[]) {
+        const [xm, ym] = d3.pointer(event);
+        const i = d3.leastIndex(points, ([x, y]) => Math.hypot(x - xm, y - ym));
+        // @ts-ignore
+        const [x, y, k] = points[i];
+        // path.style('stroke', ({ z }) => (z === k ? null : '#ddd'))
+        //     .filter(({ z }) => z === k)
+        //     .raise();
+        // dot.attr('transform', `translate(${x},${y})`);
+        // dot.select('text').text(k);
+        // svg.property('value', unemployment[i]).dispatch('input', {
+        //     bubbles: true,
+        // });
+        this.timelineController.renderMetadata(k);
+    }
+
+    pointerentered() {
+        // path.style('mix-blend-mode', null).style('stroke', '#ddd');
+        // dot.attr('display', null);
+    }
+
+    pointerleft() {
+        this.timelineController.renderMetadata(undefined);
+        // path.style('mix-blend-mode', 'multiply').style('stroke', null);
+        // dot.attr('display', 'none');
+        // svg.node().value = null;
+        // svg.dispatch('input', { bubbles: true });
+    }
 }
 
 export default GraphController;
+
+// // https://observablehq.com/@d3/icelandic-population-by-age-1841-2019?intent=fork
+// populateGraph(
+//     data: any,
+//     svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>,
+//     x: d3.ScaleTime<number, number, never>,
+//     y: d3.ScaleLinear<number, number, never>
+// ) {
+//     // svg.append('g').call(xAxis);
+
+//     // svg.append('g').call(yAxis);
+
+//     const group = svg.append('g');
+
+//     let rect = group.selectAll('rect');
+
+//     console.log('hewwwooo????', data);
+//     // @ts-ignore
+//     return Object.assign(svg.node(), {
+//         update(event: any) {
+//             // const dx = (x.step() * (year - yearMin)) / yearStep;
+
+//             console.log('event???', event);
+//             const t = svg.transition().ease(d3.easeLinear).duration(3000);
+
+//             rect = rect
+//                 .data(
+//                     // data.items.filter((d: any) => d.year === event),
+//                     data.items,
+//                     (d: any) => `${d.val}:${d.uid}`
+//                 )
+//                 .join(
+//                     (enter) =>
+//                         enter
+//                             .append('rect')
+//                             .style('mix-blend-mode', 'darken')
+//                             .attr('fill', (d: any) => color(d.uid))
+//                             .attr('x', (d: any) => x(d.x) + 100)
+//                             .attr('y', (d: any) => y(d.y))
+//                             .attr('width', 100)
+//                             .attr('height', 0),
+//                     (update) => update,
+//                     (exit) =>
+//                         exit.call((rect) =>
+//                             rect
+//                                 .transition(t)
+//                                 .remove()
+//                                 .attr('y', y(0))
+//                                 .attr('height', 0)
+//                         )
+//                 );
+
+//             rect.transition(t)
+//                 .attr('y', (d: any) => y(d.y))
+//                 .attr('height', (d: any) => y(0) - y(d.y));
+
+//             group.transition(t).attr('transform', `translate(${-1000},0)`);
+//         },
+//     });
+// }

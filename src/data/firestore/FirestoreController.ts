@@ -220,9 +220,14 @@ class FirestoreController extends Disposable {
         authSession: AuthenticationSession
     ) {
         try {
-            firestoreController._user = await firestoreController.initAuth(
-                authSession
+            firestoreController._user = await signInWithEmailAndPassword(
+                firestoreController,
+                'ambear9@gmail.com',
+                '123456'
             );
+            // await firestoreController.initAuth(
+            //     authSession
+            // );
             if (firestoreController._user) {
                 console.log('user', firestoreController._user);
                 firestoreController.listenForCopy();

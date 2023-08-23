@@ -2,6 +2,8 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import * as d3 from 'd3';
 import GraphController from './GraphController';
+import TimelineEvent from '../../../data/timeline/TimelineEvent';
+import CodeBlock from '../components/CodeBlock';
 
 class TimelineController {
     private readonly _ref;
@@ -10,7 +12,7 @@ class TimelineController {
         const container =
             document.getElementById('root') || document.createElement('div');
         this._ref = createRoot(container);
-        this._graphController = new GraphController();
+        this._graphController = new GraphController(this);
         this.initListeners();
         // this.constructGraph();
     }
@@ -30,10 +32,13 @@ class TimelineController {
         this.renderMetadata();
     }
 
-    renderMetadata() {
+    renderMetadata(k?: TimelineEvent) {
         this._ref.render(
             <div>
                 <h1>Metadata</h1>
+                {k && (
+                    <CodeBlock codeString={k._formattedData.labelVal || ''} />
+                )}
             </div>
         );
     }

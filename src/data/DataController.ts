@@ -90,7 +90,7 @@ export class DataController {
     // extends AbstractTreeReadableNode<ReadableNode> {
     _gitData: TimelineEvent[] | undefined;
     _firestoreData: TimelineEvent[] | undefined;
-    _outputData: OutputDataController | undefined;
+    // _outputData: OutputDataController | undefined;
     _firestoreControllerInterface: FirestoreControllerInterface | undefined;
     _tree: SimplifiedTree<ReadableNode> | undefined;
     _metaInformationExtractor: MetaInformationExtractor;
