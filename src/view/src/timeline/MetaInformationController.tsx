@@ -21,7 +21,7 @@ import {
     SerializedChangeBuffer,
     WEB_INFO_SOURCE,
     Event,
-    AdditionalMetadata,
+    // AdditionalMetadata,
     GitHubCopyBuffer,
     ChatGptCopyBuffer,
     CopyBuffer,
@@ -62,7 +62,20 @@ class MetaInformationController {
                 );
             }
         }
-        return <div className={styles['git-information']}></div>;
+        if (data.changeInfo?.length) {
+            return (
+                <div className={styles['git-information']}>
+                    <div>
+                        {data.changeInfo.map((c) => (
+                            <div>User added comments to the code: {c.text}</div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        return (
+            <div className={styles['git-information']}>User changed code</div>
+        );
     }
 
     renderAdditionalMetadata(

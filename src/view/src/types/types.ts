@@ -313,6 +313,10 @@ export type Diff =
           bMoveIndex?: undefined;
       };
 
+export enum META_STATE {
+    NEW = 'NEW',
+    CHANGED = 'CHANGED',
+}
 export interface ChangeBuffer {
     location: SerializedLocationPlus;
     typeOfChange: string;
@@ -323,6 +327,13 @@ export interface ChangeBuffer {
     removedBlock?: boolean;
     uid: string;
     id: string;
+    changeInfo?: {
+        location: SerializedRangePlus;
+        associatedCode?: Location | undefined;
+        type: string;
+        text: string;
+        state?: META_STATE | undefined;
+    }[];
     eventData?: {
         [Event.COMMENT]?: {
             // newComments?: CodeComment[];

@@ -6,7 +6,7 @@ import {
     OverviewRulerLane,
 } from 'vscode';
 import LocationPlus, { TypeOfChange } from '../document/locationApi/location';
-import { CodeComment } from '../comments/commentCreatorUtils';
+import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
 
 export type LegalDataSource = 'github' | 'firestore' | 'git' | 'code' | 'web';
 
@@ -321,6 +321,13 @@ export interface ChangeBuffer {
     removedBlock?: boolean;
     uid: string;
     id: string;
+    changeInfo?: {
+        location: SerializedRangePlus;
+        associatedCode?: Location | undefined;
+        type: string;
+        text: string;
+        state?: META_STATE | undefined;
+    }[];
     eventData?: {
         [Event.COMMENT]?: {
             newComments?: CodeComment[];

@@ -322,6 +322,9 @@ export class DataController {
                     ),
             };
         }
+        // update this to use removedContent, addedContent,
+        // isInsertion, isRemoval, etc.
+        // then send to view so we can have slightly better messages
         this._changeBuffer.push({
             ...(commentInfo && {
                 changeInfo: commentInfo.newComments.map((n) => {
@@ -333,7 +336,7 @@ export class DataController {
             }),
             ...this.getBaseChangeBuffer(),
             typeOfChange: changeEvent.typeOfChange,
-            changeContent: newContent,
+            changeContent: addedContent || newContent,
             diff,
             addedBlock,
             removedBlock,

@@ -46,7 +46,11 @@ export interface ChangeEvent {
     previousRangeContent: PreviousRangeContent;
     originalChangeEvent: TextDocumentContentChangeEvent;
     addedContent?: string;
-    insertedRange: RangePlus | null;
+    removedContent?: string | null;
+    isInsertion?: boolean;
+    isRemoval?: boolean;
+    removedRange?: Range;
+    insertedRange?: RangePlus | null;
 }
 
 export default class LocationPlus extends Location {
@@ -57,6 +61,7 @@ export default class LocationPlus extends Location {
     _textEditorDecoration?: TextEditorDecorationType;
     _lastEditedTime: NodeJS.Timeout | null;
     _tempInsertedRange: RangePlus | null = null;
+    _selectedCode: string | null = null;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     onChanged: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
     onSelected: EventEmitter<Selection> = new EventEmitter<Selection>();
@@ -274,38 +279,26 @@ export default class LocationPlus extends Location {
                         oldContent,
                         contentChangeRange
                     );
-                    // if (this._tempInsertedRange) {
-                    //     console.log(
-                    //         'this._tempInsertedRange',
-                    //         this._tempInsertedRange,
-                    //         'this range',
-                    //         this._range,
-                    //         'change',
-                    //         change,
-                    //         'contentChangeRange',
-                    //         contentChangeRange
-                    //     );
-                    //     // this._tempInsertedRange = new RangePlus(
-                    //     //     this._tempInsertedRange.start,
-                    //     //     contentChangeRange.end
-                    //     // );
-                    // }
+
                     this.onChanged.fire({
                         ...{
                             location: this,
                             typeOfChange,
                             previousRangeContent,
                             originalChangeEvent: change,
-                            insertedRange: this._tempInsertedRange,
                         },
                         ...(change.text.length > 0 &&
                             this._tempInsertedRange && {
                                 addedContent: document.getText(
                                     this._tempInsertedRange
                                 ),
+                                isInsertion: true,
+                                insertedRange: this._tempInsertedRange,
                             }),
                         ...(change.text.length === 0 && {
                             removedRange: change.range,
+                            removedContent: this._selectedCode,
+                            isRemoval: true,
                         }),
                     });
                     this._range.updateRangeLength(document);
@@ -340,6 +333,10 @@ export default class LocationPlus extends Location {
             const selection = selections[0];
             if (this._range.contains(selection.active)) {
                 this.onSelected.fire(selection);
+                this._selectedCode =
+                    selectionEvent.textEditor.document.getText(selection);
+            } else {
+                this._selectedCode = null;
             }
         }
     }

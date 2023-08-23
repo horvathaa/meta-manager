@@ -68,22 +68,24 @@ class TimelineController {
         this.renderMetadata();
     }
 
+    renderTimelineEventMetadata(k: TimelineEvent) {
+        switch (k._dataSourceType) {
+            case 'git': {
+                return this._gitInformationController.render(k);
+            }
+            case 'meta-past-version': {
+                return this._metaInformationController.render(k);
+            }
+            default: {
+                return null;
+            }
+        }
+    }
+
     renderFirstInstance() {
         if (this._node) {
             const { firstInstance } = this._node;
-            switch (firstInstance._dataSourceType) {
-                case 'git': {
-                    return this._gitInformationController.render(firstInstance);
-                }
-                case 'meta-past-version': {
-                    return this._metaInformationController.render(
-                        firstInstance
-                    );
-                }
-                default: {
-                    return null;
-                }
-            }
+            return this.renderTimelineEventMetadata(firstInstance);
         }
         return null;
     }
@@ -100,7 +102,18 @@ class TimelineController {
     }
 
     renderVersion(k: TimelineEvent) {
-        return <CodeBlock codeString={k._formattedData.code || ''} />;
+        return (
+            <div className={styles['m2']}>
+                <div>
+                    <h2>What happened?</h2>
+                    {this.renderTimelineEventMetadata(k)}
+                </div>
+                <div>
+                    <h3>What did it used to look like?</h3>
+                    <CodeBlock codeString={k._formattedData.code || ''} />
+                </div>
+            </div>
+        );
     }
 
     renderNode() {
