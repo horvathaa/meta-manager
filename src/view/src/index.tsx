@@ -2,11 +2,12 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import App from './App';
 import TimelineController from './timeline/TimelineController';
+console.log('wtf');
+import { VS_CODE_API } from './VSCodeApi';
 new TimelineController();
 // import { App } from './App';
 // import { useFlatConfigStore } from './store';
 // import './vscode.css';
-// import { VS_CODE_API } from './VSCodeApi';
 
 // TODO: Type the incoming config data
 // let config: any = {};
@@ -40,7 +41,7 @@ if (root) {
 //     }
 // });
 
-ReactDOM.render(
-    <React.StrictMode>{/* <App /> */}</React.StrictMode>,
-    document.getElementById('root')
-);
+// ReactDOM.render(
+//     <React.StrictMode>{/* <App /> */}</React.StrictMode>,
+//     document.getElementById('root')
+// );

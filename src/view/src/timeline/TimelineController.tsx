@@ -4,20 +4,56 @@ import * as d3 from 'd3';
 import GraphController from './GraphController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
 import CodeBlock from '../components/CodeBlock';
+import {
+    SerializedChangeBuffer,
+    SerializedReadableNode,
+    Event,
+    AdditionalMetadata,
+    WEB_INFO_SOURCE,
+} from '../../../constants/types';
+import { CopyBuffer, SerializedNodeDataController } from '../types/types';
+import GitInformationController from './GitInformationController';
+import { VS_CODE_API } from '../VSCodeApi';
+import MetaInformationController from './MetaInformationController';
+import styles from '../styles/timeline.module.css';
 
+interface Payload {
+    pastVersions: SerializedChangeBuffer[];
+    formattedPastVersions: TimelineEvent[];
+    gitData: TimelineEvent[] | undefined;
+    items: TimelineEvent[] | undefined;
+    setOfEventIds: string[];
+    node: SerializedReadableNode;
+    lastUpdatedTime: number;
+    lastUpdatedBy: string;
+    firstInstance: TimelineEvent;
+    parent: SerializedNodeDataController;
+    children: SerializedNodeDataController[];
+    events: { [k in Event]: any }[];
+}
 class TimelineController {
     private readonly _ref;
     _graphController: GraphController;
+    _gitInformationController: GitInformationController;
+    _metaInformationController: MetaInformationController;
+    _node: Payload | undefined;
     constructor() {
+        console.log('constructing');
         const container =
             document.getElementById('root') || document.createElement('div');
+        console.log('container', container);
         this._ref = createRoot(container);
+        console.log('ref', this._ref);
         this._graphController = new GraphController(this);
+        this._gitInformationController = new GitInformationController(this);
+        this._metaInformationController = new MetaInformationController(this);
+        console.log('graph', this._graphController);
         this.initListeners();
         // this.constructGraph();
     }
 
     initListeners() {
+        console.log('hewwo!!!!!!!!!!!!!!');
         window.addEventListener('message', (e) =>
             this.handleIncomingMessage(e, this)
         );
@@ -32,24 +68,86 @@ class TimelineController {
         this.renderMetadata();
     }
 
+    renderFirstInstance() {
+        if (this._node) {
+            const { firstInstance } = this._node;
+            switch (firstInstance._dataSourceType) {
+                case 'git': {
+                    return this._gitInformationController.render(firstInstance);
+                }
+                case 'meta-past-version': {
+                    return this._metaInformationController.render(
+                        firstInstance
+                    );
+                }
+                default: {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    openView(copyBuffer: CopyBuffer, type: WEB_INFO_SOURCE) {
+        VS_CODE_API.postMessage({
+            command: 'openView',
+            data: {
+                copyBuffer,
+                type,
+                node: this._node,
+            },
+        });
+    }
+
+    renderVersion(k: TimelineEvent) {
+        return <CodeBlock codeString={k._formattedData.code || ''} />;
+    }
+
+    renderNode() {
+        console.log('this.node', this._node);
+        if (this._node) {
+            const { node } = this._node;
+            const { content } = node.location;
+            return (
+                <div className={styles['m2']}>
+                    <div>
+                        <h2>Where did this code come from?</h2>
+                        {this.renderFirstInstance()}
+                    </div>
+                    <div>
+                        <h3>What did it used to look like?</h3>
+                        <CodeBlock
+                            codeString={
+                                this._node.firstInstance._formattedData.code ||
+                                ''
+                            }
+                        />
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    }
+
     renderMetadata(k?: TimelineEvent) {
+        console.log('k', k);
         this._ref.render(
             <div>
-                <h1>Metadata</h1>
-                {k && (
-                    <CodeBlock codeString={k._formattedData.labelVal || ''} />
-                )}
+                <h1>{this._node?.node.id.split(':')[0]}</h1>
+                {k ? this.renderVersion(k) : this.renderNode()}
             </div>
         );
     }
 
     handleIncomingMessage(e: MessageEvent<any>, context: TimelineController) {
         const message = e.data; // The JSON data our extension sent
+        console.log('hewwo?????', message);
         switch (message.command) {
             case 'updateTimeline': {
                 const { data } = message;
                 const { id, metadata } = data;
                 console.log('stuff', data, id, metadata);
+                this._node = metadata as Payload;
                 context.updateTimeline(id, metadata);
                 break;
             }

@@ -30,40 +30,20 @@ export async function activate(context: ExtensionContext) {
     container.initNodes();
     view.onDidCreateView(() => {
         if (view.view) {
-            // console.log('view???', view);
             container.setWebviewController(view.view.webview);
+            container.webviewController?.onDidReceiveMessage((e) => {
+                const { command, data } = e;
+                console.log('data!!!!!', data);
+                if (command === 'openView') {
+                    container.sidePaneWebviewController = new ViewLoader(
+                        context.extensionUri,
+                        data
+                    );
+                }
+            });
         }
-        // setTimeout(() => {
-        //     container.webviewController?.postMessage({ command: 'hi' });
-        // }, 10000);
     });
-    // container.onInitComplete(() => {
-    //     console.log('hewwo?', container);
-
-    // });
-
-    // window.onDidWriteTerminalData((e) => {
-    //     console.log('TERMINAL DATA E', e);
-    // });
-
-    console.log('lol', container);
-    // return () => {
-    //     terminal?.dispose();
-    // };
 }
 
 // This method is called when your extension is deactivated
 export function deactivate() {}
-
-// function getRangeFromLineNumbers(
-//     startLine: number,
-//     endLine: number,
-//     document: any
-// ) {
-//     const startPosition = new Position(startLine, 0);
-//     const endPosition = new Position(endLine, 0);
-//     const range = document.validateRange(
-//         new Range(startPosition, endPosition)
-//     );
-//     return range;
-// }

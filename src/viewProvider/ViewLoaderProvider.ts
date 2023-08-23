@@ -96,12 +96,6 @@ class ViewLoaderProvider implements WebviewViewProvider {
 
         return webviewContent;
     }
-
-    // public sendHi() {
-    //     VS_CODE_API.postMessage({
-    //         command: 'hi',
-    //     });
-    // }
 }
 
 export default ViewLoaderProvider;

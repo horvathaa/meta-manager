@@ -100,7 +100,7 @@ export function DataController() {
     }
 
     function partition(dataController: SerializedDataController) {
-        if (!dataController?.webMetadata.length) {
+        if (!dataController?.webMetadata?.length) {
             return [
                 {
                     code: dataController?.node.location.content,
@@ -149,7 +149,7 @@ export function DataController() {
                 codeString={dataController.node.location.content}
                 style={getStyleFromSource(WEB_INFO_SOURCE.VSCODE)}
             />
-            {dataController.pastVersions?.map((v) => {
+            {/* {dataController.pastVersions?.map((v) => {
                 return (
                     <CodeBlock
                         key={v.id}
@@ -157,7 +157,7 @@ export function DataController() {
                         style={getStyleFromSource(WEB_INFO_SOURCE.VSCODE)}
                     />
                 );
-            })}
+            })} */}
         </div>
     ) : (
         <div>Waiting for data</div>

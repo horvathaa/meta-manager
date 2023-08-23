@@ -112,7 +112,60 @@ export interface CopyBuffer {
     searchData: null | SearchData;
 }
 
-type AdditionalMetadata = ChatGptCopyBuffer | GitHubCopyBuffer | null;
+interface StackOverflowPost {
+    body: string;
+    votes: number;
+    postDate: Date;
+}
+
+export interface StackOverflowQuestion extends StackOverflowPost {
+    title: string;
+    // body: string;
+    // votes: number;
+    tags: string[];
+    answers: StackOverflowAnswer[];
+    // askDate: Date;
+    lastEditDate?: Date;
+    views: number;
+    programmingLanguage: string;
+    id: string;
+    copied?: boolean;
+    replies?: StackOverflowPost[];
+    warning?: any[];
+}
+
+export interface StackOverflowAnswer extends StackOverflowPost {
+    // body: string;
+    // votes: number;
+    isAccepted: boolean;
+    // answerDate: Date;
+    lastEditDate?: Date;
+    url: string;
+    id: string;
+
+    copied?: boolean;
+    replies?: StackOverflowPost[];
+    warning?: any[];
+}
+
+export function isStackOverflowAnswer(
+    post: StackOverflowPost
+): post is StackOverflowAnswer {
+    return (post as StackOverflowAnswer).isAccepted !== undefined;
+}
+
+export interface StackOverflowCopyBuffer {
+    title: string;
+    question: StackOverflowQuestion;
+    surroundingCode: string;
+    copiedMessage: StackOverflowQuestion | StackOverflowAnswer | null;
+}
+
+export type AdditionalMetadata =
+    | ChatGptCopyBuffer
+    | GitHubCopyBuffer
+    | StackOverflowCopyBuffer
+    | null;
 
 export interface VscodeCopyBuffer extends CopyBuffer {
     location: Location;
@@ -134,6 +187,24 @@ interface Code {
     url?: string;
     startLine?: number;
     endLine?: number;
+}
+
+export interface SearchData {
+    query: string;
+    url: string;
+    selectedPages: string[];
+    searhTime: Date;
+}
+
+export interface CopyBuffer {
+    code: string;
+    url: string;
+    user: string;
+    type: WEB_INFO_SOURCE;
+    timeCopied: number;
+    id: string;
+    additionalMetadata: AdditionalMetadata;
+    searchData: null | SearchData;
 }
 
 // TODO: add stars, version, readme

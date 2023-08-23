@@ -28,73 +28,7 @@ class GraphController {
         x: d3.ScaleTime<number, number, never>,
         y: d3.ScaleLinear<number, number, never>
     ) {
-        console.log('are u silently failing idk what yielding does', data);
-        // const area = d3
-        //     .area()
-        //     .curve(d3.curveStep)
-        //     // @ts-ignore
-        //     .x((d) => {
-        //         console.log('d', d);
-        //         // @ts-ignore
-        //         return x(d._formattedData.x);
-        //     })
-        //     .y0(y(0))
-        //     // @ts-ignore
-        //     .y1((d) => y(d._formattedData.y));
-        // Create a div that holds two svg elements: one for the main chart and horizontal axis,
-        // which moves as the user scrolls the content; the other for the vertical axis (which
-        // doesn’t scroll).
-        // const parent = d3.create('div');
-
-        // // Create the svg with the vertical axis.
-        // parent
-        //     .append('svg')
-        //     .attr('width', this.width)
-        //     .attr('height', this.height)
-        //     .style('position', 'absolute')
-        //     .style('pointer-events', 'none')
-        //     .style('z-index', 1)
-        //     .append('g')
-        //     .attr('transform', `translate(${this.marginLeft},0)`)
-        //     .call(d3.axisLeft(y).ticks(6))
-        //     .call((g) => g.select('.domain').remove())
-        //     .call((g) =>
-        //         g
-        //             .select('.tick:last-of-type text')
-        //             .clone()
-        //             .attr('x', 3)
-        //             .attr('text-anchor', 'start')
-        //             .attr('font-weight', 'bold')
-        //             .text('$ Close')
-        //     );
-
-        // // Create a scrolling div containing the area shape and the horizontal axis.
-        // const body = parent
-        //     .append('div')
-        //     .style('overflow-x', 'scroll')
-        //     .style('-webkit-overflow-scrolling', 'touch');
-
-        // console.log('body', body, 'svg', svg, 'parent', parent);
-        // @ts-ignore
-        // svg = body
-        //     .append('svg')
-        //     .attr('width', this.totalWidth)
-        //     .attr('height', this.height)
-        //     .style('display', 'block');
-
-        // svg.append('g')
-        //     .attr(
-        //         'transform',
-        //         `translate(0,${this.height - this.marginBottom})`
-        //     )
-        //     .call(
-        //         d3
-        //             .axisBottom(x)
-        //             .ticks(d3.utcMonth.every(1200 / this.width))
-        //             .tickSizeOuter(0)
-        //     );
-
-        const points = data.map((d) => [
+        const points = data.map((d: any) => [
             x(d._formattedData.x),
             y(d._formattedData.y),
             d,
@@ -103,7 +37,6 @@ class GraphController {
 
         let rect = group.selectAll('rect');
         rect = rect.data(data).join(
-            // (enter) => enter.append(area),
             (enter) =>
                 enter
                     .append('rect')
@@ -115,9 +48,9 @@ class GraphController {
                     })
                     .attr('y', (d: any) => y(d._formattedData.y))
                     .attr('height', (d: any) => y(0) - y(d._formattedData.y))
-                    .attr('width', 10),
-            // .attr('width', 100)
-            // .attr('height', this.height),
+                    .attr('width', 10)
+                    .on('mouseover', (e, d) => this.pointerentered(e, d))
+                    .on('mouseout', (e, d) => this.pointerleft(e, d)),
             (update) => update,
             (exit) =>
                 exit.call((rect) =>
@@ -131,21 +64,11 @@ class GraphController {
                 )
         );
 
-        svg.on('pointermove', (e) => this.pointermoved(e, points)).on(
-            'pointerleft',
-            () => this.pointerleft()
-        );
-        // svg.append('path');
-        // .datum(data)
-
-        // .attr('fill', 'steelblue');
-        // .attr('d', area);
-
-        // console.log('wtf', parent.node());
-        // yield parent.node();
-
-        // // Initialize the scroll offset after yielding the chart to the DOM.
-        // return body.node()?.scrollBy(this.totalWidth, 0);
+        // rect.on('pointerenter', () => this.pointerentered())
+        // svg.on('pointermove', (e) => this.pointermoved(e, points, svg)).on(
+        //     'pointerleft',
+        //     () => this.pointerleft()
+        // );
     }
 
     constructGraph(data: any) {
@@ -190,28 +113,38 @@ class GraphController {
         // return svg.node();
     }
 
-    pointermoved(event: any, points: any[]) {
-        const [xm, ym] = d3.pointer(event);
-        const i = d3.leastIndex(points, ([x, y]) => Math.hypot(x - xm, y - ym));
-        // @ts-ignore
-        const [x, y, k] = points[i];
-        // path.style('stroke', ({ z }) => (z === k ? null : '#ddd'))
-        //     .filter(({ z }) => z === k)
-        //     .raise();
-        // dot.attr('transform', `translate(${x},${y})`);
-        // dot.select('text').text(k);
-        // svg.property('value', unemployment[i]).dispatch('input', {
-        //     bubbles: true,
-        // });
+    pointermoved(
+        event: any,
+        points: any[],
+        svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>
+    ) {
+        // const [xm, ym] = d3.pointer(event);
+        // console.log('xm', xm, 'ym', ym);
+        // const i = d3.leastIndex(points, ([x, y]) => Math.hypot(x - xm, y - ym));
+        // // @ts-ignore
+        // const [x, y, k] = points[i];
+        // console.log('i', i, 'x', x, 'y', y, 'k', k);
+        // // path.style('stroke', ({ z }) => (z === k ? null : '#ddd'))
+        // //     .filter(({ z }) => z === k)
+        // //     .raise();
+        // // dot.attr('transform', `translate(${x},${y})`);
+        // // dot.select('text').text(k);
+        // // svg.property('value', unemployment[i]).dispatch('input', {
+        // //     bubbles: true,
+        // // });
+        // svg.dispatch('input', { bubbles: true });
+        // this.timelineController.renderMetadata(k);
+    }
+
+    pointerentered(e: any, k: any) {
+        console.log('POINTER ENTERED!!!!!!!!', e, k);
+        // path.style('mix-blend-mode', null).style('stroke', '#ddd');
+        // dot.attr('display', null);
         this.timelineController.renderMetadata(k);
     }
 
-    pointerentered() {
-        // path.style('mix-blend-mode', null).style('stroke', '#ddd');
-        // dot.attr('display', null);
-    }
-
-    pointerleft() {
+    pointerleft(e: any, k: any) {
+        console.log('POINTER LEFT!!!!!!!!', e, k);
         this.timelineController.renderMetadata(undefined);
         // path.style('mix-blend-mode', 'multiply').style('stroke', null);
         // dot.attr('display', 'none');

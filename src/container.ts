@@ -23,6 +23,7 @@ import LanguageServiceProvider from './document/languageServiceProvider/Language
 import { CopyBuffer } from './constants/types';
 import LocationPlus from './document/locationApi/location';
 import RangePlus from './document/locationApi/range';
+import ViewLoader from './webviewPane/ViewLoader';
 
 export interface ClipboardMetadata {
     text: string;
@@ -108,6 +109,15 @@ export class Container {
     private _webviewController: Webview | undefined;
     public get webviewController(): Webview | undefined {
         return this._webviewController;
+    }
+
+    private _sidePaneWebviewController: ViewLoader | undefined;
+    public get sidePaneWebviewController(): ViewLoader | undefined {
+        return this._sidePaneWebviewController;
+    }
+
+    set sidePaneWebviewController(viewLoader: ViewLoader | undefined) {
+        this._sidePaneWebviewController = viewLoader;
     }
 
     private _debugController: DebugController | undefined;

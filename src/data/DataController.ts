@@ -250,57 +250,6 @@ export class DataController {
         return readableNode;
     }
 
-    private addBlockToTree(
-        b: ts.Block,
-        name: string,
-        insertedRange: Range,
-        changeBuffer?: ChangeBuffer
-    ) {
-        const newLocation = new LocationPlus(
-            this.readableNode.location.uri,
-            insertedRange
-        );
-        newLocation.updateContent(
-            window.activeTextEditor || window.visibleTextEditors[0]
-        );
-        const readableNode = ReadableNode.create(
-            b,
-            newLocation,
-            this.container,
-            `${name}:${uuidv4()}`
-        );
-
-        const sigh = newLocation.deriveRangeFromOffset(b.pos, b.end);
-        console.log('pwease....', sigh, newLocation);
-
-        readableNode.dataController = new DataController(
-            readableNode,
-            this.container
-        );
-        readableNode.setId(name);
-        readableNode.registerListeners();
-        readableNode.dataController._firestoreControllerInterface =
-            this.container.firestoreController!.createNodeMetadata(
-                name,
-                this.container.firestoreController!.getFileCollectionPath(
-                    getVisiblePath(
-                        workspace.name ||
-                            getProjectName(
-                                this.readableNode.location.uri.toString()
-                            ),
-                        this.readableNode.location.uri.fsPath
-                    )
-                )
-            );
-
-        const tree = this._tree?.insert(readableNode, {
-            name: readableNode.id,
-        });
-        readableNode.dataController._tree = tree;
-        changeBuffer &&
-            readableNode.dataController._changeBuffer.push(changeBuffer);
-    }
-
     handleInsertBlock(
         addedContent: string,
         insertedRange: Range,
@@ -508,7 +457,7 @@ export class DataController {
                 pasteEvent.location.range,
                 eventObj
             );
-            console.log('DID INSERT BLOCK', this);
+
             // return;
         }
     }
@@ -574,12 +523,11 @@ export class DataController {
     }
 
     private getMinDate() {
-        const items = this._gitData?.concat(
+        const items = (this._gitData || []).concat(
             this._pastVersions.map((v) => new TimelineEvent(v))
         );
-        return items?.reduce(
-            (min, p) => (p._formattedData.x < min ? p._formattedData.x : min),
-            0
+        return items.reduce((min, p) =>
+            p._formattedData.x < min._formattedData.x ? p : min
         );
     }
 
@@ -614,6 +562,31 @@ export class DataController {
             if (!this._gitData?.length) {
                 await this.initGitData();
             }
+            console.log('posting', {
+                command: 'updateTimeline',
+                data: {
+                    id: this.readableNode.id,
+                    metadata: {
+                        ...allData,
+                        pastVersions: this._pastVersions,
+                        formattedPastVersions: this._pastVersions.map(
+                            (v) => new TimelineEvent(v)
+                        ),
+                        gitData: this._gitData,
+                        items: this._gitData?.concat(
+                            this._pastVersions.map((v) => new TimelineEvent(v))
+                        ),
+                        firstInstance: this.getMinDate(),
+                        parent: this._tree?.parent?.root?.data.dataController?.serialize(),
+                        children: this._tree?.root?.children.map((c) =>
+                            c.root?.data.dataController?.serialize()
+                        ),
+                        events: this._pastVersions
+                            .filter((v) => v.eventData)
+                            .map((v) => v.eventData),
+                    },
+                },
+            });
             this.container.webviewController?.postMessage({
                 command: 'updateTimeline',
                 data: {
@@ -628,11 +601,14 @@ export class DataController {
                         items: this._gitData?.concat(
                             this._pastVersions.map((v) => new TimelineEvent(v))
                         ),
-                        xDomain: [
-                            new Date(this.getMinDate() || 0),
-                            new Date(this.getMaxDate() || 0),
-                        ],
-                        yDomain: [0, this.getMaxY()],
+                        firstInstance: this.getMinDate(),
+                        parent: this._tree?.parent?.root?.data.dataController?.serialize(),
+                        children: this._tree?.root?.children.map((c) =>
+                            c.root?.data.dataController?.serialize()
+                        ),
+                        events: this._pastVersions
+                            .filter((v) => v.eventData)
+                            .map((v) => v.eventData),
                     },
                 },
             });

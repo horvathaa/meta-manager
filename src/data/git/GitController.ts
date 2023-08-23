@@ -181,7 +181,8 @@ class GitController extends Disposable {
                     (input as Location).range.end.line + 1
                 }:${input.uri.fsPath}`,
             ]);
-            const arr = otherRes.split('commit');
+            const arr = otherRes.split('commit').slice(1);
+            console.log('arr???', arr);
             const res = result.all.map((r, i) => {
                 return {
                     ...r,

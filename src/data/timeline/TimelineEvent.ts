@@ -12,6 +12,7 @@ export interface GitType extends DefaultLogFields, ListLogLine {
 interface TimelineData {
     timeRange: [TS, TS];
     val: string;
+    code: string;
     labelVal?: string;
     x: number;
     y: number;
@@ -36,7 +37,7 @@ function isMetaPastVersion(data: any): data is SerializedChangeBuffer {
 class TimelineEvent extends Disposable {
     _formattedData: TimelineData;
     _dataSourceType: DataSourceType;
-    constructor(private readonly originalData: LegalDataType) {
+    constructor(readonly originalData: LegalDataType) {
         super(() => this.dispose());
         this._dataSourceType = this.getDataSourceType();
         this._formattedData = this.formatData();
@@ -63,6 +64,7 @@ class TimelineEvent extends Disposable {
                         new Date(data.date).getTime(),
                         new Date(data.date).getTime() + 10000000,
                     ],
+                    code: data.code,
                     user: data.author_email,
                     source: 'git',
                     val: DataSourceType.GIT,
@@ -79,6 +81,7 @@ class TimelineEvent extends Disposable {
                 return {
                     x: new Date(data.createdTimestamp).getTime(),
                     y: 1,
+                    code: data.code,
                     user: data.uid,
                     timeRange: [
                         new Date(data.createdTimestamp).getTime(),
@@ -97,6 +100,7 @@ class TimelineEvent extends Disposable {
                     timeRange: [data.time, data.time + 10000000],
                     val: DataSourceType.META_PAST_VERSION,
                     labelVal: `${data.time}`,
+                    code: data.changeContent,
                 };
             }
             default: {
@@ -105,6 +109,7 @@ class TimelineEvent extends Disposable {
                     val: 'val',
                     x: 0,
                     y: 0,
+                    code: 'code',
                 };
             }
         }

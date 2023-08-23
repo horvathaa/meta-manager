@@ -1,5 +1,4 @@
-import * as React from 'react';
-import * as ReactDOM from 'react-dom';
+import SidePaneController from './SidePaneController/SidePaneController';
 // import { App } from './App';
 // import { App } from './App';
 // import { useFlatConfigStore } from './store';
@@ -10,13 +9,22 @@ import * as ReactDOM from 'react-dom';
 // let config: any = {};
 // let workspace = '';
 // let gitRepo = '';
-
-const root = document.getElementById('root');
-
-if (root) {
-    // workspace = root.getAttribute('data-workspace') || '';
-    // gitRepo = root.getAttribute('data-gitrepo') || '';
+declare global {
+    interface Window {
+        initData: any;
+    }
 }
+
+console.log('window.initData', window.initData);
+
+new SidePaneController(window.initData);
+
+// const root = document.getElementById('root');
+
+// if (root) {
+//     // workspace = root.getAttribute('data-workspace') || '';
+//     // gitRepo = root.getAttribute('data-gitrepo') || '';
+// }
 
 // VS_CODE_API.postMessage({
 //     command: 'refreshFiles',
@@ -36,9 +44,9 @@ if (root) {
 //     }
 // });
 
-ReactDOM.render(
-    <React.StrictMode>
-        <div>HI!~</div>
-    </React.StrictMode>,
-    document.getElementById('root')
-);
+// ReactDOM.render(
+//     <React.StrictMode>
+//         <div>HI!~</div>
+//     </React.StrictMode>,
+//     document.getElementById('root')
+// );

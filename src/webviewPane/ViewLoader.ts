@@ -10,8 +10,16 @@ import {
     window,
 } from 'vscode';
 import { getNonce } from '../utils/lib';
+import { AdditionalMetadata, CopyBuffer } from '../constants/types';
+import { WEB_INFO_SOURCE } from '../view/src/types/types';
 // import { VS_CODE_API } from '../view2/src/VSCodeApi';
 // import TimelinesChart from 'timelines-chart';
+
+interface InitData {
+    type: WEB_INFO_SOURCE;
+    node: any;
+    copyBuffer: CopyBuffer;
+}
 
 class ViewLoader {
     // public static readonly viewType = 'meta-manager-view'; // THIS IS THE NAME OF THE VIEW CONTAINER -- THERE IS A DIFFERENCE, STUPIDLY ENOUGH
@@ -22,7 +30,10 @@ class ViewLoader {
     private _localUri?: Uri;
     private _onDidCreateView: EventEmitter<void> = new EventEmitter<void>();
 
-    constructor(private readonly _extensionUri: Uri) {
+    constructor(
+        private readonly _extensionUri: Uri,
+        private initData?: InitData | null
+    ) {
         this._localUri = Uri.joinPath(
             this._extensionUri,
             'dist'
@@ -64,6 +75,7 @@ class ViewLoader {
         );
 
         const nonce = getNonce();
+        console.log('excuse me', this.initData);
 
         let webviewContent = `<!DOCTYPE html>
         <html lang="en">
@@ -82,6 +94,7 @@ class ViewLoader {
 
             <script nonce="${nonce}">
                 window.acquireVsCodeApi = acquireVsCodeApi;
+                window.initData = ${JSON.stringify(this.initData)};
             </script>
         </head>
         <body>

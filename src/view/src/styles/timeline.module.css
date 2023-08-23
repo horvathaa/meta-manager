@@ -1,0 +1,48 @@
+.git-information {
+    display: flex;
+    flex-direction: column;
+
+    font-size: 0.9rem;
+    /* align-items: center; */
+    /* justify-content: center; */
+}
+
+/* .git-information > div {
+    display: flex;
+    flex-direction: row;
+
+    justify-content: center;
+} */
+
+.m2 {
+    margin: 1rem;
+}
+
+.flex {
+    display: flex;
+}
+
+.flex-row {
+    display: flex;
+    flex-direction: row;
+}
+
+.center {
+    align-items: center;
+    justify-content: center;
+}
+
+.flat-button {
+    background-color: #8dc149;
+    border: none;
+    cursor: pointer;
+    outline: none;
+    color: white;
+    padding: 4px;
+    border-radius: 4px;
+    margin: 8px;
+}
+
+.m4px {
+    margin: 4px;
+}
