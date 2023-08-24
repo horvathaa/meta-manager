@@ -86,11 +86,14 @@ class ViewLoaderProvider implements WebviewViewProvider {
             </script>
         </head>
         <body>
+        <div>
+            <div id="header"></div>
             <div style="display: flex">
                 <svg width="500" height="400"></svg>
                 <div id="root"></div>
             </div>
-            <script nonce="${nonce}" src="${reactAppPathOnDisk}"></script>
+        </div>
+        <script nonce="${nonce}" src="${reactAppPathOnDisk}"></script>
         </body>
         </html>`;
 

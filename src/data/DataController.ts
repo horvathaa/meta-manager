@@ -103,6 +103,7 @@ export class DataController {
     _debug: boolean = false;
     _emit: boolean = false;
     _seen: boolean = false;
+    _new: boolean = false;
     _didPaste: PasteDetails | null = null;
     _changeBuffer: ChangeBuffer[];
     _ownedLocations: LocationPlus[] = [];
@@ -371,8 +372,30 @@ export class DataController {
         this._vscNodeMetadata = newNodeMetadata;
     }
 
+    parentIsContained(location: Location) {
+        if (this._tree) {
+            const parentContains =
+                this._tree.parent?.root?.data.dataController?.isContained(
+                    location
+                );
+            return parentContains;
+        }
+        return false;
+    }
+
+    isContained(location: Location) {
+        // console.log('location!', location);
+        if (location.uri !== this.readableNode.location.uri) {
+            return false;
+        }
+        return location.range.contains(this.readableNode.location.range);
+    }
+
     handleOnCopy(copyEvent: ClipboardMetadata) {
-        if (this.readableNode.location.contains(copyEvent.location)) {
+        if (
+            this.isContained(copyEvent.location) &&
+            !this.parentIsContained(copyEvent.location)
+        ) {
             this._changeBuffer.push({
                 ...this.getBaseChangeBuffer(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
@@ -384,12 +407,12 @@ export class DataController {
                     },
                 },
             });
-            this.isOwnerOfRange(copyEvent.location) &&
-                this.container.updateClipboardMetadata({
-                    code: copyEvent.text,
-                    id: this.readableNode.id,
-                    node: this.readableNode.serialize(),
-                });
+
+            this.container.updateClipboardMetadata({
+                code: copyEvent.text,
+                id: this.readableNode.id,
+                node: this.readableNode.serialize(),
+            });
         }
     }
 
@@ -429,6 +452,25 @@ export class DataController {
             this._debug = true;
             this._emit = true;
             // console.log('posting', this.serialize());
+        } else if (this.container._copyVscodeMetadata) {
+            // it's kinda goofy that this is separate from the copybuffer -- would be better if they were the same
+            const { vscodeMetadata } = pasteEvent;
+            eventObj = {
+                ...this.getBaseChangeBuffer(),
+                location: LocationPlus.fromLocation(
+                    pasteEvent.location
+                ).serialize(),
+                typeOfChange: TypeOfChange.CONTENT_ONLY,
+                changeContent: pasteEvent.text,
+                eventData: {
+                    [Event.PASTE]: {
+                        pasteContent: pasteEvent.text,
+                        nodeId: this.container._copyVscodeMetadata.id, // replace with readable node id that was copiedd
+                        vscodeMetadata: this.container._copyVscodeMetadata,
+                    },
+                },
+            };
+            this._changeBuffer.push(eventObj);
         } else {
             const { vscodeMetadata } = pasteEvent;
             eventObj = {
@@ -526,122 +568,62 @@ export class DataController {
     }
 
     private getMinDate() {
-        const items = (this._gitData || []).concat(
-            this._pastVersions.map((v) => new TimelineEvent(v))
-        );
+        const items = (
+            this._gitData || this._changeBuffer.map((c) => new TimelineEvent(c))
+        ).concat(this._pastVersions.map((v) => new TimelineEvent(v)));
+        if (!items.length) {
+            return Date.now();
+        }
         return items.reduce((min, p) =>
             p._formattedData.x < min._formattedData.x ? p : min
         );
     }
 
-    private getMaxDate() {
-        const items = this._gitData?.concat(
-            this._pastVersions.map((v) => new TimelineEvent(v))
-        );
-        return items?.reduce(
-            (min, p) => (p._formattedData.x > min ? p._formattedData.x : min),
-            0
-        );
-    }
-
-    private getMaxY() {
-        const items = this._gitData?.concat(
-            this._pastVersions.map((v) => new TimelineEvent(v))
-        );
-        return items?.reduce(
-            (min, p) => (p._formattedData.y > min ? p._formattedData.y : min),
-            0
-        );
-    }
-
     async handleOnSelected(location: Selection) {
-        console.log('SELECTED', this);
         if (this.isOwnerOfRange(location)) {
             const allData = this.serialize();
-            console.log('allData', {
-                ...allData,
-                pastVersions: this._pastVersions,
-            });
-            if (!this._gitData?.length) {
+            if (!this._gitData?.length && !this._new) {
                 await this.initGitData();
             }
             console.log('posting', {
                 command: 'updateTimeline',
-                data: {
-                    id: this.readableNode.id,
-                    metadata: {
-                        ...allData,
-                        pastVersions: this._pastVersions,
-                        formattedPastVersions: this._pastVersions.map(
-                            (v) => new TimelineEvent(v)
-                        ),
-                        gitData: this._gitData,
-                        items: this._gitData?.concat(
-                            this._pastVersions.map((v) => new TimelineEvent(v))
-                        ),
-                        firstInstance: this.getMinDate(),
-                        parent: this._tree?.parent?.root?.data.dataController?.serialize(),
-                        children: this._tree?.root?.children.map((c) =>
-                            c.root?.data.dataController?.serialize()
-                        ),
-                        events: this._pastVersions
-                            .filter((v) => v.eventData)
-                            .map((v) => v.eventData),
-                    },
-                },
+                data: this.formatWebviewData(),
             });
             this.container.webviewController?.postMessage({
                 command: 'updateTimeline',
                 data: {
                     id: this.readableNode.id,
-                    metadata: {
-                        ...allData,
-                        pastVersions: this._pastVersions,
-                        formattedPastVersions: this._pastVersions.map(
-                            (v) => new TimelineEvent(v)
-                        ),
-                        gitData: this._gitData,
-                        items: this._gitData?.concat(
-                            this._pastVersions.map((v) => new TimelineEvent(v))
-                        ),
-                        firstInstance: this.getMinDate(),
-                        parent: this._tree?.parent?.root?.data.dataController?.serialize(),
-                        children: this._tree?.root?.children.map((c) =>
-                            c.root?.data.dataController?.serialize()
-                        ),
-                        events: this._pastVersions
-                            .filter((v) => v.eventData)
-                            .map((v) => v.eventData),
-                    },
+                    metadata: this.formatWebviewData(),
                 },
             });
         }
-        // this._debug = true;
-
-        // const fireStoreRes = (await this.getFirestoreData()) || [];
-        // if (fireStoreRes.length > 0) {
-        //     this._firestoreData = fireStoreRes.map((r) => new TimelineEvent(r));
-        // } else {
-        //     this._firestoreData = [];
-        // }
-        // const allData = [...this._firestoreData, ...this._gitData];
     }
 
-    // updateChild(tree: SimplifiedTree<ReadableNode>) {
-    //     const childToUpdate = this._tree?.root?.children.find((c) => {
-    //         if (c.root?.data.id === tree.root?.data.id) {
-    //             return true;
-    //         }
-    //         return false;
-    //     });
-    //     if (childToUpdate) {
-    //         (this._tree!.root as NodeWithChildren<ReadableNode>).children =
-    //             this._tree!.root!.children.map((c) =>
-    //                 c.root?.data.id !== childToUpdate.root?.data.id ? c : tree
-    //             );
-    //         this._tree!.root!.data.dataController?.updateChild(this._tree!);
-    //     }
-    // }
+    formatWebviewData() {
+        const allData = this.serialize();
+        const pastVersions = this._pastVersions.map(
+            (v) => new TimelineEvent(v)
+        );
+        const changeBuffer = this._changeBuffer.map(
+            (c) => new TimelineEvent(c)
+        );
+        const meta = pastVersions.concat(changeBuffer);
+        const items = meta.concat(this._gitData || []);
+        return {
+            ...allData,
+            pastVersions: this._pastVersions,
+            formattedPastVersions: pastVersions,
+            gitData: this._gitData,
+            items,
+            firstInstance: this.getMinDate(),
+            parent: this._tree?.parent?.root?.data.dataController?.serialize(),
+            children: this._tree?.root?.children.map((c) =>
+                c.root?.data.dataController?.serialize()
+            ),
+            events: meta.map((v) => (v.originalData as ChangeBuffer).eventData),
+            recentChanges: this._changeBuffer.map((c) => new TimelineEvent(c)),
+        };
+    }
 
     evenSimplerTraverse(
         sourceFile: ts.SourceFile,
@@ -657,6 +639,7 @@ export class DataController {
             docCopy.uri,
             new Range(0, 0, docCopy.lineCount, 1000)
         );
+        console.log('bigLocation', bigLocation);
         bigLocation.updateContent(docCopy);
         function enter(node: ts.Node) {
             nodes.push(node);
@@ -666,20 +649,19 @@ export class DataController {
                     readableNodeArrayCopy.reverse()
                 )}:${uuidv4()}`;
                 const offsetStart = code.indexOf(node.getText());
-                // console.log(
-                //     'offsetStart',
-                //     offsetStart,
-                //     'node text',
-                //     node.getText(),
-                //     'code',
-                //     code
-                // );
+                console.log(
+                    'offsetStart',
+                    offsetStart,
+                    'node text',
+                    node.getText()
+                );
                 const offsetEnd = offsetStart + node.getText().length;
-                // console.log('end', offsetEnd);
+                console.log('end', offsetEnd);
                 const newLocation = new LocationPlus(
                     docCopy.uri,
                     bigLocation.deriveRangeFromOffset(offsetStart, offsetEnd)
                 );
+                console.log('newLocation', newLocation);
                 newLocation.updateContent(docCopy);
                 const readableNode = context.initReadableNode(
                     ReadableNode.create(
@@ -697,6 +679,7 @@ export class DataController {
                     name: name,
                 });
                 readableNode.dataController?.setTree(treeRef);
+                readableNode.dataController!._new = true;
                 changeBuffer &&
                     readableNode.dataController?._changeBuffer.push(
                         changeBuffer

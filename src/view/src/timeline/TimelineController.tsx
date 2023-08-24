@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { createRoot } from 'react-dom/client';
+import { Root, createRoot } from 'react-dom/client';
 import * as d3 from 'd3';
 import GraphController from './GraphController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
@@ -17,7 +17,7 @@ import { VS_CODE_API } from '../VSCodeApi';
 import MetaInformationController from './MetaInformationController';
 import styles from '../styles/timeline.module.css';
 
-interface Payload {
+export interface Payload {
     pastVersions: SerializedChangeBuffer[];
     formattedPastVersions: TimelineEvent[];
     gitData: TimelineEvent[] | undefined;
@@ -32,13 +32,17 @@ interface Payload {
     events: { [k in Event]: any }[];
 }
 class TimelineController {
-    private readonly _ref;
+    private readonly _ref: Root;
+    private readonly _headerRef: Root;
     _graphController: GraphController;
     _gitInformationController: GitInformationController;
     _metaInformationController: MetaInformationController;
     _node: Payload | undefined;
     constructor() {
         console.log('constructing');
+        const header =
+            document.getElementById('header') || document.createElement('div');
+        this._headerRef = createRoot(header);
         const container =
             document.getElementById('root') || document.createElement('div');
         console.log('container', container);
@@ -144,11 +148,13 @@ class TimelineController {
 
     renderMetadata(k?: TimelineEvent) {
         console.log('k', k);
-        this._ref.render(
-            <div>
+        this._headerRef.render(
+            <div className={styles['center']}>
                 <h1>{this._node?.node.id.split(':')[0]}</h1>
-                {k ? this.renderVersion(k) : this.renderNode()}
             </div>
+        );
+        this._ref.render(
+            <div>{k ? this.renderVersion(k) : this.renderNode()}</div>
         );
     }
 

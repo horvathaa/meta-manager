@@ -1,9 +1,16 @@
 import * as d3 from 'd3';
-import TimelineController from './TimelineController';
+import TimelineController, { Payload } from './TimelineController';
+import TimelineEvent from '../../../data/timeline/TimelineEvent';
+import { SerializedChangeBuffer, Event } from '../types/types';
 
-const color = d3.scaleOrdinal(
-    ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
-    ['#4e79a7', '#e15759']
+// const color = d3.scaleOrdinal(
+//     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
+//     ['#4e79a7', '#e15759']
+// );
+
+const source = d3.scaleOrdinal(
+    ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code'],
+    ['#4e79a7', '#8dc149', '#f28e2b', '#76b7b2', '#59a14f']
 );
 
 class GraphController {
@@ -18,6 +25,24 @@ class GraphController {
 
     constructor(private readonly timelineController: TimelineController) {
         // this.constructGraph(data);
+    }
+
+    getColor(d: TimelineEvent) {
+        if (d._dataSourceType === 'git') {
+            return source(d._dataSourceType);
+        } else if (d._dataSourceType === 'meta-past-version') {
+            const data = d.originalData as SerializedChangeBuffer;
+            if (data.eventData) {
+                if (data.eventData[Event.WEB]) {
+                    return source(data.eventData[Event.WEB].copyBuffer.type);
+                }
+                if (data.eventData[Event.PASTE]) {
+                    return source('pasted-code'); // should get a better type for this
+                }
+            }
+        }
+
+        return source('vscode');
     }
 
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*
@@ -41,7 +66,9 @@ class GraphController {
                 enter
                     .append('rect')
                     .style('mix-blend-mode', 'darken')
-                    .attr('fill', (d: any) => color(d._formattedData.user))
+                    .attr('fill', (d: any) => {
+                        return this.getColor(d);
+                    })
                     .attr('x', (d: any) => {
                         console.log('d', d);
                         return x(d._formattedData.x); // + 100;

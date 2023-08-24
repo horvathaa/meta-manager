@@ -30,6 +30,7 @@
 .center {
     align-items: center;
     justify-content: center;
+    display: flex;
 }
 
 .flat-button {
@@ -45,4 +46,9 @@
 
 .m4px {
     margin: 4px;
+}
+
+.simulate-link {
+    cursor: pointer;
+    color: #8dc149;
 }

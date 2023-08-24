@@ -20,7 +20,7 @@ import FirestoreController from './data/firestore/FirestoreController';
 // import TimelineController from './view/src/timeline/TimelineController';
 import DebugController from './debug/debug';
 import LanguageServiceProvider from './document/languageServiceProvider/LanguageServiceProvider';
-import { CopyBuffer } from './constants/types';
+import { CopyBuffer, SerializedReadableNode } from './constants/types';
 import LocationPlus from './document/locationApi/location';
 import RangePlus from './document/locationApi/range';
 import ViewLoader from './webviewPane/ViewLoader';
@@ -31,6 +31,12 @@ export interface ClipboardMetadata {
     time: number;
     webMetadata?: any;
     vscodeMetadata?: any;
+}
+
+export interface VSCClipboardMetadata {
+    code: string;
+    id: string;
+    node: SerializedReadableNode;
 }
 
 export class Container {
@@ -44,7 +50,7 @@ export class Container {
         new EventEmitter<ClipboardMetadata>();
     _onPaste: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
-    _copyVscodeMetadata: any;
+    _copyVscodeMetadata: VSCClipboardMetadata | null = null;
     // probably should add this and check on paste whether matches
     // and update appropriate datacontroller with metadata about movement
     // _onCut: EventEmitter<ClipboardMetadata> =
@@ -351,7 +357,7 @@ export class Container {
             });
     }
 
-    updateClipboardMetadata(copyVscodeMetadata: any) {
+    updateClipboardMetadata(copyVscodeMetadata: VSCClipboardMetadata) {
         this._copyVscodeMetadata = copyVscodeMetadata;
     }
 }

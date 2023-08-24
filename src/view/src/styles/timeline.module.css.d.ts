@@ -8,6 +8,7 @@ interface CssExports {
   'git-information': string;
   'm2': string;
   'm4px': string;
+  'simulate-link': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

@@ -30,6 +30,7 @@ import {
     StackOverflowAnswer,
     StackOverflowQuestion,
 } from '../types/types';
+import { VS_CODE_API } from '../VSCodeApi';
 
 const prettyPrintType: { [k in WEB_INFO_SOURCE]: string } = {
     [WEB_INFO_SOURCE.CHAT_GPT]: 'Chat GPT',
@@ -58,6 +59,49 @@ class MetaInformationController {
                             .
                         </div>
                         {this.renderCopyBuffer(copyBuffer)}
+                    </div>
+                );
+            }
+            if (data.eventData[Event.PASTE]) {
+                const { vscodeMetadata } = data.eventData[Event.PASTE];
+                if (!vscodeMetadata) {
+                    return (
+                        <div className={styles['git-information']}>
+                            <div>
+                                Code originally copied from{' '}
+                                <div>
+                                    {data.eventData[Event.PASTE].nodeId?.split(
+                                        ':'
+                                    )[0] || 'VS Code'}
+                                </div>
+                                .
+                            </div>
+                        </div>
+                    );
+                }
+                const { id, node } = vscodeMetadata;
+                const { location } = node;
+                return (
+                    <div className={styles['git-information']}>
+                        <div>
+                            Code originally copied from{' '}
+                            <a
+                                className={styles['m4px']}
+                                onClick={() =>
+                                    VS_CODE_API.postMessage({
+                                        command: 'goToNode',
+                                        data: {
+                                            nodeId: id,
+                                        },
+                                    })
+                                }
+                            >
+                                {data.eventData[Event.PASTE].nodeId?.split(
+                                    ':'
+                                )[0] || 'VS Code'}
+                            </a>
+                            .
+                        </div>
                     </div>
                 );
             }

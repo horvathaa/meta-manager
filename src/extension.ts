@@ -40,6 +40,20 @@ export async function activate(context: ExtensionContext) {
                         data
                     );
                 }
+                if (command === 'goToNode') {
+                    container.fileParser?.docs.forEach((doc) => {
+                        const { nodeId } = data;
+                        const node = doc.findNode(nodeId);
+                        console.log('node', node);
+                        if (node) {
+                            // const position = new Position(node.location.start.line, node.start.character);
+                            window.showTextDocument(node.location.uri, {
+                                selection: node.location.range,
+                                preview: true,
+                            });
+                        }
+                    });
+                }
             });
         }
     });

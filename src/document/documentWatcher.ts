@@ -346,6 +346,12 @@ class DocumentWatcher extends Disposable {
         return tree;
     }
 
+    findNode(nodeId: string) {
+        const arr = this._nodesInFile?.toArray() || [];
+        console.log('arr', arr);
+        return arr.find((n) => n.id === nodeId);
+    }
+
     match(
         otherTreeInstance: SimplifiedTree<ReadableNode>,
         oldTree: SimplifiedTree<ReadableNode>,
