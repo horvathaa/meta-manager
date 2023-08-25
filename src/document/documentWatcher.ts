@@ -47,10 +47,11 @@ class DocumentWatcher extends Disposable {
         super(() => this.dispose());
         this._relativeFilePath = getVisiblePath(
             workspace.name || getProjectName(this.document.uri.toString()),
-            this.document.uri.fsPath
+            this.document.uri.fsPath,
+            this.container.context.extensionUri
         ).replace(/\\/g, '/');
+
         this._firestoreCollectionPath = '';
-        console.log('relative file path', this._relativeFilePath);
 
         this._nodesInFile = undefined;
         const otherListener = container.onNodesComplete(() => {
@@ -173,6 +174,7 @@ class DocumentWatcher extends Disposable {
                 new Range(0, 0, docCopy.lineCount, 1000)
             )
         );
+        fileData.setId(this._relativeFilePath.replace('/', '-'));
         fileData.location.updateContent(docCopy);
         fileData.dataController = new DataController(fileData, this.container);
         fileData.dataController._tree = tree;
@@ -208,25 +210,12 @@ class DocumentWatcher extends Disposable {
                     // new DataController(
                     ReadableNode.create(node, docCopy, context.container, name);
 
-                // context.container
-                // );
-                // );
-                (name.includes('getPathFromUrl') ||
-                    name.includes('If:3144403a-2ac6-4161-9475-6b2d6f4417dd')) &&
-                    (debug = true);
-                debug &&
-                    console.log('ADDING READABLE NODE', readableNode.copy());
                 readableNode.dataController = new DataController(
                     readableNode,
                     context.container
                     // debug
                 );
                 let newNode = false;
-                debug &&
-                    console.log(
-                        'adding data node',
-                        readableNode.dataController
-                    );
                 readableNode.location.updateContent(docCopy);
                 // we have a point of comparison
 
@@ -241,6 +230,8 @@ class DocumentWatcher extends Disposable {
                     name = matchInfo.name;
                     otherTreeInstance = matchInfo.otherTreeInstance;
                     newNode = matchInfo.new || false;
+                } else {
+                    name = `${name}:${uuidv4()}`; // idk where this code initially went lol
                 }
 
                 readableNode.setId(name);
@@ -250,8 +241,7 @@ class DocumentWatcher extends Disposable {
                     : context.container.firestoreController!.getFileCollectionPath(
                           context.relativeFilePath
                       );
-                // debug &&
-                //     console.log('after collection', firestoreCollectionPath);
+
                 if (!context._firestoreCollectionPath.length) {
                     context._firestoreCollectionPath = firestoreCollectionPath;
                 }

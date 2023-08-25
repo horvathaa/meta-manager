@@ -95,12 +95,12 @@ class TimelineEvent extends Disposable {
                 const data = this.originalData as SerializedChangeBuffer;
                 return {
                     x: data.time,
-                    y: data.changeContent.split('\n').length,
+                    y: data.location.content.split('\n').length,
                     user: data.uid,
                     timeRange: [data.time, data.time + 10000000],
                     val: DataSourceType.META_PAST_VERSION,
                     labelVal: `${data.time}`,
-                    code: data.changeContent,
+                    code: data.location.content, // maybe have change content as separate render
                 };
             }
             default: {

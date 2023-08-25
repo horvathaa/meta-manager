@@ -182,7 +182,7 @@ class GitController extends Disposable {
                 }:${input.uri.fsPath}`,
             ]);
             const arr = otherRes.split('commit').slice(1);
-            console.log('arr???', arr);
+            // console.log('arr???', arr);
             const res = result.all.map((r, i) => {
                 return {
                     ...r,
@@ -191,7 +191,7 @@ class GitController extends Disposable {
                     // commitDate: new Date(r.commitDate),
                 };
             });
-            console.log('otherRes??', otherRes, res);
+            // console.log('otherRes??', otherRes, res);
             // const result = await this._gitState?.repository.log(opts); // doesnt have line-level API! annoying!
             return res;
         } catch (e) {

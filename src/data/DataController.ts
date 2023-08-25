@@ -197,7 +197,7 @@ export class DataController {
     }
 
     parseDiff(diff: Diff) {
-        console.log('diff', diff);
+        // console.log('diff', diff);
         const removedLines = diff.lines.filter((l) => l.bIndex === -1);
         const removedCode = removedLines.map((l) => l.line).join('\n');
         const addedLines = diff.lines.filter((l) => l.aIndex === -1);
@@ -237,7 +237,8 @@ export class DataController {
                             getProjectName(
                                 this.readableNode.location.uri.toString()
                             ),
-                        this.readableNode.location.uri.fsPath
+                        this.readableNode.location.uri.fsPath,
+                        this.container.context.extensionUri
                     )
                 )
             );
@@ -256,6 +257,12 @@ export class DataController {
         insertedRange: Range,
         changeBuffer?: ChangeBuffer
     ) {
+        console.log(
+            'INSERTING  NEW BLOCK',
+            addedContent,
+            insertedRange,
+            changeBuffer
+        );
         if (this.isOwnerOfRange(insertedRange)) {
             const sourceFile = ts.createSourceFile(
                 this.readableNode.location.uri.fsPath,
@@ -296,7 +303,14 @@ export class DataController {
                 addedContent
             );
             this._debug = true;
-            this.handleInsertBlock(addedContent, insertedRange);
+            if (this._didPaste) {
+                this.handleInsertBlock(
+                    this._didPaste.pasteContent,
+                    this._didPaste.location.range
+                );
+            } else {
+                this.handleInsertBlock(addedContent, insertedRange);
+            }
         }
 
         const diff = patienceDiffPlus(
@@ -533,7 +547,7 @@ export class DataController {
         }
 
         // this._debug &&
-        console.log('changeEvent!!!!!!!', changeEvent, 'this!!!!!', this);
+        // console.log('changeEvent!!!!!!!', changeEvent, 'this!!!!!', this);
 
         // this._emit = true;
         this.handleUpdateChangeBuffer(oldContent, newContent, changeEvent);
@@ -620,7 +634,11 @@ export class DataController {
             children: this._tree?.root?.children.map((c) =>
                 c.root?.data.dataController?.serialize()
             ),
-            events: meta.map((v) => (v.originalData as ChangeBuffer).eventData),
+            events: meta
+                .filter(
+                    (v) => (v.originalData as SerializedChangeBuffer).eventData
+                )
+                .map((v) => (v.originalData as ChangeBuffer).eventData),
             recentChanges: this._changeBuffer.map((c) => new TimelineEvent(c)),
         };
     }
@@ -649,6 +667,10 @@ export class DataController {
                     readableNodeArrayCopy.reverse()
                 )}:${uuidv4()}`;
                 const offsetStart = code.indexOf(node.getText());
+                if (offsetStart === -1) {
+                    console.error('not ready');
+                    return;
+                }
                 console.log(
                     'offsetStart',
                     offsetStart,
@@ -837,7 +859,9 @@ export class DataController {
                                             getProjectName(
                                                 context.readableNode.location.uri.toString()
                                             ),
-                                        context.readableNode.location.uri.fsPath
+                                        context.readableNode.location.uri
+                                            .fsPath,
+                                        context.container.context.extensionUri
                                     )
                                 )
                             );

@@ -659,7 +659,7 @@ class FirestoreController extends Disposable {
                 { filename: fileName } // can put git stuff here
             );
             // const tree = docWatcher.initSerialize();
-            const tree = docWatcher.nodesInFile?.toArray();
+            const tree = docWatcher.nodesInFile?.toArray().filter(t => t.humanReadableKind !== 'file');
             if (!tree?.length) {
                 console.warn('no tree for file', file);
                 continue;

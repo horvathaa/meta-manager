@@ -6,6 +6,7 @@ import {
     Range,
     TextDocument,
     Location,
+    Uri,
 } from 'vscode';
 import * as ts from 'typescript';
 import { ReadableNode } from '../constants/types';
@@ -13,14 +14,22 @@ import LocationPlus from './locationApi/location';
 
 export const getVisiblePath = (
     projectName: string,
-    workspacePath: string | undefined
+    workspacePath: string | undefined,
+    extensionUri: Uri
 ): string => {
     if (projectName && workspacePath) {
         // console.log('projectName', projectName, 'workspacePath', workspacePath)
-        const path: string = workspacePath.substring(
-            workspacePath.indexOf(projectName) + projectName.length + 1 // indexOf will return beginning of path so add path length and 1 so we get to the next folder YES this is stupid
-        );
-        if (path) {
+        if (workspacePath.includes(projectName)) {
+            const path: string = workspacePath.substring(
+                workspacePath.indexOf(projectName) + projectName.length + 1 // indexOf will return beginning of path so add path length and 1 so we get to the next folder YES this is stupid
+            );
+            if (path) {
+                return path;
+            }
+        } else {
+            const path = workspacePath.substring(
+                extensionUri.fsPath.length + 1
+            );
             return path;
         }
     } else if (workspacePath) {

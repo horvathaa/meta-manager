@@ -89,7 +89,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
         <div>
             <div id="header"></div>
             <div style="display: flex">
-                <svg width="500" height="400"></svg>
+                <svg width="640" height="500"></svg>
                 <div id="root"></div>
             </div>
         </div>
