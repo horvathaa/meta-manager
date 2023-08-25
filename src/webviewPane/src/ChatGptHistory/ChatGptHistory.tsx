@@ -37,6 +37,22 @@ export function ChatGptHistory({
         });
     });
 
+    const getHighlightLogic = (code: string) => {
+        const copiedCodeArr = gptData.code.split('\n');
+        const lines = code.split('\n');
+        const lineNumbers = lines
+            .filter((l) => copiedCodeArr.includes(l))
+            .map((l, i) => i);
+        return (lineNumber: number) => {
+            let style: React.CSSProperties = {};
+            if (lineNumbers.includes(lineNumber)) {
+                style.backgroundColor = '#519aba80';
+            }
+            console.log('is this being called', lineNumber, lineNumbers);
+            return { style };
+        };
+    };
+
     const formatBotResponse = (threadMessage: ThreadPair) => {
         const { botResponse, codeBlocks } = threadMessage;
         if (!codeBlocks.length) {
@@ -50,7 +66,18 @@ export function ChatGptHistory({
             const code = c.code.includes('Copy code') // change to match on CopyText's
                 ? c.code.split('Copy code')[1]
                 : c.code;
-            jsx.push(<CodeBlock codeString={code} />);
+            if (code.includes(gptData.code)) {
+                const highlightLogic = getHighlightLogic(code);
+                jsx.push(
+                    <CodeBlock
+                        codeString={code}
+                        highlightLogic={highlightLogic}
+                    />
+                );
+            } else {
+                jsx.push(<CodeBlock codeString={code} />);
+            }
+            // jsx.push(<CodeBlock codeString={code} />);
             strCopy = temp[1];
         });
         jsx.push(<div className={styles['message']}>{strCopy}</div>);

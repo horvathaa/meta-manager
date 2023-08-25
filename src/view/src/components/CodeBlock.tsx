@@ -12,16 +12,24 @@ import * as React from 'react';
 const CodeBlock = ({
     codeString,
     style,
+    highlightLogic,
 }: {
     codeString: string;
     style?: React.CSSProperties;
+    highlightLogic?: (lineNumber: number) => { style: React.CSSProperties };
 }) => {
-    return (
+    return highlightLogic ? (
         <SyntaxHighlighter
             language="javascript"
             style={vscDarkPlus}
-            customStyle={style}
+            lineProps={highlightLogic}
+            wrapLines={true}
+            showLineNumbers={true} // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/444
         >
+            {codeString}
+        </SyntaxHighlighter>
+    ) : (
+        <SyntaxHighlighter language="javascript" style={vscDarkPlus}>
             {codeString}
         </SyntaxHighlighter>
     );

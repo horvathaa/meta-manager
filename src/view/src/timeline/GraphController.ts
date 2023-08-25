@@ -12,23 +12,7 @@ const source = d3.scaleOrdinal(
     ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code'],
     ['#4e79a7', '#8dc149', '#f28e2b', '#76b7b2', '#59a14f']
 );
-var count = 0;
-function Id(id: string) {
-    // @ts-ignore
-    this.id = id;
-    // @ts-ignore
-    this.href = new URL(`#${id}`, 'http://what.com') + '';
-}
 
-export function uid(name: string | null) {
-    console.log('name', name);
-    // @ts-ignore
-    return new Id('O-' + (name == null ? '' : name + '-') + ++count);
-}
-
-Id.prototype.toString = function () {
-    return 'url(' + this.href + ')';
-};
 class GraphController {
     private readonly width = 640;
     private readonly height = 500;
@@ -91,6 +75,7 @@ class GraphController {
                         new Date(d._formattedData.x).toISOString()
                     ),
                     value: d._formattedData.y,
+                    ...d,
                 };
             });
         // console.log('data', data);
@@ -164,7 +149,6 @@ class GraphController {
         focus
             .append('g')
             .attr('class', 'bars')
-            .attr('fill', '#b3ff66')
             .selectAll('rect')
             .data(data)
             .join('rect')
@@ -172,7 +156,8 @@ class GraphController {
             .attr('x', (d) => x(d.date as Date))
             .attr('y', (d) => y(d.value))
             .attr('height', (d) => y(0) - y(d.value))
-            .attr('width', x.bandwidth());
+            .attr('width', x.bandwidth())
+            .attr('fill', (d: any) => this.getColor(d));
 
         focus.append('g').attr('class', 'x-axis').call(xAxis);
         focus.append('g').attr('class', 'y-axis').call(yAxis);
