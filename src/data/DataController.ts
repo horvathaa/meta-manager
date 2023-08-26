@@ -592,7 +592,7 @@ export class DataController {
             new Map();
         ts.forEach((t) => {
             const { commit } = t._formattedData;
-            console.log('commit', commit, 't', t);
+            // console.log('commit', commit, 't', t);
             if (commit) {
                 const pr = t._formattedData.pullNumber || 0;
                 // if (pr) {
@@ -635,7 +635,7 @@ export class DataController {
                 // }
             }
         });
-        console.log('obj...', objMap, 'obj2', objMap2);
+        // console.log('obj...', objMap, 'obj2', objMap2);
         return objMap2;
     }
 
