@@ -365,3 +365,18 @@ export interface ChangeBuffer {
 export interface SerializedChangeBuffer extends ChangeBuffer {
     node: SerializedReadableNode;
 }
+
+export enum DataSourceType {
+    GIT = 'git',
+    FIRESTORE = 'firestore',
+    META_PAST_VERSION = 'meta-past-version',
+}
+
+export interface UserMap {
+    firestoreUid: string;
+    firestoreEmail: string;
+    githubUid: string;
+    githubLogin: string;
+    gitName: string;
+    gitEmail: string;
+}

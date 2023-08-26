@@ -40,84 +40,6 @@ import GitController from '../git/GitController';
 import { FirestoreControllerInterface } from '../DataController';
 import DocumentWatcher from '../../document/documentWatcher';
 import { isBoolean, isNumber } from 'lodash';
-// import {
-//     credential,
-//     initializeApp as initializeAppAdmin,
-// } from 'firebase-admin';
-// import { applicationDefault, cert } from 'firebase-admin/app';
-
-// GIVEN THE STUPID ISSUES WITH FIRESTORE JUST NOT WORKING WITH
-// OUR CREDENTAILS ANYMORE...
-// Consider just using the admin sdk instead
-// do this by getting the user's uid from the github credential
-
-// note this returns a UserRecord, not a User
-// so I think we could then use the admin SDK to write to the database
-// since we have the uid so we can associate the activity with them
-// even if they aren't technically logged in
-
-// var admin = require('firebase-admin');
-
-// var serviceAccount = require('../../../secrets.json');
-// const ok = admin.initializeApp({
-//     credential: admin.credential.cert(serviceAccount),
-// });
-
-// console.log('ok', ok);
-
-// Code used for getting counts of users and annotations of Adamite and Catseye respectively
-// const InvalidUsers = new Set<string>([
-//     'hJyV36Xgy8gO67UJVmnQUrRgJih1',
-//     '0SylSmbCPfR86fK43hNboY5L8Y53',
-//     '32hZmxr9jueVXAKLyU3Q3sZqEi13',
-//     '5IYU4EPPANRdDyuyplFrWCQ92sO2',
-//     '6m84Ekq7pWT8DVrHrGJ8K2CmKqd2',
-//     'AmPkp5HM6QS1RwxGELrvuHRkimj1',
-//     'CBaINhdKcRQtrwK1LAmyvAg9Fmj1',
-//     'IXXnUJ1fDhSA7MkR1PmCBVIKw9o2',
-//     'OauK8Xpx02M7CRZEZGJ9JBa8pFr1',
-//     'aeL3LIzxQ2QVuu0jWUt2bQIzLVl1',
-//     'b3gQowRBRMezwipcWb7A2t4yxhY2',
-//     'bCrwiWVV23awMm7eQuxI',
-//     'iZKzal3YxydCTrEazd8tm2yCRnY2',
-//     'lZlbnc28uQc0qFnUnHrUav3XFop2',
-//     'nEW1uOgNiYUGZd5UDVHlHbSjWQq1',
-//     'nOaOlC0TEfX36OfIa76LZnh0FwA2',
-//     'pV24BEvX2thVkQA3dAvv1UQY9mG3',
-//     'rkckdgdrfzOrv1e263qApVx0wyA2',
-//     'uySjhiqllLUFPqZrhT2dL5LOLb92',
-//     'xsk048R301fE5wOFrPhccOXEVe32',
-// ]);
-
-// private async getCounts() {
-//     const webAnnotations = this._refs?.get(DB_COLLECTIONS.WEB_ANNOTATIONS);
-//     console.log('web annotations', webAnnotations);
-//     if (webAnnotations) {
-//         const webAnnotationsCount = getListFromSnapshots(
-//             await getDocs(webAnnotations)
-//         ).filter((a) => !InvalidUsers.has(a.authorId));
-//         console.log(
-//             'web annotations count',
-//             webAnnotationsCount.length,
-//             'web user count',
-//             new Set(webAnnotationsCount.map((a) => a.authorId)).size
-//         );
-//     }
-//     const codeAnnotations = this._refs?.get(
-//         DB_COLLECTIONS.CODE_ANNOTATIONS
-//     );
-//     if (codeAnnotations) {
-//         const codeAnnotationsCount = getListFromSnapshots(
-//             await getDocs(codeAnnotations)
-//         ).filter((a) => !InvalidUsers.has(a.authorId));
-//         console.log(
-//             'code annotations count',
-//             codeAnnotationsCount.length,
-//             'code user count',
-//             new Set(codeAnnotationsCount.map((a) => a.authorId)).size
-//         );
-//     }
-// }
 
 export type DB_REFS =
     | 'users'
@@ -155,19 +77,6 @@ export function getListFromSnapshots(
     });
     return out;
 }
-
-// const secret = require('../../../secrets.json');
-// console.log('hewwo?', secret);
-// const huh = applicationDefault();
-// // console.log('huh', huh);
-// const certt = cert(secret);
-// console.log('cert', certt);
-// try {
-//     const adminFS = initializeAppAdmin();
-//     console.log('hewwo aaa?', adminFS);
-// } catch (e) {
-//     console.log('error initializing admin', e);
-// }
 
 class FirestoreController extends Disposable {
     _disposable: Disposable;
@@ -659,7 +568,9 @@ class FirestoreController extends Disposable {
                 { filename: fileName } // can put git stuff here
             );
             // const tree = docWatcher.initSerialize();
-            const tree = docWatcher.nodesInFile?.toArray().filter(t => t.humanReadableKind !== 'file');
+            const tree = docWatcher.nodesInFile
+                ?.toArray()
+                .filter((t) => t.humanReadableKind !== 'file');
             if (!tree?.length) {
                 console.warn('no tree for file', file);
                 continue;

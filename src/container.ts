@@ -20,7 +20,7 @@ import FirestoreController from './data/firestore/FirestoreController';
 // import TimelineController from './view/src/timeline/TimelineController';
 import DebugController from './debug/debug';
 import LanguageServiceProvider from './document/languageServiceProvider/LanguageServiceProvider';
-import { CopyBuffer, SerializedReadableNode } from './constants/types';
+import { CopyBuffer, SerializedReadableNode, UserMap } from './constants/types';
 import LocationPlus from './document/locationApi/location';
 import RangePlus from './document/locationApi/range';
 import ViewLoader from './webviewPane/ViewLoader';
@@ -78,6 +78,15 @@ export class Container {
             (textEditor: TextEditor, edit: TextEditorEdit, params: any) =>
                 this.overriddenClipboardPasteAction(textEditor, edit, params)
         );
+        this._loggedInUserMap = {
+            firestoreEmail: '',
+            firestoreUid: '',
+            firestoreDisplayName: '',
+            gitEmail: '',
+            gitName: '',
+            githubLogin: '',
+            githubUid: '',
+        };
         this._disposables.push(
             // (this._dataController = new DataController(this))
             // (this._fileParser = FileParser.createFileParser(context, this)) // new FileParser(context, this))
@@ -136,6 +145,15 @@ export class Container {
         return this._languageServiceProvider;
     }
 
+    private _loggedInUserMap: UserMap;
+    public get loggedInUser(): UserMap {
+        return this._loggedInUserMap;
+    }
+
+    set loggedInUserMap(userMap: UserMap) {
+        this._loggedInUserMap = userMap;
+    }
+
     private _copyBuffer: CopyBuffer | null = null;
     public get copyBuffer(): CopyBuffer | null {
         return this._copyBuffer;
@@ -176,10 +194,23 @@ export class Container {
         const newFileParser = await FileParser.create(context, newContainer);
         newContainer._fileParser = newFileParser;
         const newGitController = await GitController.create(newContainer);
+        newContainer._loggedInUserMap = {
+            ...newContainer._loggedInUserMap,
+            githubLogin: newGitController.authSession!.account.label,
+        };
         newContainer._gitController = newGitController;
         const newFirestoreController = await FirestoreController.create(
             newContainer
         );
+        newContainer._loggedInUserMap = newFirestoreController._user
+            ? {
+                  ...newContainer._loggedInUserMap,
+                  firestoreEmail: newFirestoreController._user.email || '',
+                  firestoreUid: newFirestoreController._user.uid || '',
+                  firestoreDisplayName:
+                      newFirestoreController._user.displayName || '',
+              }
+            : newContainer._loggedInUserMap;
         newFirestoreController.onCopy((copyBuffer: CopyBuffer) => {
             newContainer._copyBuffer = copyBuffer;
         });

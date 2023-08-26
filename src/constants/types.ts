@@ -7,6 +7,7 @@ import {
 } from 'vscode';
 import LocationPlus, { TypeOfChange } from '../document/locationApi/location';
 import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
+import TimelineEvent from '../data/timeline/TimelineEvent';
 
 export type LegalDataSource = 'github' | 'firestore' | 'git' | 'code' | 'web';
 
@@ -355,4 +356,56 @@ export interface ChangeBuffer {
 
 export interface SerializedChangeBuffer extends ChangeBuffer {
     node: SerializedReadableNode;
+    commit: string;
+    branch: string;
+}
+
+export interface UserMap {
+    firestoreUid: string;
+    firestoreEmail: string;
+    firestoreDisplayName: string;
+    githubUid: string;
+    githubLogin: string;
+    gitName: string;
+    gitEmail: string;
+}
+
+export interface WebviewData extends SerializedNodeDataController {
+    userMap: UserMap;
+    pastVersions: SerializedChangeBuffer[];
+    formattedPastVersions: TimelineEvent[];
+    gitData: TimelineEvent[];
+    items: TimelineEvent[];
+    firstInstance: number | TimelineEvent;
+    parent: SerializedNodeDataController | undefined;
+    children: (SerializedNodeDataController | undefined)[] | undefined;
+    events: (
+        | {
+              [Event.COMMENT]?: {
+                  newComments?: CodeComment[];
+                  removedComments?: CodeComment[];
+                  changedComments?: CodeComment[];
+              };
+              [Event.COPY]?: {
+                  copyContent: string;
+                  nodeId: string;
+              };
+              [Event.PASTE]?: {
+                  pasteContent: string;
+                  nodeId?: string;
+                  vscodeMetadata?: {
+                      code: string;
+                      id: string;
+                      node: SerializedReadableNode;
+                  };
+              };
+              [Event.WEB]?: {
+                  copyBuffer: CopyBuffer;
+              };
+          }
+        | undefined
+    )[];
+    recentChanges: TimelineEvent[];
+    // prMap: Map<number, string[]>;
+    prMap: { [k: number]: { [commit: string]: TimelineEvent[] } };
 }

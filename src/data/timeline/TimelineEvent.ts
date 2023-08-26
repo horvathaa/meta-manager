@@ -7,6 +7,8 @@ import { SerializedChangeBuffer } from '../../constants/types';
 
 export interface GitType extends DefaultLogFields, ListLogLine {
     code: string;
+    githubData: any[];
+    linkedGithubData: any[];
 }
 
 interface TimelineData {
@@ -16,6 +18,8 @@ interface TimelineData {
     labelVal?: string;
     x: number;
     y: number;
+    commit: string;
+    pullNumber?: number;
     source?: string;
     user?: string;
 }
@@ -57,6 +61,7 @@ class TimelineEvent extends Disposable {
         switch (this._dataSourceType) {
             case DataSourceType.GIT: {
                 const data = this.originalData as GitType;
+                console.log('data!', data);
                 return {
                     x: new Date(data.date).getTime(),
                     y: data.code.split('\n').length,
@@ -71,6 +76,10 @@ class TimelineEvent extends Disposable {
                     labelVal: `${data.hash.slice(0, 6) || ''} ${
                         data.message
                     } by ${data.author_name} at ${data.date}`,
+                    commit: data.hash,
+                    pullNumber: data.githubData.length
+                        ? data.githubData[0].number
+                        : undefined,
                 };
             }
             case DataSourceType.FIRESTORE: {
@@ -89,6 +98,7 @@ class TimelineEvent extends Disposable {
                     ],
                     val: DataSourceType.FIRESTORE,
                     labelVal: `${data.createdTimestamp} - ${endTimestamp}`,
+                    commit: data.commit,
                 };
             }
             case DataSourceType.META_PAST_VERSION: {
@@ -101,6 +111,8 @@ class TimelineEvent extends Disposable {
                     val: DataSourceType.META_PAST_VERSION,
                     labelVal: `${data.time}`,
                     code: data.location.content, // maybe have change content as separate render
+                    // @ts-ignore
+                    commit: data.commit,
                 };
             }
             default: {
@@ -110,6 +122,7 @@ class TimelineEvent extends Disposable {
                     x: 0,
                     y: 0,
                     code: 'code',
+                    commit: 'commit',
                 };
             }
         }

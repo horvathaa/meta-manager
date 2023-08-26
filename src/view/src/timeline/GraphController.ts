@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import TimelineController, { Payload } from './TimelineController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
-import { SerializedChangeBuffer, Event } from '../types/types';
+import { SerializedChangeBuffer, Event, DataSourceType } from '../types/types';
 
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
@@ -46,7 +46,7 @@ class GraphController {
     }
 
     constructGraph(data: any) {
-        const val = this.lastOnePlease(data.items);
+        const val = this.drawTimeline(data.items);
         return val;
     }
 
@@ -66,7 +66,8 @@ class GraphController {
         // svg.dispatch('input', { bubbles: true });
     }
     strictIsoParse = d3.utcParse('%Y-%m-%dT%H:%M:%S.%LZ');
-    lastOnePlease(origData: TimelineEvent[]) {
+
+    drawTimeline(origData: TimelineEvent[]) {
         const data = origData
             .sort((a, b) => a._formattedData.x - b._formattedData.x)
             .map((d) => {
@@ -176,6 +177,12 @@ class GraphController {
             .call(zoom);
 
         return svg.node();
+    }
+
+    groupLabels(data: TimelineEvent[]) {
+        const groupedData: any = data.filter(
+            (d) => d.getDataSourceType() === DataSourceType.META_PAST_VERSION
+        );
     }
 }
 

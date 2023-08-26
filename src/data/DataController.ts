@@ -51,6 +51,7 @@ import {
     SerializedNodeDataController,
     SerializedReadableNode,
     VscodeCopyBuffer,
+    WebviewData,
 } from '../constants/types';
 import MetaInformationExtractor from '../comments/CommentCreator';
 import RangePlus from '../document/locationApi/range';
@@ -107,13 +108,13 @@ export class DataController {
     _didPaste: PasteDetails | null = null;
     _changeBuffer: ChangeBuffer[];
     _ownedLocations: LocationPlus[] = [];
+    _webviewData: WebviewData | undefined;
     // _pasteDisposable: Disposable;
 
     constructor(
         private readonly readableNode: ReadableNode,
         private readonly container: Container,
-        private readonly debug = readableNode.id ===
-            'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}'
+        private readonly debug = false
     ) {
         // super();
         // this._readableNode = readableNode;
@@ -128,6 +129,7 @@ export class DataController {
         // this._pasteDisposable =
         this.initListeners();
         this.debug && console.log('init complete');
+        this._webviewData = this.formatWebviewData();
     }
 
     compare(other: ReadableNode): CompareSummary<ReadableNode> {
@@ -546,19 +548,9 @@ export class DataController {
             }
         }
 
-        // this._debug &&
-        // console.log('changeEvent!!!!!!!', changeEvent, 'this!!!!!', this);
-
-        // this._emit = true;
         this.handleUpdateChangeBuffer(oldContent, newContent, changeEvent);
         this.handleUpdateNodeMetadata(newContent, location);
-        this.handleUpdateTree(newContent);
-        // if (this._emit) {
-        //     this.container.webviewController?.postMessage({
-        //         command: 'updateWebData',
-        //         data: this.serialize(),
-        //     });
-        // }
+        this.updateWebviewData('recentChanges');
     }
 
     private isOwnerOfRange(location: Range | Location) {
@@ -593,27 +585,78 @@ export class DataController {
         );
     }
 
+    joinOnCommits(ts: TimelineEvent[]) {
+        const prMap: Map<number, string[]> = new Map();
+        const objMap: Map<number, Map<string, TimelineEvent[]>> = new Map();
+        const objMap2: Map<number, { [k: string]: TimelineEvent[] }> =
+            new Map();
+        ts.forEach((t) => {
+            const { commit } = t._formattedData;
+            console.log('commit', commit, 't', t);
+            if (commit) {
+                const pr = t._formattedData.pullNumber || 0;
+                // if (pr) {
+                const prs = prMap.get(pr);
+                const obj = objMap.get(pr);
+                const obj2 = objMap2.get(pr);
+
+                if (obj2) {
+                    const tt = obj2[commit];
+                    obj2[commit] = tt ? [...tt, t] : [t];
+                } else {
+                    objMap2.set(pr, { [commit]: [t] });
+                }
+
+                if (obj) {
+                    const tt = obj.get(commit);
+
+                    obj.set(commit, tt ? [...tt, t] : [t]);
+                } else {
+                    objMap.set(pr, new Map());
+                    objMap.get(pr)!.set(commit, [t]);
+                }
+
+                if (prs) {
+                    prMap.set(pr, [...prs, commit]);
+                    // const innerMap = obj.get(pr);
+                    // objMap.set(pr, obj?.set(commit, t) || new Map());
+                } else {
+                    prMap.set(pr, [commit]);
+                }
+                // } else {
+                //     prMap.set(
+                //         0,
+                //         prMap.get(0)
+                //             ? [...(prMap.get(0) as string[]), commit]
+                //             : [commit]
+                //     );
+
+                //     // objMap.set(0, objMap.get(0) ?  || new Map());
+                // }
+            }
+        });
+        console.log('obj...', objMap, 'obj2', objMap2);
+        return objMap2;
+    }
+
     async handleOnSelected(location: Selection) {
         if (this.isOwnerOfRange(location)) {
-            const allData = this.serialize();
+            // const allData = this.serialize();
             if (!this._gitData?.length && !this._new) {
-                await this.initGitData();
+                await this.updateWebviewData('gitData');
             }
-            console.log('posting', {
-                command: 'updateTimeline',
-                data: this.formatWebviewData(),
-            });
+            console.log('sending this', this._webviewData);
             this.container.webviewController?.postMessage({
                 command: 'updateTimeline',
                 data: {
                     id: this.readableNode.id,
-                    metadata: this.formatWebviewData(),
+                    metadata: this._webviewData,
                 },
             });
         }
     }
 
-    formatWebviewData() {
+    formatWebviewData(): WebviewData {
         const allData = this.serialize();
         const pastVersions = this._pastVersions.map(
             (v) => new TimelineEvent(v)
@@ -627,7 +670,7 @@ export class DataController {
             ...allData,
             pastVersions: this._pastVersions,
             formattedPastVersions: pastVersions,
-            gitData: this._gitData,
+            gitData: this._gitData || [],
             items,
             firstInstance: this.getMinDate(),
             parent: this._tree?.parent?.root?.data.dataController?.serialize(),
@@ -639,7 +682,9 @@ export class DataController {
                     (v) => (v.originalData as SerializedChangeBuffer).eventData
                 )
                 .map((v) => (v.originalData as ChangeBuffer).eventData),
-            recentChanges: this._changeBuffer.map((c) => new TimelineEvent(c)),
+            recentChanges: changeBuffer,
+            userMap: this.container.loggedInUser,
+            prMap: Object.fromEntries(this.joinOnCommits(items)),
         };
     }
 
@@ -787,139 +832,80 @@ export class DataController {
         }
     }
 
-    simpleTraverse(sourceFile: ts.SourceFile, docCopy: TextDocument) {
-        const context = this;
-        console.log('context before', context);
-        let nodes: ts.Node[] = [];
-        const seenNodes = new Set<string>();
-        function enter(node: ts.Node) {
-            nodes.push(node);
-            // probably need to add in other scopes such as object literals
-            // some of the scopes do not use the block node
-            // i'm not sure why
-            if (ts.isBlock(node)) {
-                const name = `${getSimplifiedTreeName(
-                    nodes.map((n) => n).reverse()
-                )}`;
-                console.log('name', name, 'node', node, 'docCopy', docCopy);
-                const readableNode = ReadableNode.create(
-                    node,
-                    docCopy,
-                    context.container,
-                    ''
-                );
-                console.log(
-                    'omgggg',
-                    readableNode,
-                    'context node',
-                    context.readableNode
-                );
-                readableNode.location.range = (
-                    readableNode.location.range as RangePlus
-                ).translate(context.readableNode.location.range);
-                console.log('readableNode in if enter block', readableNode);
-                if (context._tree) {
-                    console.log('yes there is a tree', context._tree);
-                    const hasMatch = context._tree.root?.children.find((c) => {
-                        if (
-                            c.root?.data.location.contains(
-                                readableNode.location
-                            )
-                        ) {
-                            return true;
-                        }
-                        return false;
-                    });
-                    console.log('hasMatch', hasMatch);
-                    if (hasMatch) {
-                        seenNodes.add(hasMatch.root?.data.id || '');
-                        return;
-                    } else {
-                        readableNode.dataController = new DataController(
-                            readableNode,
-                            context.container
-                            // debug
-                        );
-                        console.log('new node', readableNode);
-                        const id = `${name}:${uuidv4()}`;
-                        context._tree.insert(readableNode, {
-                            name: id,
-                        });
-                        console.log('inserted', context._tree);
-                        readableNode.setId(id);
-                        console.log('set id', readableNode);
-                        readableNode.registerListeners();
-                        console.log('registered listeners', readableNode);
-                        readableNode.dataController._firestoreControllerInterface =
-                            context.container.firestoreController!.createNodeMetadata(
-                                name,
-                                context.container.firestoreController!.getFileCollectionPath(
-                                    getVisiblePath(
-                                        workspace.name ||
-                                            getProjectName(
-                                                context.readableNode.location.uri.toString()
-                                            ),
-                                        context.readableNode.location.uri
-                                            .fsPath,
-                                        context.container.context.extensionUri
-                                    )
-                                )
-                            );
-                        console.log(
-                            'created node metadata',
-                            readableNode.dataController
-                        );
-                        seenNodes.add(id);
-                        console.log('finish init', readableNode);
-                    }
-                }
-            }
+    async updateWebviewData(field: string) {
+        const getItems = () => {
+            const pastVersions = this._pastVersions.map(
+                (v) => new TimelineEvent(v)
+            );
+            const changeBuffer = this._changeBuffer.map(
+                (c) => new TimelineEvent(c)
+            );
+            const meta = pastVersions.concat(changeBuffer);
+            const items = meta.concat(this._gitData || []);
+            return { items, changeBuffer, pastVersions, meta };
+        };
+
+        if (!this._webviewData) {
+            return this.formatWebviewData();
         }
 
-        function leave(node: ts.Node) {
-            nodes.pop();
-            // console.log('leaving', node);
-        }
-
-        tstraverse.traverse(sourceFile, { enter, leave });
-        this._tree?.root?.children.forEach((c) => {
-            if (seenNodes.has(c.root?.data.id || '')) {
-                return;
-            } else {
-                c.root!.data.state = NodeState.DELETED;
-                this._tree?.remove(c.root!.data);
+        switch (field) {
+            case 'gitData': {
+                await this.initGitData();
+                const { items, changeBuffer, pastVersions, meta } = getItems();
+                const prMap = Object.fromEntries(this.joinOnCommits(items));
+                this._webviewData = {
+                    ...this._webviewData,
+                    pastVersions: this._pastVersions,
+                    formattedPastVersions: pastVersions,
+                    items,
+                    recentChanges: changeBuffer,
+                    events: meta
+                        .filter(
+                            (v) =>
+                                (v.originalData as SerializedChangeBuffer)
+                                    .eventData
+                        )
+                        .map((v) => (v.originalData as ChangeBuffer).eventData),
+                    gitData: this._gitData || [],
+                    prMap,
+                };
             }
-        });
-        console.log('context after', context);
-        return (
-            this._tree ||
-            new SimplifiedTree<ReadableNode>({ name: 'PROBLEM!!!!!!' })
-        );
-    }
-
-    async handleUpdateTree(content: string) {
-        // const editor = window.activeTextEditor || window.visibleTextEditors[0];
-        // const doc =
-        //     editor.document.uri.fsPath === this.readableNode.location.uri.fsPath
-        //         ? editor.document
-        //         : await workspace.openTextDocument(this.readableNode.location.uri); // idk when this would ever happen??? maybe in a git pull where a whole bunch of docs are being updated
-        // const newTree = await this.container.treeCreator.createTree(
-        //     doc,
-        //     this.readableNode.location,
-        //     newContent
-        // );
-        // this._tree = newTree;
-        // compute parsed subtree when this node is marked as deleted
-        // or when count of function defs or ifs or whatever changes -- heuristic
-        // get parsed subtree -- how to do this though since typescript parser doesnt
-        // really like parsing a snippet out of context?
-        // look into this or have doc keep a reference to the parsed AST
-        // and request there
-        // update our instance of tree
-        // set parent's children to new tree (how to avoid race condition...)
-        // call parent's update
-        // recurse to top of tree
-        // to do this on save? or other time??
+            case 'firestoreData': {
+                const { items, changeBuffer, pastVersions, meta } = getItems();
+                this._webviewData = {
+                    ...this._webviewData,
+                    pastVersions: this._pastVersions,
+                    formattedPastVersions: pastVersions,
+                    items,
+                    recentChanges: changeBuffer,
+                    events: meta
+                        .filter(
+                            (v) =>
+                                (v.originalData as SerializedChangeBuffer)
+                                    .eventData
+                        )
+                        .map((v) => (v.originalData as ChangeBuffer).eventData),
+                };
+            }
+            case 'recentChanges': {
+                const { items, changeBuffer, meta } = getItems();
+                this._webviewData = {
+                    ...this._webviewData,
+                    items,
+                    recentChanges: changeBuffer,
+                    events: meta
+                        .filter(
+                            (v) =>
+                                (v.originalData as SerializedChangeBuffer)
+                                    .eventData
+                        )
+                        .map((v) => (v.originalData as ChangeBuffer).eventData),
+                };
+            }
+            default:
+                this._webviewData = this.formatWebviewData();
+        }
     }
 
     getGitData() {
@@ -940,20 +926,6 @@ export class DataController {
             lastUpdatedBy:
                 this.container.firestoreController?._user?.uid || 'anonymous',
             setOfEventIds: [],
-            // this._changeBuffer // keep track of this since we reset change buffer on push
-            //     .filter((c) => c?.eventData)
-            //     .map((c) => c.id),
-            // setOfEvents: this._changeBuffer.,
-            // webMetadata: this.webMetaData,
-            // changeBuffer: [],
-
-            // this._changeBuffer.map((c) => {
-            //     return {
-            //         ...c,
-            //         location: c.location.serialize(),
-            //     };
-            // }),
-            // vscNodeMetadata: this.vscodeNodeMetadata, // need to remove ts nodes
         };
     }
 
