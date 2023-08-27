@@ -277,7 +277,7 @@ export default class LocationPlus extends Location {
                     const typeOfChange = this.getTypeOfChange(
                         oldRange,
                         oldContent,
-                        contentChangeRange
+                        this._tempInsertedRange || contentChangeRange
                     );
 
                     this.onChanged.fire({

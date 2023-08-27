@@ -105,6 +105,7 @@ export class DataController {
     _emit: boolean = false;
     _seen: boolean = false;
     _new: boolean = false;
+    _displayName: string = '';
     _didPaste: PasteDetails | null = null;
     _changeBuffer: ChangeBuffer[];
     _ownedLocations: LocationPlus[] = [];
@@ -125,6 +126,7 @@ export class DataController {
             this.readableNode.location.content,
             this.debug
         );
+        this._displayName = this.readableNode.id.split(':')[0];
         this.debug && console.log('this', this);
         // this._pasteDisposable =
         this.initListeners();
@@ -140,6 +142,10 @@ export class DataController {
         this._tree = tree;
         this.readableNode.id === 'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}' &&
             console.log('tree set', this._tree);
+    }
+
+    setDisplayName(displayName: string) {
+        this._displayName = displayName;
     }
 
     initListeners() {
@@ -321,12 +327,40 @@ export class DataController {
         );
         const { addedBlock, removedBlock } = this.parseDiff(diff);
         const oldComments = this._metaInformationExtractor.foundComments;
+        console.log('newContent', newContent, this);
         this._metaInformationExtractor.updateMetaInformation(newContent);
+
         this._metaInformationExtractor.foundComments.forEach((c) => {
             c.location = (
                 this.readableNode.location.range as RangePlus
             ).translate(c.location);
         });
+        const commentedLines =
+            this._metaInformationExtractor.getCommentedLines();
+
+        const rangeLines = (
+            this.readableNode.location.range as RangePlus
+        ).getLineNumbers();
+        const mainRangeLines = rangeLines.slice(1, rangeLines.length - 1);
+        console.log(
+            'commented',
+            this._metaInformationExtractor.foundComments,
+            'lines',
+            commentedLines,
+            'range',
+            rangeLines
+        );
+        let commentedOut = undefined;
+        if (
+            rangeLines.every((l) =>
+                this._metaInformationExtractor.foundComments.some(
+                    (c) => c.location.start.line === l
+                )
+            ) ||
+            mainRangeLines.every((l) => commentedLines.includes(l))
+        ) {
+            commentedOut = true;
+        }
         let commentInfo = undefined;
         if (
             oldComments.length !==
@@ -350,6 +384,13 @@ export class DataController {
                         location: (n.location as RangePlus).serialize(),
                     };
                 }),
+            }),
+            ...(commentedOut && {
+                eventData: {
+                    [Event.COMMENT]: {
+                        commentedOut: true,
+                    },
+                },
             }),
             ...this.getBaseChangeBuffer(),
             typeOfChange: changeEvent.typeOfChange,
@@ -412,6 +453,7 @@ export class DataController {
             this.isContained(copyEvent.location) &&
             !this.parentIsContained(copyEvent.location)
         ) {
+            console.log('IN HERE!!!!!!!', this);
             this._changeBuffer.push({
                 ...this.getBaseChangeBuffer(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
@@ -645,14 +687,16 @@ export class DataController {
             if (!this._gitData?.length && !this._new) {
                 await this.updateWebviewData('gitData');
             }
-            console.log('sending this', this._webviewData);
+            console.log('sending this', this.formatWebviewData(), this);
             this.container.webviewController?.postMessage({
                 command: 'updateTimeline',
                 data: {
                     id: this.readableNode.id,
-                    metadata: this._webviewData,
+                    // metadata: this._webviewData,
+                    metadata: this.formatWebviewData(),
                 },
             });
+            this.container.activeNode = this;
         }
     }
 
@@ -665,14 +709,18 @@ export class DataController {
             (c) => new TimelineEvent(c)
         );
         const meta = pastVersions.concat(changeBuffer);
-        const items = meta.concat(this._gitData || []);
+        const items = meta.concat(this._gitData || []).sort((a, b) => {
+            const aDate = a._formattedData.x;
+            const bDate = b._formattedData.x;
+            return aDate < bDate ? -1 : aDate > bDate ? 1 : 0;
+        });
         return {
             ...allData,
             pastVersions: this._pastVersions,
             formattedPastVersions: pastVersions,
             gitData: this._gitData || [],
             items,
-            firstInstance: this.getMinDate(),
+            firstInstance: items[0],
             parent: this._tree?.parent?.root?.data.dataController?.serialize(),
             children: this._tree?.root?.children.map((c) =>
                 c.root?.data.dataController?.serialize()
@@ -685,6 +733,7 @@ export class DataController {
             recentChanges: changeBuffer,
             userMap: this.container.loggedInUser,
             prMap: Object.fromEntries(this.joinOnCommits(items)),
+            displayName: this._displayName,
         };
     }
 

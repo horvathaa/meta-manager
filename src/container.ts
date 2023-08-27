@@ -24,6 +24,7 @@ import { CopyBuffer, SerializedReadableNode, UserMap } from './constants/types';
 import LocationPlus from './document/locationApi/location';
 import RangePlus from './document/locationApi/range';
 import ViewLoader from './webviewPane/ViewLoader';
+import DocumentWatcher from './document/documentWatcher';
 
 export interface ClipboardMetadata {
     text: string;
@@ -51,6 +52,8 @@ export class Container {
     _onPaste: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
     _copyVscodeMetadata: VSCClipboardMetadata | null = null;
+    // activeNode: DataController | null = null;
+    activeFile: DocumentWatcher | null = null;
     // probably should add this and check on paste whether matches
     // and update appropriate datacontroller with metadata about movement
     // _onCut: EventEmitter<ClipboardMetadata> =
@@ -133,6 +136,22 @@ export class Container {
 
     set sidePaneWebviewController(viewLoader: ViewLoader | undefined) {
         this._sidePaneWebviewController = viewLoader;
+    }
+
+    private _activeNode: DataController | null = null;
+    public get activeNodeController(): DataController | null {
+        return this._activeNode;
+    }
+    set activeNode(dataController: DataController | null) {
+        this._activeNode = dataController;
+    }
+
+    private _activeDocument: DocumentWatcher | null = null;
+    public get activeDocument(): DocumentWatcher | null {
+        return this._activeDocument;
+    }
+    set activeDocument(activeDocument: DocumentWatcher | null) {
+        this._activeDocument = activeDocument;
     }
 
     private _debugController: DebugController | undefined;

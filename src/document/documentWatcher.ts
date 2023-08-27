@@ -194,7 +194,10 @@ class DocumentWatcher extends Disposable {
         let otherTreeInstance: SimplifiedTree<ReadableNode> | undefined =
             oldTree;
         const crazyIdeaMap = new Map<string, ReadableNode>();
+        const seenNodes = new Set<string>();
         // Enter function will be executed as each node is first interacted with
+        console.log('oldTree', oldTree);
+        let knownNodes = [...(oldTree?.toArray() || [])];
         function enter(node: ts.Node) {
             nodes.push(node);
 
@@ -227,7 +230,11 @@ class DocumentWatcher extends Disposable {
                         name,
                         debug
                     );
+                    if (!matchInfo.name.includes(name)) {
+                        readableNode.dataController.setDisplayName(name);
+                    }
                     name = matchInfo.name;
+                    seenNodes.add(name);
                     otherTreeInstance = matchInfo.otherTreeInstance;
                     newNode = matchInfo.new || false;
                 } else {
@@ -333,6 +340,20 @@ class DocumentWatcher extends Disposable {
             }
         }
         sourceFile && tstraverse.traverse(sourceFile, { enter, leave });
+        // do something like this to get the removed and commented-out nodes
+        // const removedNodes = await Promise.all(
+        //     knownNodes
+        //         .filter((n) => !seenNodes.has(n.id))
+        //         .map(async (n) => {
+        //             return await context.container
+        //                 .firestoreController!.createNodeMetadata(
+        //                     n.id,
+        //                     this._firestoreCollectionPath
+        //                 )
+        //                 .readPastVersions();
+        //         })
+        // );
+        // console.log('removed???', removedNodes);
         return tree;
     }
 

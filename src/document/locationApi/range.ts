@@ -216,6 +216,14 @@ class RangePlus extends Range {
         return this.start.isEqual(range.end);
     }
 
+    public getLineNumbers(): number[] {
+        const res = [];
+        for (let i = this.start.line; i <= this.end.line; i++) {
+            res.push(i);
+        }
+        return res;
+    }
+
     public getIntersection(range: Range): RangePlus {
         if (this.doesIntersect(range)) {
             return RangePlus.fromPositions(

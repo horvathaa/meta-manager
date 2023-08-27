@@ -46,8 +46,8 @@ class GraphController {
     }
 
     constructGraph(data: any) {
-        // const val = this.drawTimeline(data.items);
-        const val = this.makeDynamicXAxis(data.prMap, data.items);
+        const val = this.drawTimeline(data.items);
+        // const val = this.makeDynamicXAxis(data.prMap, data.items);
         return val;
     }
 
@@ -160,17 +160,21 @@ class GraphController {
             .text(function (d: any) {
                 return d.key;
             })
-            .attr('text-anchor', 'middle');
+            .attr('text-anchor', 'middle')
+            .attr('fill', 'white');
 
         var defect_g = category_g
             .selectAll('.defect')
             .data(function (d: any) {
+                console.log('first data d defect', d);
                 return d.values;
             })
             .enter()
             .append('g')
             .attr('class', function (d: any) {
-                return 'defect defect-' + d.key;
+                console.log('excuse ME!', d);
+                const c = { key: Object.keys(d)[0].slice(0, 5) };
+                return 'defect defect-' + c.key;
             })
             .attr('transform', function (d: any, i: any) {
                 var x_defect_group = x_category(i * x_defect.step()); // Use x_defect.step() instead of x_defect.rangeBand()
@@ -182,11 +186,13 @@ class GraphController {
             .selectAll('.defect-label')
             .data(function (d: any) {
                 console.log('DEFECT D', d);
-                return [d];
+                // return [d];
+                return [{ key: Object.keys(d)[0].slice(0, 5) }];
             })
             .enter()
             .append('text')
             .attr('class', function (d: any) {
+                console.log('d OVER IN DEFECT LABEL', d);
                 return 'defect-label defect-label-' + d.key;
             })
             .attr('transform', function (d: any, i: any) {
@@ -199,51 +205,13 @@ class GraphController {
             .text(function (d: any) {
                 return d.key;
             })
-            .attr('text-anchor', 'middle');
+            .style('text-anchor', 'end')
+            .attr('dx', '-.8em')
+            .attr('dy', '.15em')
+            .attr('transform', 'rotate(-65)')
+            .attr('fill', 'white');
 
-        // svg.selectAll('.category-label')
-        //     .data(formattedArray)
-        //     .enter()
-        //     .append('text')
-        //     .attr('class', function (d) {
-        //         return 'category-label category-label-' + d.key;
-        //     })
-        //     .attr('transform', function (d) {
-        //         var x_label = x_category(
-        //             (d.values.length * x_defect.step() + barPadding) / 2
-        //         );
-        //         var y_label = context.height + 30;
-        //         return 'translate(' + x_label + ',' + y_label + ')';
-        //     })
-        //     .text(function (d) {
-        //         return d.key;
-        //     })
-        //     .attr('text-anchor', 'middle');
-
-        // // Append defect labels to the SVG
-        // svg.selectAll('.defect-label')
-        //     .data(function (d) {
-        //         console.log('LABEL', d);
-        //         return d.values.map(function (value) {
-        //             return { key: d.key, value: value };
-        //         });
-        //     })
-        //     .enter()
-        //     .append('text')
-        //     .attr('class', function (d) {
-        //         return 'defect-label defect-label-' + d.key;
-        //     })
-        //     .attr('transform', function (d, i) {
-        //         var x_label = x_category(
-        //             i * x_defect.step() + (x_defect.step() + barPadding) / 2
-        //         );
-        //         var y_label = height + 10;
-        //         return 'translate(' + x_label + ',' + y_label + ')';
-        //     })
-        //     .text(function (d) {
-        //         return d.key;
-        //     })
-        //     .attr('text-anchor', 'middle');
+        const focus = svg.append('g').attr('class', 'focus');
 
         const y = d3
             .scaleLinear()
@@ -255,67 +223,38 @@ class GraphController {
             .nice()
             .range([this.height - this.marginBottom, this.marginTop]);
 
-        // var rects = defect_g
-        //     .selectAll('.rect')
-        //     .data(function (d) {
-        //         return d.values.map(function (value) {
-        //             return { key: d.key, value: value }; // Creating a new object for each value
-        //         });
-        //     })
-        //     .enter()
-        //     .append('rect')
-        //     .attr('class', 'rect')
-        //     .attr('width', x_category(x_defect.step() - barPadding)) // Use x_defect.step() instead of x_defect.rangeBand()
-        //     .attr('x', function (d, i) {
-        //         return x_category(i * x_defect.step() + barPadding); // Use x_defect.step() for positioning
-        //     })
-        //     .attr('y', function (d) {
-        //         return y(d.value);
-        //     })
-        //     .attr('height', function (d) {
-        //         return context.height - y(d.value);
-        //     });
-
-        // var rects = defect_g
-        //     .selectAll('.rect')
-        //     .data(function (d) {
-        //         return d.values.map(function (value) {
-        //             return { key: d.key, value: value };
-        //         });
-        //     })
-        //     .enter()
-        //     .append('rect')
-        //     .attr('class', 'rect')
-        //     .attr('width', x_category(x_defect.step() - barPadding))
-        //     .attr('x', function (d, i) {
-        //         return x_category(i * x_defect.step() + barPadding);
-        //     })
-        //     .attr('y', function (d) {
-        //         return y(d.value);
-        //     })
-        //     .attr('height', function (d) {
-        //         return context.height - y(d.value);
-        //     });
-
         // Append the rects to the SVG
-        svg.selectAll('.rect-group') // You can create a new group for rects if needed
-            .data(formattedArray) // Use your main data array
-            .enter()
-            .append('g')
-            .attr('class', 'rect-group')
-            .attr('transform', function (d) {
-                var x_group = x_category(parseInt(d.key) * x_defect.step()); // Adjust based on your data structure
-                return 'translate(' + x_group + ',0)';
-            })
-            .selectAll('.rect') // Select all the rects within each group
-            .data(function (d) {
-                return d.values.map(function (value) {
+        // svg.selectAll('.rect-group') // You can create a new group for rects if needed
+        defect_g
+            .selectAll('.rect')
+            // .data(formattedArray) // Use your main data array
+            .data(function (d: any) {
+                console.log('d here', d);
+                return Object.keys(d).map(function (value) {
                     console.log('d', d);
-                    return { key: d.key, value: value };
+                    return { key: value, value: d[value] };
                 });
             })
-            .enter()
-            .append('rect')
+            // .enter()
+            // .append('g')
+            // .attr('class', 'rect-group')
+            // .attr('transform', function (d) {
+            //     console.log('d here', d);
+            //     var x_group = x_category(
+            //         // parseInt(d.key) *
+            //         x_defect.bandwidth()
+            //     ); // Adjust based on your data structure
+            //     return 'translate(' + x_group + ',0)';
+            // })
+            // .selectAll('.rect') // Select all the rects within each group
+            // .data(function (d) {
+            //     return d.values.map(function (value) {
+            //         console.log('d', d);
+            //         return { key: d.key, value: value };
+            //     });
+            // })
+            // .enter()
+            .join('rect')
             .attr('class', 'rect')
             .attr(
                 'width',
@@ -330,15 +269,14 @@ class GraphController {
             })
             .attr('y', function (d) {
                 console.log('d', d);
-                const val =
-                    d.value[Object.keys(d.value)[0]][0]._formattedData.y;
+                const val = d.value[0]._formattedData.y;
                 return y(val);
             })
             .attr('height', function (d) {
-                const val =
-                    d.value[Object.keys(d.value)[0]][0]._formattedData.y;
+                const val = d.value[0]._formattedData.y;
                 return context.height - y(val);
-            });
+            })
+            .attr('fill', 'steelblue');
     }
 
     drawTimeline(origData: TimelineEvent[]) {

@@ -505,6 +505,9 @@ class FirestoreController extends Disposable {
                 newNode: SerializedDataController
             ) => {
                 console.log('new hewwo', versionId, newNode);
+                if (versionId.includes('/') || versionId.includes('\\')) {
+                    versionId = versionId.replace(/[\/\\]/g, '-');
+                }
                 const docRef = doc(pastVersionsCollection, versionId);
                 console.log('SIGH', docRef);
                 await setDoc(docRef, newNode);

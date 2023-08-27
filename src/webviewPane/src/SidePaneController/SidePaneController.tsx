@@ -35,6 +35,8 @@ class SidePaneController {
             this._ref.render(
                 <ChatGptHistory copyBufferProps={initData.copyBuffer} />
             );
+        } else {
+            // this._ref.render(<QueryController />);
         }
         // this.constructGraph();
     }

@@ -4,6 +4,7 @@ import {
     languages,
     workspace,
     Position,
+    commands,
 } from 'vscode';
 import ViewLoaderProvider from './viewProvider/ViewLoaderProvider';
 import { Container } from './container';
@@ -23,7 +24,8 @@ export async function activate(context: ExtensionContext) {
     context.subscriptions.push(
         window.registerWebviewViewProvider(ViewLoaderProvider.viewType, view, {
             webviewOptions: { retainContextWhenHidden: true },
-        })
+        }),
+        commands.registerCommand('extension.openView', () => {})
     );
 
     const container = await Container.create(context);
@@ -33,7 +35,7 @@ export async function activate(context: ExtensionContext) {
             container.setWebviewController(view.view.webview);
             container.webviewController?.onDidReceiveMessage((e) => {
                 const { command, data } = e;
-                console.log('data!!!!!', data);
+                // console.log('data!!!!!', data);
                 if (command === 'openView') {
                     container.sidePaneWebviewController = new ViewLoader(
                         context.extensionUri,

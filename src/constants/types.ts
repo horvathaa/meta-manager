@@ -331,9 +331,11 @@ export interface ChangeBuffer {
     }[];
     eventData?: {
         [Event.COMMENT]?: {
-            newComments?: CodeComment[];
-            removedComments?: CodeComment[];
-            changedComments?: CodeComment[];
+            commentedOut?: boolean;
+            uncommented?: boolean;
+            // newComments?: CodeComment[];
+            // removedComments?: CodeComment[];
+            // changedComments?: CodeComment[];
         };
         [Event.COPY]?: {
             copyContent: string;
@@ -379,12 +381,15 @@ export interface WebviewData extends SerializedNodeDataController {
     firstInstance: number | TimelineEvent;
     parent: SerializedNodeDataController | undefined;
     children: (SerializedNodeDataController | undefined)[] | undefined;
+    displayName: string;
     events: (
         | {
               [Event.COMMENT]?: {
-                  newComments?: CodeComment[];
-                  removedComments?: CodeComment[];
-                  changedComments?: CodeComment[];
+                  commentedOut?: boolean;
+                  uncommented?: boolean;
+                  //   newComments?: CodeComment[];
+                  //   removedComments?: CodeComment[];
+                  //   changedComments?: CodeComment[];
               };
               [Event.COPY]?: {
                   copyContent: string;

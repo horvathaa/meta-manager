@@ -61,7 +61,7 @@ class TimelineEvent extends Disposable {
         switch (this._dataSourceType) {
             case DataSourceType.GIT: {
                 const data = this.originalData as GitType;
-                console.log('data!', data);
+                // console.log('data!', data);
                 return {
                     x: new Date(data.date).getTime(),
                     y: data.code.split('\n').length,

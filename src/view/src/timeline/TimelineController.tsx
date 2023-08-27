@@ -30,6 +30,8 @@ export interface Payload {
     parent: SerializedNodeDataController;
     children: SerializedNodeDataController[];
     events: { [k in Event]: any }[];
+    displayName: string;
+    prMap: { [k: string]: any };
 }
 class TimelineController {
     private readonly _ref: Root;
@@ -73,6 +75,7 @@ class TimelineController {
     }
 
     renderTimelineEventMetadata(k: TimelineEvent) {
+        console.log('k!', k);
         switch (k._dataSourceType) {
             case 'git': {
                 return this._gitInformationController.render(k);
@@ -89,6 +92,7 @@ class TimelineController {
     renderFirstInstance() {
         if (this._node) {
             const { firstInstance } = this._node;
+            console.log('this', this);
             return this.renderTimelineEventMetadata(firstInstance);
         }
         return null;
@@ -103,6 +107,10 @@ class TimelineController {
                 node: this._node,
             },
         });
+    }
+
+    renderEvents() {
+        return <div></div>;
     }
 
     renderVersion(k: TimelineEvent) {
@@ -128,7 +136,11 @@ class TimelineController {
             return (
                 <div className={styles['m2']}>
                     <div>
-                        <h2>Where did this code come from?</h2>
+                        <h3>What has happened to this code?</h3>
+                        {this.renderEvents()}
+                    </div>
+                    <div>
+                        <h3>Where did this code come from?</h3>
                         {this.renderFirstInstance()}
                     </div>
                     <div>
@@ -150,7 +162,7 @@ class TimelineController {
         console.log('k', k);
         this._headerRef.render(
             <div className={styles['center']}>
-                <h1>{this._node?.node.id.split(':')[0]}</h1>
+                <h1>{this._node?.displayName}</h1>
             </div>
         );
         this._ref.render(

@@ -83,6 +83,13 @@ export class MetaInformationExtractor {
         );
     }
 
+    getCommentedLines(): number[] {
+        return this.foundComments.map((c) => {
+            this.debug && console.log('c', c);
+            return c.location.start.line;
+        });
+    }
+
     // get document(): TextDocument {
     //     return this._document;
     // }
@@ -124,6 +131,7 @@ export class MetaInformationExtractor {
         oldVals: MetaInformation[],
         line: CodeLine
     ): META_STATE {
+        // const knownComments = oldVals.
         const oldVal = oldVals.find((v) => v.location.start.line === line.line);
         if (!oldVal) {
             return META_STATE.NEW;
