@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 import TimelineController, { Payload } from './TimelineController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
 import { SerializedChangeBuffer, Event, DataSourceType } from '../types/types';
-
+import { META_MANAGER_COLOR } from '../styles/globals';
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
 //     ['#4e79a7', '#e15759']
@@ -38,7 +38,7 @@ function lightenDarkenColor(col: string, amt: number) {
 
 const source = d3.scaleOrdinal(
     ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code'],
-    ['#4e79a7', '#8dc149', '#f28e2b', '#76b7b2', '#59a14f']
+    ['#4e79a7', META_MANAGER_COLOR, '#f28e2b', '#76b7b2', '#59a14f']
 );
 
 class GraphController {
@@ -74,7 +74,9 @@ class GraphController {
     }
 
     constructGraph(data: any) {
-        const val = this.drawTimeline(data.items);
+        const val = data.items // stupid bad
+            ? this.drawTimeline(data.items)
+            : this.drawTimeline(data);
         // const val = this.makeDynamicXAxis(data.prMap, data.items);
         return val;
     }
@@ -363,6 +365,7 @@ class GraphController {
         focus
             .append('g')
             .attr('class', 'bars')
+            // .on('click', () => this.timelineController.renderMetadata())
             .selectAll('rect')
             .data(data)
             .join('rect')
@@ -388,6 +391,7 @@ class GraphController {
             })
             .on('click', (e: any, k: any) => {
                 console.log('CLICKED', e, k);
+                this.timelineController._queue.push(k);
                 this.timelineController.renderMetadata(k);
             })
             .enter();

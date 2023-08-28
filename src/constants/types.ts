@@ -410,6 +410,7 @@ export interface WebviewData extends SerializedNodeDataController {
           }
         | undefined
     )[];
+    eventsMap: { [k: string]: any };
     recentChanges: TimelineEvent[];
     // prMap: Map<number, string[]>;
     prMap: { [k: number]: { [commit: string]: TimelineEvent[] } };

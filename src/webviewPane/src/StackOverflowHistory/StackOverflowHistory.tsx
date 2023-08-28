@@ -61,100 +61,121 @@ export function StackOverflowHistory({
     const formatStackOverflowQuestion = (question: StackOverflowQuestion) => {
         const lastViewedStr = question.lastEditDate
             ? ` last
-        edited on ${question.lastEditDate.toLocaleString()},`
+        edited on ${new Date(question.postDate).toLocaleString()},`
             : '';
         return (
-            <>
-                <a href={soData.url} className={styles['title']}>
-                    {question.title}
-                </a>
+            <div>
                 <div>
+                    <a href={soData.url} className={styles['title']}>
+                        {question.programmingLanguage}
+                    </a>
+
                     <div className={styles['meta']}>
-                        Posted on {question.postDate.toLocaleString()},
+                        Asked on {new Date(question.postDate).toLocaleString()},
                         {lastViewedStr} viewed {question.views} time(s),
                         received {question.votes} vote(s).
                     </div>
                 </div>
-                {question.formattedQuestionBody.map((p) => {
-                    switch (p.type) {
-                        default:
-                        case 'text': {
-                            return (
-                                <div className={styles['message']}>
-                                    {p.content}
-                                </div>
-                            );
+                <div className={styles['so-post']}>
+                    {question.formattedQuestionBody.map((p, i) => {
+                        switch (p.type) {
+                            default:
+                            case 'text': {
+                                return (
+                                    <div
+                                        key={p.content + i}
+                                        className={styles['message']}
+                                    >
+                                        {p.content}
+                                    </div>
+                                );
+                            }
+                            case 'code': {
+                                return (
+                                    <CodeBlock
+                                        key={p.content + i}
+                                        codeString={p.content}
+                                        highlightLogic={getHighlightLogic(
+                                            p.content
+                                        )}
+                                    />
+                                );
+                            }
+                            case 'link': {
+                                return (
+                                    <a
+                                        key={p.content + i}
+                                        href={p.content}
+                                        className={styles['link']}
+                                    >
+                                        {p.content}
+                                    </a>
+                                );
+                            }
                         }
-                        case 'code': {
-                            return (
-                                <CodeBlock
-                                    codeString={p.content}
-                                    highlightLogic={getHighlightLogic(
-                                        p.content
-                                    )}
-                                />
-                            );
-                        }
-                        case 'link': {
-                            return (
-                                <a href={p.content} className={styles['link']}>
-                                    {p.content}
-                                </a>
-                            );
-                        }
-                    }
-                })}
-            </>
+                    })}
+                </div>
+            </div>
         );
     };
 
     const formatStackOverflowAnswer = (answer: StackOverflowAnswer) => {
         const lastViewedStr = answer.lastEditDate
             ? ` last
-        edited on ${answer.lastEditDate.toLocaleString()},`
+        edited on ${new Date(answer.lastEditDate).toLocaleString()}`
             : '';
         const isAcceptedStr = answer.isAccepted
-            ? ', is accepted'
-            : ', is not accepted';
+            ? ', answer is accepted'
+            : ', answer is not accepted';
         return (
-            <>
+            <div>
                 <div>
                     <div className={styles['meta']}>
-                        Posted on {answer.postDate.toLocaleString()},
-                        {lastViewedStr}
-                        {isAcceptedStr} received {answer.votes} vote(s).
+                        Answered on {new Date(answer.postDate).toLocaleString()}
+                        ,{lastViewedStr}
+                        {isAcceptedStr}, and received {answer.votes} vote(s).
                     </div>
                 </div>
-                {answer.formattedAnswerBody.map((p) => {
-                    switch (p.type) {
-                        default:
-                        case 'text': {
-                            return (
-                                <div className={styles['message']}>
-                                    {p.content}
-                                </div>
-                            );
+                <div className={styles['so-post']}>
+                    {answer.formattedAnswerBody.map((p, i) => {
+                        switch (p.type) {
+                            default:
+                            case 'text': {
+                                return (
+                                    <div
+                                        key={p.content + i}
+                                        className={styles['message']}
+                                    >
+                                        {p.content}
+                                    </div>
+                                );
+                            }
+                            case 'code': {
+                                return (
+                                    <CodeBlock
+                                        key={p.content + i}
+                                        codeString={p.content}
+                                        highlightLogic={getHighlightLogic(
+                                            p.content
+                                        )}
+                                    />
+                                );
+                            }
+                            case 'link': {
+                                return (
+                                    <a
+                                        key={p.content + i}
+                                        href={p.content}
+                                        className={styles['link']}
+                                    >
+                                        {p.content}
+                                    </a>
+                                );
+                            }
                         }
-                        case 'code': {
-                            return (
-                                <CodeBlock
-                                    codeString={p.content}
-                                    highlightLogic={getHighlightLogic(
-                                        p.content
-                                    )}
-                                />
-                            );
-                        }
-                        case 'link': {
-                            return (
-                                <a href={p.content} className={styles['link']}>
-                                    {p.content}
-                                </a>
-                            );
-                        }
-                    }
-                })}
-            </>
+                    })}
+                </div>
+            </div>
         );
     };
 
@@ -185,7 +206,7 @@ export function StackOverflowHistory({
 
     return soData ? (
         <div>
-            <div className={styles['container']}>
+            <div className={`${styles['container']} ${styles['so']}`}>
                 {formatStackOverflow(
                     (soData.additionalMetadata as StackOverflowCopyBuffer)
                         .copiedMessage

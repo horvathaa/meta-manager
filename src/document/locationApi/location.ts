@@ -390,11 +390,11 @@ export default class LocationPlus extends Location {
 
     containsPartOf(otherLocation: Location) {
         return (
-            (this.uri.toString() === otherLocation.uri.toString() &&
-                this.range.contains(otherLocation.range.start)) ||
-            this.range.contains(otherLocation.range.end) ||
-            otherLocation.range.contains(this.range.start) ||
-            otherLocation.range.contains(this.range.end)
+            this.uri.toString() === otherLocation.uri.toString() &&
+            (this.range.contains(otherLocation.range.start) ||
+                this.range.contains(otherLocation.range.end) ||
+                otherLocation.range.contains(this.range.start) ||
+                otherLocation.range.contains(this.range.end))
         );
     }
 }

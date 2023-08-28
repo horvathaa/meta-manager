@@ -31,6 +31,7 @@ import {
     StackOverflowQuestion,
 } from '../types/types';
 import { VS_CODE_API } from '../VSCodeApi';
+import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 
 const prettyPrintType: { [k in WEB_INFO_SOURCE]: string } = {
     [WEB_INFO_SOURCE.CHAT_GPT]: 'Chat GPT',
@@ -51,7 +52,7 @@ class MetaInformationController {
 
                 return (
                     <div className={styles['git-information']}>
-                        <div>
+                        <div style={{ alignItems: 'center' }}>
                             Code copied from{' '}
                             <a className={styles['m4px']} href={copyBuffer.url}>
                                 {prettyPrintType[copyBuffer.type]}
@@ -67,9 +68,12 @@ class MetaInformationController {
                 if (!vscodeMetadata) {
                     return (
                         <div className={styles['git-information']}>
-                            <div>
+                            <div
+                                className={styles['flex']}
+                                style={{ alignItems: 'center' }}
+                            >
                                 Code originally copied from{' '}
-                                <div>
+                                <div className={styles['m4px']}>
                                     {data.eventData[Event.PASTE].nodeId?.split(
                                         ':'
                                     )[0] || 'VS Code'}
@@ -83,7 +87,10 @@ class MetaInformationController {
                 const { location } = node;
                 return (
                     <div className={styles['git-information']}>
-                        <div>
+                        <div
+                            className={styles['flex']}
+                            style={{ alignItems: 'center' }}
+                        >
                             Code originally copied from{' '}
                             <a
                                 className={styles['m4px']}
@@ -169,9 +176,10 @@ class MetaInformationController {
                 return (
                     <div>
                         <div>
-                            Copied from Stack Overflow question {question.title}{' '}
-                            ({question.views} views, {question.votes} votes),
-                            originally posted on {question.postDate.toString()}.
+                            Copied from Stack Overflow question "
+                            {question.programmingLanguage}" ({question.views}{' '}
+                            views, {question.votes} votes), originally posted on{' '}
+                            {new Date(question.postDate).toLocaleString()}.
                             {this.seeMore(copyBuffer, type)}
                         </div>
                     </div>
@@ -197,12 +205,12 @@ class MetaInformationController {
     seeMore(c: CopyBuffer, type: WEB_INFO_SOURCE) {
         return (
             <div className={`${styles['flex-row']} ${styles['center']}`}>
-                <button
+                <VSCodeButton
                     className={styles['flat-button']}
                     onClick={() => this.timelineController.openView(c, type)}
                 >
                     See More
-                </button>
+                </VSCodeButton>
             </div>
         );
     }
@@ -214,26 +222,48 @@ class MetaInformationController {
                 {searchData && (
                     <div>
                         <div>
-                            User searched {searchData.query} and looked at these
-                            pages:{' '}
-                            {searchData.selectedPages.map((s, i) =>
-                                i === searchData.selectedPages.length - 1 ? (
-                                    <>
-                                        and{' '}
-                                        <a className={styles['m4px']} href={s}>
-                                            {s}
-                                        </a>
-                                        .
-                                    </>
-                                ) : (
+                            User searched "{searchData.query}" and looked at
+                            these page(s):{' '}
+                            {searchData.selectedPages.map((s, i) => {
+                                if (
+                                    i === searchData.selectedPages.length - 1 &&
+                                    searchData.selectedPages.length > 1
+                                ) {
+                                    return (
+                                        <>
+                                            and{' '}
+                                            <a
+                                                className={styles['m4px']}
+                                                href={s}
+                                            >
+                                                {s}
+                                            </a>
+                                            .
+                                        </>
+                                    );
+                                } else if (
+                                    i === 0 &&
+                                    searchData.selectedPages.length === 1
+                                ) {
+                                    return (
+                                        <>
+                                            <a
+                                                className={styles['m4px']}
+                                                href={s}
+                                            >
+                                                {s}
+                                            </a>
+                                        </>
+                                    );
+                                } else {
                                     <>
                                         <a className={styles['m4px']} href={s}>
                                             {s}
                                         </a>
                                         ,
-                                    </>
-                                )
-                            )}
+                                    </>;
+                                }
+                            })}
                         </div>
                     </div>
                 )}

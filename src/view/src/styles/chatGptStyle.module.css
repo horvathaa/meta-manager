@@ -16,6 +16,10 @@
     margin-bottom: 1rem;
 }
 
+.container.so {
+    padding: 1.5rem;
+}
+
 .message {
     padding: 0.5rem;
     background-color: var(--vscode-toolbar-activeBackground);
@@ -47,10 +51,30 @@
     font-size: 1.2rem;
     font-weight: 600;
     margin-bottom: 0.5rem;
+    margin: auto;
 }
 
 .meta {
     font-size: 0.8rem;
     font-weight: 600;
     margin-bottom: 0.5rem;
+}
+
+.so-post {
+    display: flex;
+    flex-direction: column;
+    /* justify-content: center;
+    align-items: center; */
+    padding: 0.5rem;
+    background-color: var(--vscode-toolbar-activeBackground);
+    border-radius: 4px;
+    margin: 0.5rem 0;
+}
+
+.button-group {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-left: auto;
+    padding: 1rem;
 }

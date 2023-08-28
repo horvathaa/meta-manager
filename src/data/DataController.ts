@@ -453,7 +453,24 @@ export class DataController {
             this.isContained(copyEvent.location) &&
             !this.parentIsContained(copyEvent.location)
         ) {
-            console.log('IN HERE!!!!!!!', this);
+            this._changeBuffer.push({
+                ...this.getBaseChangeBuffer(),
+                typeOfChange: TypeOfChange.CONTENT_ONLY,
+                changeContent: this.readableNode.location.content,
+                eventData: {
+                    [Event.COPY]: {
+                        copyContent: copyEvent.text,
+                        nodeId: this.readableNode.id,
+                    },
+                },
+            });
+
+            this.container.updateClipboardMetadata({
+                code: copyEvent.text,
+                id: this.readableNode.id,
+                node: this.readableNode.serialize(),
+            });
+        } else if (this.isOwnerOfRange(copyEvent.location)) {
             this._changeBuffer.push({
                 ...this.getBaseChangeBuffer(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
@@ -482,6 +499,11 @@ export class DataController {
             pasteEvent,
             this.container.copyBuffer
         );
+        const doc =
+            window.activeTextEditor?.document ||
+            window.visibleTextEditors[0].document;
+        const location = LocationPlus.fromLocation(pasteEvent.location);
+        this.readableNode.location.updateContent(doc);
         let eventObj: ChangeBuffer | undefined;
         if (this.container.copyBuffer) {
             const { repository, ...rest } = this.container.gitController
@@ -495,9 +517,7 @@ export class DataController {
             this._webMetaData.push(details);
             eventObj = {
                 ...this.getBaseChangeBuffer(),
-                location: LocationPlus.fromLocation(
-                    pasteEvent.location
-                ).serialize(),
+                location: this.readableNode.location.serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
                 changeContent: pasteEvent.text,
                 eventData: {
@@ -513,11 +533,13 @@ export class DataController {
         } else if (this.container._copyVscodeMetadata) {
             // it's kinda goofy that this is separate from the copybuffer -- would be better if they were the same
             const { vscodeMetadata } = pasteEvent;
+            // console.log(
+            //     'location...',
+            //     LocationPlus.fromLocation(pasteEvent.location).updateContent().serialize()
+            // );
             eventObj = {
                 ...this.getBaseChangeBuffer(),
-                location: LocationPlus.fromLocation(
-                    pasteEvent.location
-                ).serialize(),
+                location: this.readableNode.location.serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
                 changeContent: pasteEvent.text,
                 eventData: {
@@ -533,9 +555,7 @@ export class DataController {
             const { vscodeMetadata } = pasteEvent;
             eventObj = {
                 ...this.getBaseChangeBuffer(),
-                location: LocationPlus.fromLocation(
-                    pasteEvent.location
-                ).serialize(),
+                location: this.readableNode.location.serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
                 changeContent: pasteEvent.text,
                 eventData: {
@@ -700,6 +720,23 @@ export class DataController {
         }
     }
 
+    joinEvents(es: TimelineEvent[]) {
+        const masterEventObject: { [k in Event]?: any } = {};
+        es.forEach((e) => {
+            const source = e.originalData as SerializedChangeBuffer;
+            const key = source.eventData && Object.keys(source.eventData);
+            key?.forEach((k) => {
+                if (masterEventObject[k as Event]) {
+                    masterEventObject[k as Event].push(e);
+                } else {
+                    masterEventObject[k as Event] = [e];
+                }
+            });
+            // const val = e[key];
+        });
+        return masterEventObject;
+    }
+
     formatWebviewData(): WebviewData {
         const allData = this.serialize();
         const pastVersions = this._pastVersions.map(
@@ -714,6 +751,7 @@ export class DataController {
             const bDate = b._formattedData.x;
             return aDate < bDate ? -1 : aDate > bDate ? 1 : 0;
         });
+        const events = this.joinEvents(meta);
         return {
             ...allData,
             pastVersions: this._pastVersions,
@@ -730,6 +768,7 @@ export class DataController {
                     (v) => (v.originalData as SerializedChangeBuffer).eventData
                 )
                 .map((v) => (v.originalData as ChangeBuffer).eventData),
+            eventsMap: events,
             recentChanges: changeBuffer,
             userMap: this.container.loggedInUser,
             prMap: Object.fromEntries(this.joinOnCommits(items)),

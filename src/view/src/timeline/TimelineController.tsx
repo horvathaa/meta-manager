@@ -4,18 +4,28 @@ import * as d3 from 'd3';
 import GraphController from './GraphController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
 import CodeBlock from '../components/CodeBlock';
+// import {
+//     SerializedChangeBuffer,
+//     SerializedReadableNode,
+//     Event,
+//     AdditionalMetadata,
+//     WEB_INFO_SOURCE,
+// } from '../../../constants/types';
 import {
+    CopyBuffer,
     SerializedChangeBuffer,
+    SerializedNodeDataController,
     SerializedReadableNode,
     Event,
-    AdditionalMetadata,
     WEB_INFO_SOURCE,
-} from '../../../constants/types';
-import { CopyBuffer, SerializedNodeDataController } from '../types/types';
+} from '../types/types';
 import GitInformationController from './GitInformationController';
 import { VS_CODE_API } from '../VSCodeApi';
 import MetaInformationController from './MetaInformationController';
 import styles from '../styles/timeline.module.css';
+import { VSCodeButton, VSCodeCheckbox } from '@vscode/webview-ui-toolkit/react';
+import * as Diff from 'diff';
+import { DiffBlock } from '../components/Diff';
 
 export interface Payload {
     pastVersions: SerializedChangeBuffer[];
@@ -32,7 +42,66 @@ export interface Payload {
     events: { [k in Event]: any }[];
     displayName: string;
     prMap: { [k: string]: any };
+    eventsMap: { [k: string]: TimelineEvent[] };
 }
+
+const CodeBox: React.FC<{ oldCode: string; newCode: string }> = ({
+    oldCode,
+    newCode,
+}) => {
+    const [showDiff, setShowDiff] = React.useState(true);
+
+    return (
+        <div>
+            <div className={styles['flex']}>
+                <VSCodeCheckbox
+                    checked={showDiff}
+                    onChange={() => setShowDiff(!showDiff)}
+                >
+                    Show Diff?
+                </VSCodeCheckbox>
+            </div>
+            {showDiff ? (
+                <DiffBlock str1={oldCode} str2={newCode} />
+            ) : (
+                <CodeBlock codeString={oldCode} />
+            )}
+        </div>
+    );
+};
+
+const RenderFilterButtons: React.FC<{
+    timelineArr: TimelineEvent[];
+    context: TimelineController;
+}> = ({ timelineArr, context }) => {
+    const [showFiltered, setShowFiltered] = React.useState(false);
+    return (
+        <div className={styles['flex']}>
+            <VSCodeButton
+                className={styles['m2']}
+                onClick={() => {
+                    setShowFiltered(true);
+                    context._graphController.constructGraph(timelineArr);
+                }}
+            >
+                Show Only These Instances?
+            </VSCodeButton>
+            {showFiltered && (
+                <VSCodeButton
+                    appearance="secondary"
+                    onClick={() => {
+                        setShowFiltered(false);
+                        context._graphController.constructGraph(context._node);
+                    }}
+                    className={styles['m2']}
+                >
+                    Reset?
+                </VSCodeButton>
+            )}
+        </div>
+    );
+};
+
 class TimelineController {
     private readonly _ref: Root;
     private readonly _headerRef: Root;
@@ -40,6 +109,8 @@ class TimelineController {
     _gitInformationController: GitInformationController;
     _metaInformationController: MetaInformationController;
     _node: Payload | undefined;
+    _lookingAtFiltered: boolean = false;
+    _queue: (TimelineEvent | undefined)[] = [];
     constructor() {
         console.log('constructing');
         const header =
@@ -93,7 +164,11 @@ class TimelineController {
         if (this._node) {
             const { firstInstance } = this._node;
             console.log('this', this);
-            return this.renderTimelineEventMetadata(firstInstance);
+            if (firstInstance) {
+                return this.renderTimelineEventMetadata(firstInstance);
+            } else {
+                return null;
+            }
         }
         return null;
     }
@@ -109,11 +184,132 @@ class TimelineController {
         });
     }
 
+    renderSmallEventWeb(e: CopyBuffer[], timelineArr: TimelineEvent[]) {
+        console.log('TIMELINE', timelineArr);
+
+        return (
+            <div>
+                <h4>Some Code Came from Online</h4>
+                {e
+                    .sort(
+                        (a, b) =>
+                            new Date(b.timeCopied).getTime() -
+                            new Date(a.timeCopied).getTime()
+                    )
+                    .map((event) => {
+                        return (
+                            <div
+                                key={event.code + event.timeCopied}
+                                className={styles['flex']}
+                            >
+                                <div>
+                                    Copied from{' '}
+                                    <a href={event.url}>{event.url}</a> on{' '}
+                                    {new Date(
+                                        event.timeCopied
+                                    ).toLocaleString()}
+                                    <CodeBlock codeString={event.code} />
+                                </div>
+                            </div>
+                        );
+                    })}
+                {/* {this.renderFilterButtons(timelineArr)}
+                 */}
+                <RenderFilterButtons timelineArr={timelineArr} context={this} />
+            </div>
+        );
+    }
+
+    renderPasteEvent(
+        originalData: SerializedChangeBuffer[],
+        timelineArr: TimelineEvent[]
+    ) {
+        if (!this._node) return null;
+        return (
+            <div>
+                <h4>Some Code Came from Other Parts of this Code Base</h4>
+                {originalData.map((event) => {
+                    const eventData = event.eventData![Event.PASTE]!;
+                    return (
+                        <div
+                            key={eventData.pasteContent}
+                            className={styles['flex']}
+                        >
+                            <div>
+                                Copied on{' '}
+                                {new Date(event.time).toLocaleString()}
+                                <CodeBox
+                                    oldCode={eventData.pasteContent}
+                                    newCode={this._node!.node.location.content}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+                <RenderFilterButtons timelineArr={timelineArr} context={this} />
+            </div>
+        );
+    }
+
     renderEvents() {
-        return <div></div>;
+        if (!this._node) {
+            return null;
+        }
+        return (
+            <div>
+                {Object.keys(this._node.eventsMap).map((k) => {
+                    const e = this._node!.eventsMap[k];
+                    const originalData = e.map(
+                        (e) => e.originalData
+                    ) as SerializedChangeBuffer[];
+
+                    switch (k) {
+                        case Event.WEB: {
+                            const formatted = originalData.map(
+                                (ee) => ee.eventData![k]!.copyBuffer
+                            );
+                            return this.renderSmallEventWeb(formatted, e);
+                        }
+
+                        case Event.PASTE: {
+                            return this.renderPasteEvent(originalData, e);
+                        }
+                    }
+                    // return (
+                    //     <div className={styles['m2']}>
+                    //         <div>
+                    //             <h2>What happened?</h2>
+                    //             {/* {this.renderTimelineEventMetadata(e)} */}
+                    //         </div>
+                    //         <div>
+                    //             <h3>What did it used to look like?</h3>
+                    //             <CodeBlock
+                    //                 // codeString={e._formattedData.code || ''}
+                    //                 codeString=""
+                    //             />
+                    //         </div>
+                    //     </div>
+                    // );
+                })}
+            </div>
+        );
     }
 
     renderVersion(k: TimelineEvent) {
+        console.log(
+            'ver',
+            k._formattedData.code,
+            'curr',
+            this._node!.items![this._node!.items!.length - 1]._formattedData
+                .code,
+            'diff',
+            Diff.diffLines(
+                k._formattedData.code || '',
+                this._node!.items![this._node!.items!.length - 1]._formattedData
+                    .code
+            )
+        );
+
         return (
             <div className={styles['m2']}>
                 <div>
@@ -122,7 +318,15 @@ class TimelineController {
                 </div>
                 <div>
                     <h3>What did it used to look like?</h3>
-                    <CodeBlock codeString={k._formattedData.code || ''} />
+                    {/* <CodeBlock codeString={k._formattedData.code || ''} />
+                     */}
+                    <CodeBox
+                        oldCode={k._formattedData.code || ''}
+                        newCode={
+                            this._node!.items![this._node!.items!.length - 1]
+                                ._formattedData.code
+                        }
+                    />
                 </div>
             </div>
         );
@@ -135,22 +339,35 @@ class TimelineController {
             const { content } = node.location;
             return (
                 <div className={styles['m2']}>
-                    <div>
-                        <h3>What has happened to this code?</h3>
-                        {this.renderEvents()}
-                    </div>
+                    {this._node.events.length ? (
+                        <div>
+                            <h3>What has happened to this code?</h3>
+                            {this.renderEvents()}
+                        </div>
+                    ) : null}
                     <div>
                         <h3>Where did this code come from?</h3>
                         {this.renderFirstInstance()}
                     </div>
                     <div>
-                        <h3>What did it used to look like?</h3>
-                        <CodeBlock
-                            codeString={
-                                this._node.firstInstance._formattedData.code ||
-                                ''
-                            }
-                        />
+                        {this._node.firstInstance ? (
+                            <>
+                                <h3>What did it used to look like?</h3>
+                                <CodeBox
+                                    oldCode={
+                                        this._node.firstInstance._formattedData
+                                            .code || ''
+                                    }
+                                    newCode={content}
+                                />
+                                {/* <CodeBlock
+                                    codeString={
+                                        this._node.firstInstance._formattedData
+                                            .code || ''
+                                    }
+                                /> */}
+                            </>
+                        ) : null}
                     </div>
                 </div>
             );
@@ -161,8 +378,29 @@ class TimelineController {
     renderMetadata(k?: TimelineEvent) {
         console.log('k', k);
         this._headerRef.render(
-            <div className={styles['center']}>
-                <h1>{this._node?.displayName}</h1>
+            <div className={styles['flex']}>
+                <div className={styles['center']} style={{ margin: 'auto' }}>
+                    <h1>{this._node?.displayName}</h1>
+                </div>
+                <div style={{ marginLeft: 'auto' }}>
+                    <VSCodeButton
+                        className={styles['m2']}
+                        onClick={() => {
+                            this._queue.push(undefined);
+                            this._ref.render(this.renderNode());
+                        }}
+                    >
+                        Home
+                    </VSCodeButton>
+                    <VSCodeButton
+                        className={styles['m2']}
+                        appearance="secondary"
+                        disabled={!this._queue.length}
+                        onClick={() => this.renderMetadata(this._queue.pop())}
+                    >
+                        Back
+                    </VSCodeButton>
+                </div>
             </div>
         );
         this._ref.render(
