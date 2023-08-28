@@ -113,7 +113,7 @@ export interface CopyBuffer {
     searchData: null | SearchData;
 }
 
-interface StackOverflowPost {
+export interface StackOverflowPost {
     body: string;
     votes: number;
     postDate: Date;
@@ -128,6 +128,7 @@ export interface StackOverflowQuestion extends StackOverflowPost {
     // askDate: Date;
     lastEditDate?: Date;
     views: number;
+    formattedQuestionBody: any[];
     programmingLanguage: string;
     id: string;
     copied?: boolean;
@@ -135,11 +136,18 @@ export interface StackOverflowQuestion extends StackOverflowPost {
     warning?: any[];
 }
 
+export function isStackOverflowQuestion(
+    post: StackOverflowPost
+): post is StackOverflowQuestion {
+    return (post as StackOverflowQuestion).title !== undefined;
+}
+
 export interface StackOverflowAnswer extends StackOverflowPost {
     // body: string;
     // votes: number;
     isAccepted: boolean;
     // answerDate: Date;
+    formattedAnswerBody: any[];
     lastEditDate?: Date;
     url: string;
     id: string;

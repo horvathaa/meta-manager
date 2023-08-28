@@ -5,8 +5,11 @@ interface CssExports {
   'code': string;
   'container': string;
   'github': string;
+  'link': string;
   'message': string;
+  'meta': string;
   'stackOverflow': string;
+  'title': string;
   'vsCode': string;
 }
 export const cssExports: CssExports;

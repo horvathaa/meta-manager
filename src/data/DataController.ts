@@ -327,7 +327,7 @@ export class DataController {
         );
         const { addedBlock, removedBlock } = this.parseDiff(diff);
         const oldComments = this._metaInformationExtractor.foundComments;
-        console.log('newContent', newContent, this);
+        // console.log('newContent', newContent, this);
         this._metaInformationExtractor.updateMetaInformation(newContent);
 
         this._metaInformationExtractor.foundComments.forEach((c) => {
@@ -342,14 +342,14 @@ export class DataController {
             this.readableNode.location.range as RangePlus
         ).getLineNumbers();
         const mainRangeLines = rangeLines.slice(1, rangeLines.length - 1);
-        console.log(
-            'commented',
-            this._metaInformationExtractor.foundComments,
-            'lines',
-            commentedLines,
-            'range',
-            rangeLines
-        );
+        // console.log(
+        //     'commented',
+        //     this._metaInformationExtractor.foundComments,
+        //     'lines',
+        //     commentedLines,
+        //     'range',
+        //     rangeLines
+        // );
         let commentedOut = undefined;
         if (
             rangeLines.every((l) =>

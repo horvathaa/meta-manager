@@ -48,7 +48,7 @@ export function ChatGptHistory({
             if (lineNumbers.includes(lineNumber)) {
                 style.backgroundColor = '#519aba80';
             }
-            console.log('is this being called', lineNumber, lineNumbers);
+            // console.log('is this being called', lineNumber, lineNumbers);
             return { style };
         };
     };

@@ -6,6 +6,7 @@ import {
 } from '../../../view/src/types/types';
 import ChatGptHistory from '../ChatGptHistory/ChatGptHistory';
 import * as React from 'react';
+import StackOverflowHistory from '../StackOverflowHistory/StackOverflowHistory';
 
 interface InitData {
     type: WEB_INFO_SOURCE;
@@ -32,9 +33,24 @@ class SidePaneController {
         // console.log('graph', this._graphController);
         this.initListeners();
         if (initData) {
-            this._ref.render(
-                <ChatGptHistory copyBufferProps={initData.copyBuffer} />
-            );
+            console.log('initData!', initData);
+            switch (initData.type) {
+                case WEB_INFO_SOURCE.STACKOVERFLOW: {
+                    console.log('in here!@@!@@@');
+                    this._ref.render(
+                        <StackOverflowHistory
+                            copyBufferProps={initData.copyBuffer}
+                        />
+                    );
+                    return;
+                }
+                case WEB_INFO_SOURCE.CHAT_GPT: {
+                    this._ref.render(
+                        <ChatGptHistory copyBufferProps={initData.copyBuffer} />
+                    );
+                    return;
+                }
+            }
         } else {
             // this._ref.render(<QueryController />);
         }

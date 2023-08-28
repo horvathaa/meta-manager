@@ -6,6 +6,7 @@ import {
     TextDocumentContentChangeEvent,
 } from 'vscode';
 import { SerializedRangePlus } from '../../constants/types';
+import { getUpdatedRanges } from 'vscode-position-tracking';
 
 enum RangeIntersectionType {
     STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME,
@@ -292,77 +293,83 @@ class RangePlus extends Range {
 
     public update(
         contentChange: TextDocumentContentChangeEvent,
+        contentChanges: readonly TextDocumentContentChangeEvent[],
         debug = false
     ): RangePlus {
-        const contentChangeRange =
-            RangePlus.fromTextDocumentContentChangeEvent(contentChange);
-        const changeContext = getContentChangeContext(
-            contentChange,
-            contentChangeRange,
-            this
+        const updatedRange = RangePlus.fromRange(
+            // @ts-ignore
+            getUpdatedRanges([this], contentChanges)[0]
         );
-        // debug &&
-        //     console.log(
-        //         'changeContext',
-        //         changeContext,
-        //         'contentChangeRange',
+        return updatedRange;
+        // const contentChangeRange =
+        //     RangePlus.fromTextDocumentContentChangeEvent(contentChange);
+        // const changeContext = getContentChangeContext(
+        //     contentChange,
+        //     contentChangeRange,
+        //     this
+        // );
+        // // debug &&
+        // //     console.log(
+        // //         'changeContext',
+        // //         changeContext,
+        // //         'contentChangeRange',
+        // //         contentChangeRange,
+        // //         'our range',
+        // //         this
+        // //     );
+        // if (
+        //     changeContext.rangeIntersectionType ===
+        //         RangeIntersectionType.UNKNOWN ||
+        //     changeContext.rangeIntersectionType ===
+        //         RangeIntersectionType.STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END ||
+        //     changeContext.rangeIntersectionType ===
+        //         RangeIntersectionType.STARTS_ON_OUR_END_ENDS_AFTER_OUR_END
+        // ) {
+        //     return this;
+        // }
+        // if (changeContext.isPaste) {
+        //     const res = this.updateWithDeletion(
+        //         contentChange,
         //         contentChangeRange,
-        //         'our range',
-        //         this
+        //         changeContext
         //     );
-        if (
-            changeContext.rangeIntersectionType ===
-                RangeIntersectionType.UNKNOWN ||
-            changeContext.rangeIntersectionType ===
-                RangeIntersectionType.STARTS_AFTER_OUR_END_ENDS_AFTER_OUR_END ||
-            changeContext.rangeIntersectionType ===
-                RangeIntersectionType.STARTS_ON_OUR_END_ENDS_AFTER_OUR_END
-        ) {
-            return this;
-        }
-        if (changeContext.isPaste) {
-            const res = this.updateWithDeletion(
-                contentChange,
-                contentChangeRange,
-                changeContext
-            );
-            const copy = {
-                ...contentChange,
-                range: new Range(
-                    contentChangeRange.start,
-                    contentChangeRange.start
-                ),
-            };
-            const newRange = RangePlus.fromTextDocumentContentChangeEvent(copy);
-            const newChangeContext = getContentChangeContext(
-                copy,
-                newRange,
-                res
-            );
+        //     const copy = {
+        //         ...contentChange,
+        //         range: new Range(
+        //             contentChangeRange.start,
+        //             contentChangeRange.start
+        //         ),
+        //     };
+        //     const newRange = RangePlus.fromTextDocumentContentChangeEvent(copy);
+        //     const newChangeContext = getContentChangeContext(
+        //         copy,
+        //         newRange,
+        //         res
+        //     );
 
-            const postAddition = res.updateWithAddition(
-                copy,
-                newRange,
-                newChangeContext
-            );
-            return postAddition;
-        }
-        if (!changeContext.isAddition) {
-            const res = this.updateWithDeletion(
-                contentChange,
-                contentChangeRange,
-                changeContext
-            );
-            return res;
-        }
+        //     const postAddition = res.updateWithAddition(
+        //         copy,
+        //         newRange,
+        //         newChangeContext
+        //     );
+        //     return postAddition;
+        // }
+        // if (!changeContext.isAddition) {
+        //     const res = this.updateWithDeletion(
+        //         contentChange,
+        //         contentChangeRange,
+        //         changeContext
+        //     );
+        //     return res;
+        // }
 
-        const res = this.updateWithAddition(
-            contentChange,
-            contentChangeRange,
-            changeContext
-        );
+        // const res = this.updateWithAddition(
+        //     contentChange,
+        //     contentChangeRange,
+        //     changeContext
+        // );
 
-        return res;
+        // return res;
     }
 
     private singleLineAndSingleLineChangeDeletion(

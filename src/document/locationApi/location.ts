@@ -254,9 +254,13 @@ export default class LocationPlus extends Location {
                     oldContent,
                 };
                 // console.log('change', change);
-                const updated = this._range.update(change);
+                const updated = this._range.update(change, contentChanges);
+                console.log('updated!', updated.copy());
                 if (this._tempInsertedRange) {
-                    const updated = this._tempInsertedRange.update(change);
+                    const updated = this._tempInsertedRange.update(
+                        change,
+                        contentChanges
+                    );
                     this._tempInsertedRange = this.cleanRange(
                         updated,
                         document

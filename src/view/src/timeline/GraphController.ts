@@ -8,6 +8,34 @@ import { SerializedChangeBuffer, Event, DataSourceType } from '../types/types';
 //     ['#4e79a7', '#e15759']
 // );
 
+function lightenDarkenColor(col: string, amt: number) {
+    var usePound = false;
+
+    if (col[0] == '#') {
+        col = col.slice(1);
+        usePound = true;
+    }
+
+    var num = parseInt(col, 16);
+
+    var r = (num >> 16) + amt;
+
+    if (r > 255) r = 255;
+    else if (r < 0) r = 0;
+
+    var b = ((num >> 8) & 0x00ff) + amt;
+
+    if (b > 255) b = 255;
+    else if (b < 0) b = 0;
+
+    var g = (num & 0x0000ff) + amt;
+
+    if (g > 255) g = 255;
+    else if (g < 0) g = 0;
+
+    return (usePound ? '#' : '') + (g | (b << 8) | (r << 16)).toString(16);
+}
+
 const source = d3.scaleOrdinal(
     ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code'],
     ['#4e79a7', '#8dc149', '#f28e2b', '#76b7b2', '#59a14f']
@@ -292,33 +320,6 @@ class GraphController {
                 };
             });
         // console.log('data', data);
-        const zoomed = (event: any) => {
-            x.range(
-                [this.marginLeft, this.width - this.marginRight].map((d) => {
-                    return event.transform.applyX(d);
-                })
-            );
-
-            focus
-                .selectAll('.bars rect')
-                // @ts-ignore
-                .attr('x', (d) => x(d.date))
-                .attr('width', x.bandwidth());
-            focus.selectAll('.x-axis').call(xAxis);
-        };
-
-        const zoom = d3
-            .zoom()
-            .scaleExtent([1, 8])
-            .translateExtent([
-                [this.marginLeft, this.marginTop],
-                [this.width - this.marginRight, this.height - this.marginTop],
-            ])
-            .extent([
-                [this.marginLeft, this.marginTop],
-                [this.width - this.marginRight, this.height - this.marginTop],
-            ])
-            .on('zoom', (event) => zoomed(event));
 
         const xAxis = (g: any) =>
             g
@@ -358,7 +359,7 @@ class GraphController {
             .domain([0, d3.max(data, (d) => d.value as number)])
             .nice()
             .range([this.height - this.marginBottom, this.marginTop]);
-
+        const context = this;
         focus
             .append('g')
             .attr('class', 'bars')
@@ -370,23 +371,78 @@ class GraphController {
             .attr('y', (d) => y(d.value))
             .attr('height', (d) => y(0) - y(d.value))
             .attr('width', x.bandwidth())
-            .attr('fill', (d: any) => this.getColor(d));
+            .attr('fill', (d: any) => this.getColor(d))
+            .on('mouseover', function (e: any, k: any) {
+                d3.select(this)
+                    .transition()
+                    .duration(300)
+                    .attr('fill', lightenDarkenColor(context.getColor(k), 50))
+                    .attr('cursor', 'pointer');
+                // (this as Element).attr = 'pointer';
+            })
+            .on('mouseout', function (e: any, k: any) {
+                d3.select(this)
+                    .transition()
+                    .duration(300)
+                    .attr('fill', (d: any) => context.getColor(d));
+            })
+            .on('click', (e: any, k: any) => {
+                console.log('CLICKED', e, k);
+                this.timelineController.renderMetadata(k);
+            })
+            .enter();
 
         focus.append('g').attr('class', 'x-axis').call(xAxis);
         focus.append('g').attr('class', 'y-axis').call(yAxis);
 
-        svg.append('rect')
+        const overlay = svg
+            .append('rect')
             .attr('class', 'zoom')
-            .attr('pointer-events', 'all')
+            // .attr('pointer-events', 'all')
+            .attr('pointer-events', 'none')
             .attr('fill', 'none')
             .attr('width', this.width - this.marginRight - this.marginLeft)
             .attr('height', this.height - this.marginBottom - this.marginTop)
             .attr(
                 'transform',
                 'translate(' + this.marginLeft + ',' + this.marginTop + ')'
-            )
-            // @ts-ignore
-            .call(zoom);
+            );
+
+        const zoomed = (event: any) => {
+            overlay.style('pointer-events', 'all');
+            x.range(
+                [this.marginLeft, this.width - this.marginRight].map((d) => {
+                    return event.transform.applyX(d);
+                })
+            );
+
+            focus
+                .selectAll('.bars rect')
+                // @ts-ignore
+                .attr('x', (d) => x(d.date))
+                .attr('width', x.bandwidth());
+            focus.selectAll('.x-axis').call(xAxis);
+        };
+
+        const zoom = d3
+            .zoom()
+            .scaleExtent([1, 8])
+            .translateExtent([
+                [this.marginLeft, this.marginTop],
+                [this.width - this.marginRight, this.height - this.marginTop],
+            ])
+            .extent([
+                [this.marginLeft, this.marginTop],
+                [this.width - this.marginRight, this.height - this.marginTop],
+            ])
+            .on('zoom', (event) => zoomed(event));
+        // // @ts-ignore
+        // .call(zoom);
+        // @ts-ignore
+        overlay.call(zoom);
+        overlay.on('zoomend', () => {
+            overlay.style('pointer-events', 'none');
+        });
 
         return svg.node();
     }
