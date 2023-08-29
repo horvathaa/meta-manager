@@ -18,6 +18,7 @@ import {
     SerializedReadableNode,
     Event,
     WEB_INFO_SOURCE,
+    SerializedTrackedPasteDetails,
 } from '../types/types';
 import GitInformationController from './GitInformationController';
 import { VS_CODE_API } from '../VSCodeApi';
@@ -26,6 +27,10 @@ import styles from '../styles/timeline.module.css';
 import { VSCodeButton, VSCodeCheckbox } from '@vscode/webview-ui-toolkit/react';
 import * as Diff from 'diff';
 import { DiffBlock } from '../components/Diff';
+import { getRangeOfNumbers } from '../lib/utils';
+import { random } from 'lodash';
+
+const setOfColors = ['#519aba', '#ba51ab', '#abba51', '#ab5151'];
 
 export interface Payload {
     pastVersions: SerializedChangeBuffer[];
@@ -43,6 +48,13 @@ export interface Payload {
     displayName: string;
     prMap: { [k: string]: any };
     eventsMap: { [k: string]: TimelineEvent[] };
+    pasteLocations: FormattedSerializedTrackedPasteDetails[];
+}
+
+interface FormattedSerializedTrackedPasteDetails
+    extends SerializedTrackedPasteDetails {
+    // style: React.CSSProperties;
+    lineNumber: number;
 }
 
 const CodeBox: React.FC<{ oldCode: string; newCode: string }> = ({
@@ -328,7 +340,161 @@ class TimelineController {
                         }
                     />
                 </div>
+                <RenderFilterButtons
+                    timelineArr={this._node!.items!.filter(
+                        (t) => t._dataSourceType === k._dataSourceType
+                    )}
+                    context={this}
+                />
             </div>
+        );
+    }
+
+    getPasteLocationData(
+        pasteLocation: SerializedTrackedPasteDetails
+    ): FormattedSerializedTrackedPasteDetails[] {
+        // const wholeRangeLineNumbers = getRangeOfNumbers(location);
+        const { location: pasteLocationLocation } = pasteLocation;
+        const thisRange = getRangeOfNumbers(pasteLocationLocation);
+        return thisRange.map((l) => {
+            return {
+                lineNumber: l,
+                ...pasteLocation,
+            };
+        });
+    }
+
+    getPasteLocationLogic() {
+        if (!this._node) {
+            return undefined;
+        }
+        const { node, items } = this._node;
+        const { location } = node;
+        const formatted: FormattedSerializedTrackedPasteDetails[] =
+            this._node.pasteLocations;
+        // pasteLocations.flatMap((l) =>
+        //     this.getPasteLocationData(l)
+        // );
+        // const wholeRangeLineNumbers = getRangeOfNumbers(location);
+        return (lineNumber: number) => {
+            let style: React.CSSProperties = {};
+            let className = styles['cursor-default'];
+            const pasteLocation = formatted.find(
+                (l) => l.lineNumber + 1 === lineNumber
+            );
+            console.log(
+                'pasteLocation',
+                pasteLocation,
+                'line number',
+                lineNumber
+            );
+            if (pasteLocation) {
+                style.backgroundColor = pasteLocation.style;
+                // style.cursor = 'pointer';
+                className = styles['cursor-pointer'];
+                style.cursor = 'pointer';
+                console.log('style...', style);
+            }
+            // console.log('pasteLocation!', pasteLocation);
+            // const id = pasteLocation?.id
+            //     ? pasteLocation!.id
+            //     : pasteLocation!.pasteMetadata.id;
+            const tl = items?.find(
+                (i) => i._formattedData.id === pasteLocation?.id
+            );
+            console.log('im so confused', tl, pasteLocation, 'return', {
+                style,
+                className: className,
+                onClick: () => {
+                    pasteLocation &&
+                        tl &&
+                        this._ref.render(this.renderVersion(tl));
+                },
+                onMouseEnter: () => {
+                    console.log(
+                        'HOVERING!!!!!! + paste',
+                        pasteLocation,
+                        'tl',
+                        tl
+                    );
+                    pasteLocation &&
+                        tl &&
+                        this._graphController.highlight(pasteLocation!.id, tl);
+                    // window.postMessage({
+                    //     command: 'highlight',
+                    //     data: { id: pasteLocation?.id },
+                    // });
+                    // this._graphController.postMessage({
+                    //     command: 'highlight',
+                    //     data: { id: pasteLocation?.id },
+                    // });
+                    // VS_CODE_API.postMessage({
+                    //     command: 'highlight',
+                    //     data: { id: pasteLocation?.id },
+                    // });
+                },
+                onMouseOut: () => {
+                    pasteLocation &&
+                        tl &&
+                        this._graphController.unhighlight(
+                            pasteLocation!.id,
+                            tl
+                        );
+                },
+            });
+            return {
+                style,
+                className: className,
+                onClick: () => {
+                    pasteLocation &&
+                        tl &&
+                        this._ref.render(this.renderVersion(tl));
+                },
+                onMouseEnter: () => {
+                    console.log('HOVERING!!!!!! + paste', pasteLocation);
+                    pasteLocation &&
+                        tl &&
+                        this._graphController.highlight(pasteLocation!.id, tl);
+                    // window.postMessage({
+                    //     command: 'highlight',
+                    //     data: { id: pasteLocation?.id },
+                    // });
+                    // this._graphController.postMessage({
+                    //     command: 'highlight',
+                    //     data: { id: pasteLocation?.id },
+                    // });
+                    // VS_CODE_API.postMessage({
+                    //     command: 'highlight',
+                    //     data: { id: pasteLocation?.id },
+                    // });
+                },
+                onMouseOut: () => {
+                    pasteLocation &&
+                        tl &&
+                        this._graphController.unhighlight(
+                            pasteLocation!.id,
+                            tl
+                        );
+                },
+            };
+        };
+    }
+
+    renderPasteLocations() {
+        if (!this._node) {
+            return null;
+        }
+        const { node } = this._node;
+        const { location } = node;
+        const { content } = location;
+        const wholeRangeLineNumbers = getRangeOfNumbers(location);
+        const highlightLogic = this.getPasteLocationLogic();
+        return (
+            <CodeBlock
+                codeString={content}
+                highlightLogic={highlightLogic}
+                startingLineNumber={wholeRangeLineNumbers[0] + 1}
+            />
         );
     }
 
@@ -337,37 +503,42 @@ class TimelineController {
         if (this._node) {
             const { node } = this._node;
             const { content } = node.location;
+            const { pasteLocations } = this._node;
             return (
-                <div className={styles['m2']}>
-                    {this._node.events.length ? (
+                <div>
+                    {/* <CodeBlock codeString={content} /> */}
+                    {this.renderPasteLocations()}
+                    <div className={styles['m2']}>
+                        {this._node.events.length ? (
+                            <div>
+                                <h3>What has happened to this code?</h3>
+                                {this.renderEvents()}
+                            </div>
+                        ) : null}
                         <div>
-                            <h3>What has happened to this code?</h3>
-                            {this.renderEvents()}
+                            <h3>Where did this code come from?</h3>
+                            {this.renderFirstInstance()}
                         </div>
-                    ) : null}
-                    <div>
-                        <h3>Where did this code come from?</h3>
-                        {this.renderFirstInstance()}
-                    </div>
-                    <div>
-                        {this._node.firstInstance ? (
-                            <>
-                                <h3>What did it used to look like?</h3>
-                                <CodeBox
-                                    oldCode={
-                                        this._node.firstInstance._formattedData
-                                            .code || ''
-                                    }
-                                    newCode={content}
-                                />
-                                {/* <CodeBlock
+                        <div>
+                            {this._node.firstInstance ? (
+                                <>
+                                    <h3>What did it used to look like?</h3>
+                                    <CodeBox
+                                        oldCode={
+                                            this._node.firstInstance
+                                                ._formattedData.code || ''
+                                        }
+                                        newCode={content}
+                                    />
+                                    {/* <CodeBlock
                                     codeString={
                                         this._node.firstInstance._formattedData
                                             .code || ''
                                     }
                                 /> */}
-                            </>
-                        ) : null}
+                                </>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
             );
@@ -416,7 +587,14 @@ class TimelineController {
                 const { data } = message;
                 const { id, metadata } = data;
                 console.log('stuff', data, id, metadata);
-                this._node = metadata as Payload;
+                this._node = {
+                    ...(metadata as Payload),
+                    pasteLocations: metadata.pasteLocations.flatMap(
+                        (p: SerializedTrackedPasteDetails) =>
+                            context.getPasteLocationData(p)
+                    ),
+                };
+
                 context.updateTimeline(id, metadata);
                 break;
             }

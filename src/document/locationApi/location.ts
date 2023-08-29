@@ -62,6 +62,7 @@ export default class LocationPlus extends Location {
     _lastEditedTime: NodeJS.Timeout | null;
     _tempInsertedRange: RangePlus | null = null;
     _selectedCode: string | null = null;
+    private readonly _docCopy: TextDocument | null = null;
     onDelete: EventEmitter<LocationPlus> = new EventEmitter<LocationPlus>();
     onChanged: EventEmitter<ChangeEvent> = new EventEmitter<ChangeEvent>();
     onSelected: EventEmitter<Selection> = new EventEmitter<Selection>();
@@ -110,7 +111,10 @@ export default class LocationPlus extends Location {
             opts.id && this.setId(opts.id);
             opts.textEditorDecoration &&
                 this.setTextEditorDecoration(opts.textEditorDecoration);
-            opts.doc && this.updateContent(opts.doc);
+            if (opts.doc) {
+                this.updateContent(opts.doc);
+                this._docCopy = opts.doc;
+            }
             opts.rangeFromTextDocumentContentChangeEvent &&
                 (this._range = RangePlus.fromTextDocumentContentChangeEvent(
                     opts.rangeFromTextDocumentContentChangeEvent
@@ -255,7 +259,7 @@ export default class LocationPlus extends Location {
                 };
                 // console.log('change', change);
                 const updated = this._range.update(change, contentChanges);
-                console.log('updated!', updated.copy());
+                // console.log('updated!', updated.copy());
                 if (this._tempInsertedRange) {
                     const updated = this._tempInsertedRange.update(
                         change,

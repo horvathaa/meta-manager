@@ -44,12 +44,15 @@ import {
     CopyBuffer,
     Diff,
     Event,
+    PasteDetails,
     SerializedChangeBuffer,
     SerializedDataController,
     SerializedDataControllerEvent,
     SerializedLocationPlus,
     SerializedNodeDataController,
     SerializedReadableNode,
+    THEME_COLORS,
+    TrackedPasteDetails,
     VscodeCopyBuffer,
     WebviewData,
 } from '../constants/types';
@@ -81,12 +84,6 @@ export interface FirestoreControllerInterface {
     readPastVersions: () => Promise<SerializedChangeBuffer[]>;
 }
 
-interface PasteDetails {
-    location: Location;
-    pasteContent: string;
-    pasteMetadata: ChangeBuffer;
-}
-
 export class DataController {
     // extends AbstractTreeReadableNode<ReadableNode> {
     _gitData: TimelineEvent[] | undefined;
@@ -110,6 +107,7 @@ export class DataController {
     _changeBuffer: ChangeBuffer[];
     _ownedLocations: LocationPlus[] = [];
     _webviewData: WebviewData | undefined;
+    _pasteLocations: TrackedPasteDetails[] = [];
     // _pasteDisposable: Disposable;
 
     constructor(
@@ -505,6 +503,8 @@ export class DataController {
         const location = LocationPlus.fromLocation(pasteEvent.location);
         this.readableNode.location.updateContent(doc);
         let eventObj: ChangeBuffer | undefined;
+        // const eventId: string = `${this.readableNode.id}:paste-${uuidv4()}`;
+        const baseChange = this.getBaseChangeBuffer();
         if (this.container.copyBuffer) {
             const { repository, ...rest } = this.container.gitController
                 ?.gitState as CurrentGitState;
@@ -520,6 +520,7 @@ export class DataController {
                 location: this.readableNode.location.serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
                 changeContent: pasteEvent.text,
+                // eventId,
                 eventData: {
                     [Event.WEB]: {
                         copyBuffer: this.container.copyBuffer,
@@ -542,6 +543,7 @@ export class DataController {
                 location: this.readableNode.location.serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
                 changeContent: pasteEvent.text,
+                // eventId,
                 eventData: {
                     [Event.PASTE]: {
                         pasteContent: pasteEvent.text,
@@ -558,6 +560,7 @@ export class DataController {
                 location: this.readableNode.location.serialize(),
                 typeOfChange: TypeOfChange.CONTENT_ONLY,
                 changeContent: pasteEvent.text,
+                // eventId,
                 eventData: {
                     [Event.PASTE]: {
                         pasteContent: pasteEvent.text,
@@ -569,11 +572,45 @@ export class DataController {
             this._changeBuffer.push(eventObj);
         }
 
-        this._didPaste = {
+        const pasteInfo = {
             location: pasteEvent.location,
             pasteContent: pasteEvent.text,
             pasteMetadata: eventObj,
         };
+        this._didPaste = pasteInfo;
+        setTimeout(
+            () => {
+                console.log(
+                    'hewwo???',
+                    LocationPlus.fromLocation(pasteEvent.location)
+                );
+                const pasteTracker: TrackedPasteDetails = {
+                    ...pasteInfo,
+                    location: LocationPlus.fromLocation(pasteEvent.location),
+                    currContent: pasteEvent.text,
+                    id: baseChange.id,
+                    style: THEME_COLORS[
+                        Math.floor(Math.random() * THEME_COLORS.length)
+                    ],
+                };
+                console.log('pasteTracker init', pasteTracker);
+
+                // setTimeout(
+                //     () =>
+                pasteTracker.location.onChanged.event(
+                    (changeEvent: ChangeEvent) => {
+                        console.log('changeEvent', changeEvent);
+                        pasteTracker.currContent = changeEvent.location.content;
+                        console.log('pasteTracker', pasteTracker);
+                        // this.handleOnChange(changeEvent)
+                    }
+                );
+                this._pasteLocations.push(pasteTracker);
+            },
+            5000,
+            pasteInfo
+        );
+
         if (pasteEvent.text.includes('{') && pasteEvent.text.includes('}')) {
             this.handleInsertBlock(
                 pasteEvent.text,
@@ -773,6 +810,9 @@ export class DataController {
             userMap: this.container.loggedInUser,
             prMap: Object.fromEntries(this.joinOnCommits(items)),
             displayName: this._displayName,
+            pasteLocations: this._pasteLocations.map((p) => {
+                return { ...p, location: p.location.serialize() };
+            }),
         };
     }
 
@@ -788,7 +828,8 @@ export class DataController {
         const context = this;
         const bigLocation = new LocationPlus(
             docCopy.uri,
-            new Range(0, 0, docCopy.lineCount, 1000)
+            new Range(0, 0, docCopy.lineCount, 1000),
+            { doc: docCopy }
         );
         console.log('bigLocation', bigLocation);
         bigLocation.updateContent(docCopy);
@@ -814,7 +855,8 @@ export class DataController {
                 console.log('end', offsetEnd);
                 const newLocation = new LocationPlus(
                     docCopy.uri,
-                    bigLocation.deriveRangeFromOffset(offsetStart, offsetEnd)
+                    bigLocation.deriveRangeFromOffset(offsetStart, offsetEnd),
+                    { doc: docCopy }
                 );
                 console.log('newLocation', newLocation);
                 newLocation.updateContent(docCopy);
@@ -1014,6 +1056,9 @@ export class DataController {
             lastUpdatedBy:
                 this.container.firestoreController?._user?.uid || 'anonymous',
             setOfEventIds: [],
+            pasteLocations: this._pasteLocations.map((p) => {
+                return { ...p, location: p.location.serialize() };
+            }),
         };
     }
 

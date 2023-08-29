@@ -300,6 +300,8 @@ class RangePlus extends Range {
             // @ts-ignore
             getUpdatedRanges([this], contentChanges)[0]
         );
+        // if undefined then the range was deleted
+        // should send a delete event
         return updatedRange;
         // const contentChangeRange =
         //     RangePlus.fromTextDocumentContentChangeEvent(contentChange);

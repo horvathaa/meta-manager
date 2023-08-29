@@ -38,7 +38,14 @@ function lightenDarkenColor(col: string, amt: number) {
 
 const source = d3.scaleOrdinal(
     ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code'],
-    ['#4e79a7', META_MANAGER_COLOR, '#f28e2b', '#76b7b2', '#59a14f']
+    [
+        '#4e79a761',
+        META_MANAGER_COLOR,
+        '#CCCCFF61',
+        '#7575CF61',
+        '#5453A661',
+        '#9EA9ED61',
+    ]
 );
 
 class GraphController {
@@ -375,6 +382,7 @@ class GraphController {
             .attr('height', (d) => y(0) - y(d.value))
             .attr('width', x.bandwidth())
             .attr('fill', (d: any) => this.getColor(d))
+            .attr('id', (d: any) => d._formattedData.id.replace(/[:\s]+/g, '-'))
             .on('mouseover', function (e: any, k: any) {
                 d3.select(this)
                     .transition()
@@ -394,6 +402,7 @@ class GraphController {
                 this.timelineController._queue.push(k);
                 this.timelineController.renderMetadata(k);
             })
+
             .enter();
 
         focus.append('g').attr('class', 'x-axis').call(xAxis);
@@ -455,6 +464,36 @@ class GraphController {
         const groupedData: any = data.filter(
             (d) => d.getDataSourceType() === DataSourceType.META_PAST_VERSION
         );
+    }
+
+    highlight(id: string, obj: any) {
+        console.log(
+            'id',
+            `#${id.replace(/[:\s]+/g, '-')}`,
+            'sel',
+            d3.select(`#${id.replace(/[:\s]+/g, '-')}`)
+        );
+        d3.select(`#${id.replace(/[:\s]+/g, '-')}`)
+            .transition()
+            .duration(300)
+            .attr(
+                'fill',
+                lightenDarkenColor(
+                    this.getColor(obj), // sigh
+                    50
+                )
+            );
+    }
+
+    unhighlight(id: string, obj: any) {
+        d3.select(`#${id.replace(/:/g, '-')}`)
+            .transition()
+            .duration(300)
+            .attr('fill', this.getColor(obj));
+    }
+
+    postMessage(message: any) {
+        window.postMessage(message, '*');
     }
 }
 

@@ -388,3 +388,12 @@ export interface UserMap {
     gitName: string;
     gitEmail: string;
 }
+
+export interface SerializedTrackedPasteDetails {
+    location: SerializedLocationPlus;
+    pasteContent: string;
+    pasteMetadata: ChangeBuffer;
+    currContent: string;
+    id: string;
+    style: string;
+}

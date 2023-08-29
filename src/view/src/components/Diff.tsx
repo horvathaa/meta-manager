@@ -13,10 +13,10 @@ export const DiffBlock = (props: { str1: string; str2: string }) => {
             currDiffIndex++;
             currCount = currCount + (diff[currDiffIndex]?.count || 0);
         }
-        if (diff[currDiffIndex].added) {
+        if (diff[currDiffIndex] && diff[currDiffIndex].added) {
             lineNumbers.push({ i: i + 1, added: true });
         }
-        if (diff[currDiffIndex].removed) {
+        if (diff[currDiffIndex] && diff[currDiffIndex].removed) {
             lineNumbers.push({ i: i + 1, removed: true });
         }
     });
@@ -33,6 +33,7 @@ export const DiffBlock = (props: { str1: string; str2: string }) => {
                 style.backgroundColor = '#ff000080';
             }
         }
+        console.log('WHAT IS DIFFERENT', style, 'ret', { style });
         return { style };
     };
     return <CodeBlock codeString={codeStr} highlightLogic={highlightLogic} />;

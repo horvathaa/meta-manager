@@ -19,6 +19,7 @@ interface TimelineData {
     x: number;
     y: number;
     commit: string;
+    id: string;
     pullNumber?: number;
     source?: string;
     user?: string;
@@ -69,6 +70,7 @@ class TimelineEvent extends Disposable {
                         new Date(data.date).getTime(),
                         new Date(data.date).getTime() + 10000000,
                     ],
+                    id: `${data.hash}-${data.author_email}-${data.date}`,
                     code: data.code,
                     user: data.author_email,
                     source: 'git',
@@ -92,6 +94,7 @@ class TimelineEvent extends Disposable {
                     y: 1,
                     code: data.code,
                     user: data.uid,
+                    id: `${data.id}`,
                     timeRange: [
                         new Date(data.createdTimestamp).getTime(),
                         new Date(endTimestamp).getTime(),
@@ -107,6 +110,7 @@ class TimelineEvent extends Disposable {
                     x: data.time,
                     y: data.location.content.split('\n').length,
                     user: data.uid,
+                    id: `${data.id}`,
                     timeRange: [data.time, data.time + 10000000],
                     val: DataSourceType.META_PAST_VERSION,
                     labelVal: `${data.time}`,
@@ -123,6 +127,7 @@ class TimelineEvent extends Disposable {
                     y: 0,
                     code: 'code',
                     commit: 'commit',
+                    id: 'id',
                 };
             }
         }

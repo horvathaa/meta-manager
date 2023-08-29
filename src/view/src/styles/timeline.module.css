@@ -52,3 +52,11 @@
     cursor: pointer;
     color: #8dc149;
 }
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.cursor-default {
+    cursor: default;
+}

@@ -2,6 +2,8 @@
 // Please do not change this file!
 interface CssExports {
   'center': string;
+  'cursor-default': string;
+  'cursor-pointer': string;
   'flat-button': string;
   'flex': string;
   'flex-row': string;

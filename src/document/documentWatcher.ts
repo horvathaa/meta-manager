@@ -67,6 +67,7 @@ class DocumentWatcher extends Disposable {
             (event: FileParsedEvent) => {
                 // console.log('EVENT', event);
                 const { filename, data, map, collectionPath } = event;
+                console.log('data!!!!!!!!!!!!!!!!!!', data);
                 if (filename === this._relativeFilePath) {
                     // console.log('HEWWWWOOOO!!!!!!!!!', event);
                     this._firestoreCollectionPath = collectionPath;
@@ -83,7 +84,7 @@ class DocumentWatcher extends Disposable {
                         ),
                         this._relativeFilePath
                     );
-                    this._nodesInFile = this.initNodes(tree, map);
+                    this._nodesInFile = this.initNodes(tree, map, data);
 
                     console.log(
                         'file parsed complete for ' + this._relativeFilePath,
@@ -140,8 +141,12 @@ class DocumentWatcher extends Disposable {
         );
     }
 
-    initNodes(oldTree?: SimplifiedTree<ReadableNode>, map?: Map<string, any>) {
-        const tree = this.traverse(oldTree, map);
+    initNodes(
+        oldTree?: SimplifiedTree<ReadableNode>,
+        map?: Map<string, any>,
+        data?: any[]
+    ) {
+        const tree = this.traverse(oldTree, map, data);
         return tree;
     }
 
@@ -152,7 +157,8 @@ class DocumentWatcher extends Disposable {
 
     traverse(
         oldTree?: SimplifiedTree<ReadableNode>,
-        map?: Map<string, FirestoreControllerInterface>
+        map?: Map<string, FirestoreControllerInterface>,
+        data?: any[]
     ) {
         // traverse the document and find the code anchors
         const sourceFile = ts.createSourceFile(
@@ -171,7 +177,8 @@ class DocumentWatcher extends Disposable {
             'file',
             new LocationPlus(
                 this.document.uri,
-                new Range(0, 0, docCopy.lineCount, 1000)
+                new Range(0, 0, docCopy.lineCount, 1000),
+                { doc: docCopy }
             )
         );
         fileData.setId(this._relativeFilePath.replace('/', '-'));
@@ -237,6 +244,20 @@ class DocumentWatcher extends Disposable {
                     seenNodes.add(name);
                     otherTreeInstance = matchInfo.otherTreeInstance;
                     newNode = matchInfo.new || false;
+                    if (data && data.length) {
+                        const nodeData = data.find((d) => d.node.id === name);
+                        if (nodeData && nodeData.pasteLocations) {
+                            readableNode.dataController._pasteLocations =
+                                nodeData.pasteLocations.map((p: any) => {
+                                    return {
+                                        ...p,
+                                        location: LocationPlus.deserialize(
+                                            p.location
+                                        ),
+                                    };
+                                });
+                        }
+                    }
                 } else {
                     name = `${name}:${uuidv4()}`; // idk where this code initially went lol
                 }

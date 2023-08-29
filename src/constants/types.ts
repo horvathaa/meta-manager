@@ -276,12 +276,36 @@ export interface SerializedDataControllerEvent {
     eventData?: { [k in Event]: any };
 }
 
+export interface PasteDetails {
+    location: Location;
+    pasteContent: string;
+    pasteMetadata: ChangeBuffer;
+}
+
+export interface TrackedPasteDetails extends PasteDetails {
+    location: LocationPlus;
+    // changeBuffer: ChangeBuffer[];
+    currContent: string;
+    id: string;
+    style: string;
+}
+
+export interface SerializedTrackedPasteDetails {
+    location: SerializedLocationPlus;
+    pasteContent: string;
+    pasteMetadata: ChangeBuffer;
+    currContent: string;
+    id: string;
+    style: string;
+}
+
 export interface SerializedNodeDataController {
     node: SerializedReadableNode;
     lastUpdatedTime: number;
     lastUpdatedBy: string;
     // setOfEvents: Event[];
     setOfEventIds: string[];
+    pasteLocations: SerializedTrackedPasteDetails[];
 }
 
 type DiffLine = {
@@ -414,4 +438,12 @@ export interface WebviewData extends SerializedNodeDataController {
     recentChanges: TimelineEvent[];
     // prMap: Map<number, string[]>;
     prMap: { [k: number]: { [commit: string]: TimelineEvent[] } };
+    pasteLocations: SerializedTrackedPasteDetails[];
 }
+
+export const THEME_COLORS = [
+    '#5453A661',
+    '#7575CF61',
+    '#CCCCFF61',
+    '#9EA9ED61',
+];

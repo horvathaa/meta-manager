@@ -13,11 +13,20 @@ const CodeBlock = ({
     codeString,
     style,
     highlightLogic,
+    startingLineNumber,
 }: {
     codeString: string;
     style?: React.CSSProperties;
-    highlightLogic?: (lineNumber: number) => { style: React.CSSProperties };
+    highlightLogic?: (lineNumber: number) => {
+        style: React.CSSProperties;
+        onClick?: () => void;
+        onMouseEnter?: () => void;
+        onMouseLeave?: () => void;
+        className?: string;
+    };
+    startingLineNumber?: number;
 }) => {
+    console.log('highlight logic', highlightLogic);
     return highlightLogic ? (
         <SyntaxHighlighter
             language="javascript"
@@ -25,6 +34,7 @@ const CodeBlock = ({
             lineProps={highlightLogic}
             wrapLines={true}
             showLineNumbers={true} // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/444
+            startingLineNumber={startingLineNumber}
         >
             {codeString}
         </SyntaxHighlighter>
