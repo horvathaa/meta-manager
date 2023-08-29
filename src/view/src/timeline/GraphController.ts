@@ -486,7 +486,7 @@ class GraphController {
     }
 
     unhighlight(id: string, obj: any) {
-        d3.select(`#${id.replace(/:/g, '-')}`)
+        d3.select(`#${id.replace(/[:\s]+/g, '-')}`)
             .transition()
             .duration(300)
             .attr('fill', this.getColor(obj));
