@@ -6,10 +6,12 @@ interface CssExports {
   'cursor-pointer': string;
   'flat-button': string;
   'flex': string;
+  'flex-col': string;
   'flex-row': string;
   'git-information': string;
   'm2': string;
   'm4px': string;
+  'p2': string;
   'simulate-link': string;
 }
 export const cssExports: CssExports;

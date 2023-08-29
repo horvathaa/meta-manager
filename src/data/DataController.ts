@@ -55,6 +55,7 @@ import {
     TrackedPasteDetails,
     VscodeCopyBuffer,
     WebviewData,
+    getColorTheme,
 } from '../constants/types';
 import MetaInformationExtractor from '../comments/CommentCreator';
 import RangePlus from '../document/locationApi/range';
@@ -589,9 +590,7 @@ export class DataController {
                     location: LocationPlus.fromLocation(pasteEvent.location),
                     currContent: pasteEvent.text,
                     id: baseChange.id,
-                    style: THEME_COLORS[
-                        Math.floor(Math.random() * THEME_COLORS.length)
-                    ],
+                    style: getColorTheme(this.container.copyBuffer),
                 };
                 console.log('pasteTracker init', pasteTracker);
 

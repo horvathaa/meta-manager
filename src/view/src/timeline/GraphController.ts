@@ -2,39 +2,11 @@ import * as d3 from 'd3';
 import TimelineController, { Payload } from './TimelineController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
 import { SerializedChangeBuffer, Event, DataSourceType } from '../types/types';
-import { META_MANAGER_COLOR } from '../styles/globals';
+import { META_MANAGER_COLOR, lightenDarkenColor } from '../styles/globals';
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
 //     ['#4e79a7', '#e15759']
 // );
-
-function lightenDarkenColor(col: string, amt: number) {
-    var usePound = false;
-
-    if (col[0] == '#') {
-        col = col.slice(1);
-        usePound = true;
-    }
-
-    var num = parseInt(col, 16);
-
-    var r = (num >> 16) + amt;
-
-    if (r > 255) r = 255;
-    else if (r < 0) r = 0;
-
-    var b = ((num >> 8) & 0x00ff) + amt;
-
-    if (b > 255) b = 255;
-    else if (b < 0) b = 0;
-
-    var g = (num & 0x0000ff) + amt;
-
-    if (g > 255) g = 255;
-    else if (g < 0) g = 0;
-
-    return (usePound ? '#' : '') + (g | (b << 8) | (r << 16)).toString(16);
-}
 
 const source = d3.scaleOrdinal(
     ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code'],

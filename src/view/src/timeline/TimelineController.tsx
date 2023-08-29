@@ -24,14 +24,86 @@ import GitInformationController from './GitInformationController';
 import { VS_CODE_API } from '../VSCodeApi';
 import MetaInformationController from './MetaInformationController';
 import styles from '../styles/timeline.module.css';
-import { VSCodeButton, VSCodeCheckbox } from '@vscode/webview-ui-toolkit/react';
+import {
+    VSCodeButton,
+    VSCodeCheckbox,
+    VSCodeRadio,
+    VSCodeRadioGroup,
+    VSCodeTextField,
+} from '@vscode/webview-ui-toolkit/react';
 import * as Diff from 'diff';
 import { DiffBlock } from '../components/Diff';
 import { getRangeOfNumbers } from '../lib/utils';
-import { random } from 'lodash';
+import { first, random } from 'lodash';
+import {
+    META_MANAGER_COLOR,
+    cardStyle,
+    editorBackground,
+    iconColor,
+    vscodeTextColor,
+} from '../styles/globals';
+import {
+    Accordion,
+    AccordionDetails,
+    AccordionSummary,
+    Card,
+    ThemeProvider,
+    createTheme,
+} from '@mui/material';
 
 const setOfColors = ['#519aba', '#ba51ab', '#abba51', '#ab5151'];
 
+const theme = createTheme({
+    palette: {
+        primary: {
+            main: `${editorBackground}`,
+            // main: `${tryingSomethingNew}`,
+        },
+        background: {
+            paper: `${editorBackground}`,
+            // paper: `${tryingSomethingNew}`,
+        },
+    },
+    typography: {
+        allVariants: {
+            fontSize: 14,
+            color: `${vscodeTextColor}`,
+            fontFamily: 'Arial',
+        },
+    },
+    components: {
+        MuiIconButton: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: editorBackground,
+                    color: iconColor,
+                },
+            },
+        },
+        MuiCheckbox: {
+            styleOverrides: {
+                root: {
+                    color: `${vscodeTextColor} !important`,
+                    '&.Mui-checked': {
+                        color: `${vscodeTextColor}`,
+                    },
+                },
+            },
+        },
+        MuiCardContent: {
+            styleOverrides: {
+                root: {
+                    // paddingLeft: 12,
+                    // paddingRight: 12,
+                    padding: 0,
+                    ':last-child': {
+                        paddingBottom: 0,
+                    },
+                },
+            },
+        },
+    },
+});
 export interface Payload {
     pastVersions: SerializedChangeBuffer[];
     formattedPastVersions: TimelineEvent[];
@@ -110,6 +182,189 @@ const RenderFilterButtons: React.FC<{
                     Reset?
                 </VSCodeButton>
             )}
+        </div>
+    );
+};
+
+interface SearchOpts {
+    searchOnlyInPastedCode: boolean;
+    searchAcrossAllTime: boolean;
+    searchTimeSpan: null | {
+        from: string;
+        to: string;
+    };
+    searchScope: {
+        onThisNode: boolean;
+        onThisFile: boolean;
+        onThisProject: boolean;
+    };
+}
+
+const Search: React.FC<{ context: TimelineController }> = ({ context }) => {
+    const [searchOpts, setSearchOpts] = React.useState<SearchOpts>({
+        searchOnlyInPastedCode: false,
+        searchAcrossAllTime: false,
+        searchTimeSpan: null,
+        searchScope: {
+            onThisNode: true,
+            onThisFile: false,
+            onThisProject: false,
+        },
+    });
+    const [searchTerm, setSearchTerm] = React.useState('');
+    const [showOpts, setShowOpts] = React.useState(false);
+    return (
+        <div className={styles['flex-col']}>
+            <div className={styles['center']}>
+                <VSCodeTextField
+                    // className={styles['m2']}
+                    placeholder="Search for a keyword"
+                    onChange={(e: any) => setSearchTerm(e.target.value)}
+                    style={{ marginRight: '10px' }}
+                />
+                <VSCodeButton
+                    // className={styles['m2']}
+                    // onClick={() => {
+                    //     context._queue.push(undefined);
+                    //     context._ref.render(context.renderNode());
+                    // }}
+                    style={{ marginRight: '10px' }}
+                >
+                    Search
+                </VSCodeButton>
+                <VSCodeButton
+                    appearance="secondary"
+                    onClick={(e: any) => setShowOpts(!showOpts)}
+                >
+                    Options
+                </VSCodeButton>
+            </div>
+
+            {showOpts ? (
+                <div>
+                    Options
+                    <div className={styles['flex']}>
+                        <VSCodeCheckbox
+                            checked={false}
+                            onChange={(e: any) =>
+                                setSearchOpts({
+                                    ...searchOpts,
+                                    searchOnlyInPastedCode: e.target.value,
+                                })
+                            }
+                            // className={styles['m2']}
+                        >
+                            Search only in pasted code?
+                        </VSCodeCheckbox>
+                    </div>
+                    <div>
+                        Search across all time?
+                        <VSCodeCheckbox
+                            checked={false}
+                            onChange={(e: any) =>
+                                setSearchOpts({
+                                    ...searchOpts,
+                                    searchAcrossAllTime: e.target.value,
+                                })
+                            }
+                            // className={styles['m2']}
+                        >
+                            Search only in pasted code?
+                        </VSCodeCheckbox>
+                        {searchOpts.searchAcrossAllTime ? (
+                            <div>
+                                <div className={styles['flex']}>
+                                    {' '}
+                                    From{' '}
+                                    <input
+                                        onChange={(e) => {
+                                            setSearchOpts({
+                                                ...searchOpts,
+                                                searchTimeSpan: {
+                                                    ...(searchOpts.searchTimeSpan || {
+                                                        from: '',
+                                                        to: '',
+                                                    }),
+                                                    from: e.target.value,
+                                                },
+                                            });
+                                        }}
+                                    ></input>
+                                    to{' '}
+                                    <input
+                                        onChange={(e) => {
+                                            setSearchOpts({
+                                                ...searchOpts,
+                                                searchTimeSpan: {
+                                                    ...(searchOpts.searchTimeSpan || {
+                                                        from: '',
+                                                        to: '',
+                                                    }),
+                                                    from: e.target.value,
+                                                },
+                                            });
+                                        }}
+                                    ></input>
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+                    <div>
+                        Search scope
+                        <div className={styles['flex']}>
+                            <VSCodeRadioGroup name="searchScope">
+                                <VSCodeRadio
+                                    checked={searchOpts.searchScope.onThisNode}
+                                    onChange={(e: any) => {
+                                        setSearchOpts({
+                                            ...searchOpts,
+                                            searchScope: {
+                                                onThisFile: false,
+                                                onThisProject: false,
+                                                onThisNode: true,
+                                            },
+                                        });
+                                    }}
+                                >
+                                    On this node?
+                                </VSCodeRadio>
+                                <VSCodeRadio
+                                    checked={searchOpts.searchScope.onThisFile}
+                                    onChange={(e: any) => {
+                                        setSearchOpts({
+                                            ...searchOpts,
+                                            searchScope: {
+                                                onThisFile: true,
+                                                onThisProject: false,
+                                                onThisNode: false,
+                                            },
+                                        });
+                                    }}
+                                >
+                                    On this file?
+                                </VSCodeRadio>
+                                <VSCodeRadio
+                                    checked={
+                                        searchOpts.searchScope.onThisProject
+                                    }
+                                    onChange={(e: any) => {
+                                        setSearchOpts({
+                                            ...searchOpts,
+                                            searchScope: {
+                                                onThisFile: false,
+                                                onThisProject: true,
+                                                onThisNode: false,
+                                            },
+                                        });
+                                    }}
+                                >
+                                    On this project?
+                                </VSCodeRadio>
+                            </VSCodeRadioGroup>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 };
@@ -324,28 +579,38 @@ class TimelineController {
 
         return (
             <div className={styles['m2']}>
-                <div>
-                    <h2>What happened?</h2>
-                    {this.renderTimelineEventMetadata(k)}
-                </div>
-                <div>
-                    <h3>What did it used to look like?</h3>
-                    {/* <CodeBlock codeString={k._formattedData.code || ''} />
-                     */}
-                    <CodeBox
-                        oldCode={k._formattedData.code || ''}
-                        newCode={
-                            this._node!.items![this._node!.items!.length - 1]
-                                ._formattedData.code
-                        }
-                    />
-                </div>
-                <RenderFilterButtons
-                    timelineArr={this._node!.items!.filter(
-                        (t) => t._dataSourceType === k._dataSourceType
-                    )}
-                    context={this}
-                />
+                {this.renderColorGuide()}
+                <Accordion style={{ color: 'white' }}>
+                    <AccordionSummary>
+                        <h3>What happened?</h3>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        {this.renderTimelineEventMetadata(k)}
+                    </AccordionDetails>
+                </Accordion>
+                <Accordion style={{ color: 'white' }}>
+                    <AccordionSummary>
+                        <h3>What did it used to look like?</h3>
+                        {/* <CodeBlock codeString={k._formattedData.code || ''} />
+                         */}
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        <CodeBox
+                            oldCode={k._formattedData.code || ''}
+                            newCode={
+                                this._node!.items![
+                                    this._node!.items!.length - 1
+                                ]._formattedData.code
+                            }
+                        />
+                        {/* <RenderFilterButtons
+                            timelineArr={this._node!.items!.filter(
+                                (t) => t._dataSourceType === k._dataSourceType
+                            )}
+                            context={this}
+                        /> */}
+                    </AccordionDetails>
+                </Accordion>
             </div>
         );
     }
@@ -372,101 +637,42 @@ class TimelineController {
         const { location } = node;
         const formatted: FormattedSerializedTrackedPasteDetails[] =
             this._node.pasteLocations;
-        // pasteLocations.flatMap((l) =>
-        //     this.getPasteLocationData(l)
-        // );
-        // const wholeRangeLineNumbers = getRangeOfNumbers(location);
         return (lineNumber: number) => {
             let style: React.CSSProperties = {};
             let className = styles['cursor-default'];
             const pasteLocation = formatted.find(
                 (l) => l.lineNumber + 1 === lineNumber
             );
-            console.log(
-                'pasteLocation',
-                pasteLocation,
-                'line number',
-                lineNumber
-            );
+
             if (pasteLocation) {
                 style.backgroundColor = pasteLocation.style;
                 // style.cursor = 'pointer';
                 className = styles['cursor-pointer'];
                 style.cursor = 'pointer';
-                console.log('style...', style);
             }
-            // console.log('pasteLocation!', pasteLocation);
-            // const id = pasteLocation?.id
-            //     ? pasteLocation!.id
-            //     : pasteLocation!.pasteMetadata.id;
             const tl = items?.find(
                 (i) => i._formattedData.id === pasteLocation?.id
             );
-            console.log('im so confused', tl, pasteLocation, 'return', {
-                style,
-                className: className,
-                onClick: () => {
-                    pasteLocation &&
-                        tl &&
-                        this._ref.render(this.renderVersion(tl));
-                },
-                onMouseEnter: () => {
-                    console.log(
-                        'HOVERING!!!!!! + paste',
-                        pasteLocation,
-                        'tl',
-                        tl
-                    );
-                    pasteLocation &&
-                        tl &&
-                        this._graphController.highlight(pasteLocation!.id, tl);
-                    // window.postMessage({
-                    //     command: 'highlight',
-                    //     data: { id: pasteLocation?.id },
-                    // });
-                    // this._graphController.postMessage({
-                    //     command: 'highlight',
-                    //     data: { id: pasteLocation?.id },
-                    // });
-                    // VS_CODE_API.postMessage({
-                    //     command: 'highlight',
-                    //     data: { id: pasteLocation?.id },
-                    // });
-                },
-                onMouseOut: () => {
-                    pasteLocation &&
-                        tl &&
-                        this._graphController.unhighlight(
-                            pasteLocation!.id,
-                            tl
-                        );
-                },
-            });
+
             return {
                 style,
                 className: className,
                 onClick: () => {
                     pasteLocation &&
                         tl &&
-                        this._ref.render(this.renderVersion(tl));
+                        this._ref.render(
+                            <ThemeProvider theme={theme}>
+                                <Card style={cardStyle}>
+                                    {this.renderVersion(tl)}
+                                </Card>
+                            </ThemeProvider>
+                            // this.renderVersion(tl)
+                        );
                 },
                 onMouseEnter: () => {
-                    console.log('HOVERING!!!!!! + paste', pasteLocation);
                     pasteLocation &&
                         tl &&
                         this._graphController.highlight(pasteLocation!.id, tl);
-                    // window.postMessage({
-                    //     command: 'highlight',
-                    //     data: { id: pasteLocation?.id },
-                    // });
-                    // this._graphController.postMessage({
-                    //     command: 'highlight',
-                    //     data: { id: pasteLocation?.id },
-                    // });
-                    // VS_CODE_API.postMessage({
-                    //     command: 'highlight',
-                    //     data: { id: pasteLocation?.id },
-                    // });
                 },
                 onMouseOut: () => {
                     pasteLocation &&
@@ -480,6 +686,43 @@ class TimelineController {
         };
     }
 
+    renderColorGuide() {
+        const arr = [
+            'Git',
+            'VS Code Edit',
+            'Chat GPT',
+            'Stack Overflow',
+            'GitHub',
+            'Pasted from within VS Code',
+        ];
+        return (
+            <div className={styles['flex']}>
+                {[
+                    '#4e79a761',
+                    META_MANAGER_COLOR,
+                    '#CCCCFF61',
+                    '#7575CF61',
+                    '#5453A661',
+                    '#9EA9ED61',
+                ].map((c, i) => (
+                    <div
+                        className={`${styles['flex-col']} ${styles['p2']}  ${styles['center']}`}
+                    >
+                        {arr[i]}
+                        <div
+                            className={styles['flex']}
+                            style={{
+                                backgroundColor: c,
+                                width: '30px',
+                                height: '30px',
+                            }}
+                        ></div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
     renderPasteLocations() {
         if (!this._node) {
             return null;
@@ -490,12 +733,79 @@ class TimelineController {
         const wholeRangeLineNumbers = getRangeOfNumbers(location);
         const highlightLogic = this.getPasteLocationLogic();
         return (
-            <CodeBlock
-                codeString={content}
-                highlightLogic={highlightLogic}
-                startingLineNumber={wholeRangeLineNumbers[0] + 1}
-            />
+            <div>
+                <CodeBlock
+                    codeString={content}
+                    highlightLogic={highlightLogic}
+                    startingLineNumber={wholeRangeLineNumbers[0] + 1}
+                />
+            </div>
         );
+    }
+
+    getAccordionComponents() {
+        console.log('this.node', this._node);
+        const accordionComponents = [];
+        if (this._node) {
+            const { node, events, firstInstance } = this._node;
+            const { content } = node.location;
+            const { pasteLocations } = this._node;
+
+            if (pasteLocations.length) {
+                accordionComponents.push(
+                    <Accordion style={{ color: 'white ' }}>
+                        <AccordionSummary>
+                            Explore Where Code was Pasted from
+                        </AccordionSummary>
+
+                        <AccordionDetails>
+                            {this.renderPasteLocations()}
+                        </AccordionDetails>
+                    </Accordion>
+                );
+            }
+            if (events.length) {
+                accordionComponents.push(
+                    <Accordion style={{ color: 'white ' }}>
+                        <AccordionSummary>
+                            What has happened to this code?
+                        </AccordionSummary>
+                        <AccordionDetails>
+                            {this.renderEvents()}
+                        </AccordionDetails>
+                    </Accordion>
+                );
+            }
+            accordionComponents.push(
+                <Accordion style={{ color: 'white ' }}>
+                    <AccordionSummary>
+                        Where did this code come from?
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        {this.renderFirstInstance()}
+                    </AccordionDetails>
+                </Accordion>
+            );
+
+            if (firstInstance) {
+                accordionComponents.push(
+                    <Accordion style={{ color: 'white ' }}>
+                        <AccordionSummary>
+                            What did it originally look like?
+                        </AccordionSummary>
+                        <AccordionDetails>
+                            <CodeBox
+                                oldCode={
+                                    firstInstance._formattedData.code || ''
+                                }
+                                newCode={content}
+                            />
+                        </AccordionDetails>
+                    </Accordion>
+                );
+            }
+        }
+        return accordionComponents;
     }
 
     renderNode() {
@@ -504,43 +814,12 @@ class TimelineController {
             const { node } = this._node;
             const { content } = node.location;
             const { pasteLocations } = this._node;
+            const accordionComponents = this.getAccordionComponents();
             return (
-                <div>
-                    {/* <CodeBlock codeString={content} /> */}
-                    {this.renderPasteLocations()}
-                    <div className={styles['m2']}>
-                        {this._node.events.length ? (
-                            <div>
-                                <h3>What has happened to this code?</h3>
-                                {this.renderEvents()}
-                            </div>
-                        ) : null}
-                        <div>
-                            <h3>Where did this code come from?</h3>
-                            {this.renderFirstInstance()}
-                        </div>
-                        <div>
-                            {this._node.firstInstance ? (
-                                <>
-                                    <h3>What did it used to look like?</h3>
-                                    <CodeBox
-                                        oldCode={
-                                            this._node.firstInstance
-                                                ._formattedData.code || ''
-                                        }
-                                        newCode={content}
-                                    />
-                                    {/* <CodeBlock
-                                    codeString={
-                                        this._node.firstInstance._formattedData
-                                            .code || ''
-                                    }
-                                /> */}
-                                </>
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
+                <>
+                    {this.renderColorGuide()}
+                    {...accordionComponents}
+                </>
             );
         }
         return null;
@@ -553,12 +832,19 @@ class TimelineController {
                 <div className={styles['center']} style={{ margin: 'auto' }}>
                     <h1>{this._node?.displayName}</h1>
                 </div>
+                <Search context={this} />
                 <div style={{ marginLeft: 'auto' }}>
                     <VSCodeButton
                         className={styles['m2']}
                         onClick={() => {
                             this._queue.push(undefined);
-                            this._ref.render(this.renderNode());
+                            this._ref.render(
+                                <ThemeProvider theme={theme}>
+                                    <Card style={cardStyle}>
+                                        {this.renderNode()}
+                                    </Card>
+                                </ThemeProvider>
+                            );
                         }}
                     >
                         Home
@@ -574,8 +860,13 @@ class TimelineController {
                 </div>
             </div>
         );
+        console.log('theme!', theme);
         this._ref.render(
-            <div>{k ? this.renderVersion(k) : this.renderNode()}</div>
+            <ThemeProvider theme={theme}>
+                <Card style={cardStyle}>
+                    {k ? this.renderVersion(k) : this.renderNode()}
+                </Card>
+            </ThemeProvider>
         );
     }
 

@@ -440,10 +440,28 @@ export interface WebviewData extends SerializedNodeDataController {
     prMap: { [k: number]: { [commit: string]: TimelineEvent[] } };
     pasteLocations: SerializedTrackedPasteDetails[];
 }
-
+// ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code']
+export const META_MANAGER_COLOR = '#519aba80';
 export const THEME_COLORS = [
-    '#5453A661',
-    '#7575CF61',
+    '#4e79a761',
+    META_MANAGER_COLOR,
     '#CCCCFF61',
+    '#7575CF61',
+    '#5453A661',
     '#9EA9ED61',
 ];
+export const getColorTheme = (copyBuffer: CopyBuffer | null) => {
+    if (!copyBuffer) {
+        return THEME_COLORS[5];
+    }
+    switch (copyBuffer.type) {
+        case WEB_INFO_SOURCE.CHAT_GPT:
+            return THEME_COLORS[2];
+        case WEB_INFO_SOURCE.GITHUB:
+            return THEME_COLORS[4];
+        case WEB_INFO_SOURCE.STACKOVERFLOW:
+            return THEME_COLORS[3];
+        default:
+            return THEME_COLORS[5];
+    }
+};

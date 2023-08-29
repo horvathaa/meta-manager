@@ -40,12 +40,14 @@ export function ChatGptHistory({
     const getHighlightLogic = (code: string) => {
         const copiedCodeArr = gptData.code.split('\n');
         const lines = code.split('\n');
-        const lineNumbers = lines
-            .filter((l) => copiedCodeArr.includes(l))
-            .map((l, i) => i);
+        const set = new Set();
+        lines.forEach((l, i) =>
+            copiedCodeArr.includes(l) ? set.add(i) : null
+        );
+        // .map((l, i) => i);
         return (lineNumber: number) => {
             let style: React.CSSProperties = {};
-            if (lineNumbers.includes(lineNumber)) {
+            if (set.has(lineNumber)) {
                 style.backgroundColor = '#519aba80';
             }
             // console.log('is this being called', lineNumber, lineNumbers);
