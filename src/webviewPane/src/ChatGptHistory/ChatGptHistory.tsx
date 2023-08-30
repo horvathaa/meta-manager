@@ -85,10 +85,23 @@ export function ChatGptHistory({
         jsx.push(<div className={styles['message']}>{strCopy}</div>);
         return <>{...jsx}</>;
     };
+    const data = gptData?.additionalMetadata as ChatGptCopyBuffer;
 
     return gptData ? (
         <div>
             <div className={styles['container']}>
+                <div>
+                    <a href={gptData.url} className={styles['title']}>
+                        {data.thread.title
+                            ? data.thread.title
+                            : data.thread._title}
+                    </a>
+
+                    <div className={styles['meta']}>
+                        Copied on{' '}
+                        {new Date(gptData.timeCopied).toLocaleString()}.
+                    </div>
+                </div>
                 <div className={styles['message']}>
                     {
                         (gptData.additionalMetadata as ChatGptCopyBuffer)

@@ -77,6 +77,7 @@ export interface ChatGptThread {
     _botObserver: MutationObserver | null;
     readonly _id: string;
     readonly _title: string;
+    readonly title: string;
 }
 
 export interface ThreadPair {
@@ -391,6 +392,7 @@ export interface UserMap {
 
 export interface SerializedTrackedPasteDetails {
     location: SerializedLocationPlus;
+    originalLocation: SerializedLocationPlus;
     pasteContent: string;
     pasteMetadata: ChangeBuffer;
     currContent: string;

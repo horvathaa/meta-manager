@@ -32,6 +32,8 @@ import {
 } from '../types/types';
 import { VS_CODE_API } from '../VSCodeApi';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
+import { Accordion, AccordionDetails, AccordionSummary } from '@mui/material';
+import { getRangeOfNumbers } from '../lib/utils';
 
 const prettyPrintType: { [k in WEB_INFO_SOURCE]: string } = {
     [WEB_INFO_SOURCE.CHAT_GPT]: 'Chat GPT',
@@ -42,8 +44,12 @@ const prettyPrintType: { [k in WEB_INFO_SOURCE]: string } = {
 };
 
 class MetaInformationController {
-    constructor(private readonly timelineController: TimelineController) {}
+    _gCopy: TimelineEvent | null = null;
+    constructor(
+        private readonly timelineController: TimelineController // private readonly g: TimelineEvent
+    ) {}
     render(g: TimelineEvent) {
+        this._gCopy = g;
         const { originalData } = g;
         const data = originalData as SerializedChangeBuffer;
         if (data.eventData) {
@@ -80,6 +86,7 @@ class MetaInformationController {
                                 </div>
                                 .
                             </div>
+                            {this.renderOriginalCopiedCode()}
                         </div>
                     );
                 }
@@ -109,6 +116,7 @@ class MetaInformationController {
                             </a>
                             .
                         </div>
+                        {this.renderOriginalCopiedCode()}
                     </div>
                 );
             }
@@ -126,6 +134,79 @@ class MetaInformationController {
         }
         return (
             <div className={styles['git-information']}>User changed code</div>
+        );
+    }
+
+    getPasteLocationLogic(g: TimelineEvent) {
+        // if (!this.timeli._node) {
+        //     return undefined;
+        // }
+        // const { node, items } = this._node;
+        // const data = g.originalData as SerializedChangeBuffer;
+        // const str = g._formattedData.code;
+        // const { location } = data.node;
+        const match = this.timelineController._node?.pasteLocations.find(
+            (c) => c.id === g._formattedData.id
+        );
+
+        if (!match) {
+            return undefined;
+        }
+        const { originalLocation } = match;
+        const range = getRangeOfNumbers(originalLocation).map((i) => i + 1);
+        return (lineNumber: number) => {
+            let style: React.CSSProperties = {};
+            let className = styles['cursor-default'];
+
+            if (range.includes(lineNumber)) {
+                style.backgroundColor = match.style;
+                // style.cursor = 'pointer';
+                className = styles['cursor-pointer'];
+                style.cursor = 'pointer';
+            }
+            const tl = this.timelineController._node?.items?.find(
+                (i) => i._formattedData.id === match.id
+            );
+
+            return {
+                style,
+                className: className,
+                onMouseEnter: () => {
+                    tl &&
+                        this.timelineController._graphController.highlight(
+                            match.id,
+                            tl
+                        );
+                },
+                onMouseOut: () => {
+                    tl &&
+                        this.timelineController._graphController.unhighlight(
+                            match.id,
+                            tl
+                        );
+                },
+            };
+        };
+    }
+
+    renderOriginalCopiedCode() {
+        if (!this._gCopy) {
+            return null;
+        }
+        const node = this._gCopy.originalData as SerializedChangeBuffer;
+        return (
+            <Accordion style={{ color: 'white' }}>
+                <AccordionSummary>
+                    <h3>See Original Copied Code</h3>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <CodeBlock
+                        codeString={this._gCopy._formattedData.code}
+                        highlightLogic={this.getPasteLocationLogic(this._gCopy)}
+                        startingLineNumber={node.location.range.start.line + 1}
+                    />
+                </AccordionDetails>
+            </Accordion>
         );
     }
 
@@ -158,7 +239,7 @@ class MetaInformationController {
                             {line}.
                         </div>
                         {/* <CodeBlock codeString={codeMetadata.code} /> */}
-
+                        {this.renderOriginalCopiedCode()}
                         {this.seeMore(copyBuffer, type)}
                     </div>
                 );
@@ -180,6 +261,7 @@ class MetaInformationController {
                             {question.programmingLanguage}" ({question.views}{' '}
                             views, {question.votes} votes), originally posted on{' '}
                             {new Date(question.postDate).toLocaleString()}.
+                            {this.renderOriginalCopiedCode()}
                             {this.seeMore(copyBuffer, type)}
                         </div>
                     </div>
@@ -192,7 +274,8 @@ class MetaInformationController {
                 return (
                     <div>
                         Copied from a Chat GPT thread titled "{thread._title}"
-                        on {new Date(messageCopied.time).toString()}.
+                        on {new Date(messageCopied.time).toLocaleString()}.
+                        {this.renderOriginalCopiedCode()}
                         {this.seeMore(copyBuffer, type)}
                     </div>
                 );

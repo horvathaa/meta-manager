@@ -372,6 +372,7 @@ const Search: React.FC<{ context: TimelineController }> = ({ context }) => {
 class TimelineController {
     private readonly _ref: Root;
     private readonly _headerRef: Root;
+    private readonly _colorGuideRef: Root;
     _graphController: GraphController;
     _gitInformationController: GitInformationController;
     _metaInformationController: MetaInformationController;
@@ -385,9 +386,10 @@ class TimelineController {
         this._headerRef = createRoot(header);
         const container =
             document.getElementById('root') || document.createElement('div');
-        console.log('container', container);
         this._ref = createRoot(container);
-        console.log('ref', this._ref);
+        const colorGuide =
+            document.getElementById('color') || document.createElement('div');
+        this._colorGuideRef = createRoot(colorGuide);
         this._graphController = new GraphController(this);
         this._gitInformationController = new GitInformationController(this);
         this._metaInformationController = new MetaInformationController(this);
@@ -578,16 +580,17 @@ class TimelineController {
         );
 
         return (
-            <div className={styles['m2']}>
-                {this.renderColorGuide()}
-                <Accordion style={{ color: 'white' }}>
+            <div className={styles['m2']} style={{ color: 'white' }}>
+                {this.renderTimelineEventMetadata(k)}
+                {/* {this.renderColorGuide()} */}
+                {/* <Accordion style={{ color: 'white' }}>
                     <AccordionSummary>
                         <h3>What happened?</h3>
                     </AccordionSummary>
                     <AccordionDetails>
                         {this.renderTimelineEventMetadata(k)}
                     </AccordionDetails>
-                </Accordion>
+                </Accordion> */}
                 <Accordion style={{ color: 'white' }}>
                     <AccordionSummary>
                         <h3>What did it used to look like?</h3>
@@ -603,12 +606,12 @@ class TimelineController {
                                 ]._formattedData.code
                             }
                         />
-                        {/* <RenderFilterButtons
+                        <RenderFilterButtons
                             timelineArr={this._node!.items!.filter(
                                 (t) => t._dataSourceType === k._dataSourceType
                             )}
                             context={this}
-                        /> */}
+                        />
                     </AccordionDetails>
                 </Accordion>
             </div>
@@ -693,10 +696,10 @@ class TimelineController {
             'Chat GPT',
             'Stack Overflow',
             'GitHub',
-            'Pasted from within VS Code',
+            'VS Code Paste',
         ];
         return (
-            <div className={styles['flex']}>
+            <div className={styles['flex-col']} style={{ fontSize: '11px' }}>
                 {[
                     '#4e79a761',
                     META_MANAGER_COLOR,
@@ -706,7 +709,7 @@ class TimelineController {
                     '#9EA9ED61',
                 ].map((c, i) => (
                     <div
-                        className={`${styles['flex-col']} ${styles['p2']}  ${styles['center']}`}
+                        className={`${styles['flex-col']} ${styles['p2']} ${styles['center']}`}
                     >
                         {arr[i]}
                         <div
@@ -815,12 +818,7 @@ class TimelineController {
             const { content } = node.location;
             const { pasteLocations } = this._node;
             const accordionComponents = this.getAccordionComponents();
-            return (
-                <>
-                    {this.renderColorGuide()}
-                    {...accordionComponents}
-                </>
-            );
+            return <>{...accordionComponents}</>;
         }
         return null;
     }
@@ -866,6 +864,11 @@ class TimelineController {
                 <Card style={cardStyle}>
                     {k ? this.renderVersion(k) : this.renderNode()}
                 </Card>
+            </ThemeProvider>
+        );
+        this._colorGuideRef.render(
+            <ThemeProvider theme={theme}>
+                {this.renderColorGuide()}
             </ThemeProvider>
         );
     }

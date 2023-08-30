@@ -2,7 +2,11 @@ import * as d3 from 'd3';
 import TimelineController, { Payload } from './TimelineController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
 import { SerializedChangeBuffer, Event, DataSourceType } from '../types/types';
-import { META_MANAGER_COLOR, lightenDarkenColor } from '../styles/globals';
+import {
+    META_MANAGER_COLOR,
+    META_MANAGER_COLOR_LIGHT,
+    lightenDarkenColor,
+} from '../styles/globals';
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
 //     ['#4e79a7', '#e15759']
@@ -20,6 +24,18 @@ const source = d3.scaleOrdinal(
     ]
 );
 
+const lightenOrd = d3.scaleOrdinal(
+    ['git', 'vscode', 'CHAT_GPT', 'STACKOVERFLOW', 'GITHUB', 'pasted-code'],
+    [
+        '#4e79a7',
+        META_MANAGER_COLOR_LIGHT,
+        '#CCCCFF',
+        '#7575CF',
+        '#5453A6',
+        '#9EA9ED',
+    ]
+);
+
 class GraphController {
     private readonly width = 640;
     private readonly height = 500;
@@ -34,22 +50,28 @@ class GraphController {
         // this.constructGraph(data);
     }
 
-    getColor(d: TimelineEvent) {
+    getColor(d: TimelineEvent, lighten?: boolean) {
         if (d._dataSourceType === 'git') {
-            return source(d._dataSourceType);
+            return lighten
+                ? lightenOrd(d._dataSourceType)
+                : source(d._dataSourceType);
         } else if (d._dataSourceType === 'meta-past-version') {
             const data = d.originalData as SerializedChangeBuffer;
             if (data.eventData) {
                 if (data.eventData[Event.WEB]) {
-                    return source(data.eventData[Event.WEB].copyBuffer.type);
+                    return lighten
+                        ? lightenOrd(data.eventData[Event.WEB].copyBuffer.type)
+                        : source(data.eventData[Event.WEB].copyBuffer.type);
                 }
                 if (data.eventData[Event.PASTE]) {
-                    return source('pasted-code'); // should get a better type for this
+                    return lighten
+                        ? lightenOrd('pasted-code')
+                        : source('pasted-code'); // should get a better type for this
                 }
             }
         }
 
-        return source('vscode');
+        return lighten ? lightenOrd('vscode') : source('vscode');
     }
 
     constructGraph(data: any) {
@@ -359,7 +381,7 @@ class GraphController {
                 d3.select(this)
                     .transition()
                     .duration(300)
-                    .attr('fill', lightenDarkenColor(context.getColor(k), 50))
+                    .attr('fill', context.getColor(k, true))
                     .attr('cursor', 'pointer');
                 // (this as Element).attr = 'pointer';
             })
@@ -439,22 +461,10 @@ class GraphController {
     }
 
     highlight(id: string, obj: any) {
-        console.log(
-            'id',
-            `#${id.replace(/[:\s]+/g, '-')}`,
-            'sel',
-            d3.select(`#${id.replace(/[:\s]+/g, '-')}`)
-        );
         d3.select(`#${id.replace(/[:\s]+/g, '-')}`)
             .transition()
             .duration(300)
-            .attr(
-                'fill',
-                lightenDarkenColor(
-                    this.getColor(obj), // sigh
-                    50
-                )
-            );
+            .attr('fill', this.getColor(obj, true));
     }
 
     unhighlight(id: string, obj: any) {

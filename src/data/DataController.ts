@@ -491,134 +491,153 @@ export class DataController {
     }
 
     handleOnPaste(pasteEvent: ClipboardMetadata) {
-        console.log(
-            'PASTED',
-            this,
-            'paste',
-            pasteEvent,
-            this.container.copyBuffer
-        );
-        const doc =
-            window.activeTextEditor?.document ||
-            window.visibleTextEditors[0].document;
-        const location = LocationPlus.fromLocation(pasteEvent.location);
-        this.readableNode.location.updateContent(doc);
-        let eventObj: ChangeBuffer | undefined;
-        // const eventId: string = `${this.readableNode.id}:paste-${uuidv4()}`;
-        const baseChange = this.getBaseChangeBuffer();
-        if (this.container.copyBuffer) {
-            const { repository, ...rest } = this.container.gitController
-                ?.gitState as CurrentGitState;
-            const details = {
-                ...this.container.copyBuffer,
-                location: pasteEvent.location,
-                pasteTime: Date.now(),
-                gitMetadata: rest,
-            };
-            this._webMetaData.push(details);
-            eventObj = {
-                ...this.getBaseChangeBuffer(),
-                location: this.readableNode.location.serialize(),
-                typeOfChange: TypeOfChange.CONTENT_ONLY,
-                changeContent: pasteEvent.text,
-                // eventId,
-                eventData: {
-                    [Event.WEB]: {
-                        copyBuffer: this.container.copyBuffer,
-                    },
-                },
-            };
-            this._changeBuffer.push(eventObj);
-            this._debug = true;
-            this._emit = true;
-            // console.log('posting', this.serialize());
-        } else if (this.container._copyVscodeMetadata) {
-            // it's kinda goofy that this is separate from the copybuffer -- would be better if they were the same
-            const { vscodeMetadata } = pasteEvent;
-            // console.log(
-            //     'location...',
-            //     LocationPlus.fromLocation(pasteEvent.location).updateContent().serialize()
-            // );
-            eventObj = {
-                ...this.getBaseChangeBuffer(),
-                location: this.readableNode.location.serialize(),
-                typeOfChange: TypeOfChange.CONTENT_ONLY,
-                changeContent: pasteEvent.text,
-                // eventId,
-                eventData: {
-                    [Event.PASTE]: {
-                        pasteContent: pasteEvent.text,
-                        nodeId: this.container._copyVscodeMetadata.id, // replace with readable node id that was copiedd
-                        vscodeMetadata: this.container._copyVscodeMetadata,
-                    },
-                },
-            };
-            this._changeBuffer.push(eventObj);
-        } else {
-            const { vscodeMetadata } = pasteEvent;
-            eventObj = {
-                ...this.getBaseChangeBuffer(),
-                location: this.readableNode.location.serialize(),
-                typeOfChange: TypeOfChange.CONTENT_ONLY,
-                changeContent: pasteEvent.text,
-                // eventId,
-                eventData: {
-                    [Event.PASTE]: {
-                        pasteContent: pasteEvent.text,
-                        nodeId: this.readableNode.id, // replace with readable node id that was copiedd
-                        vscodeMetadata,
-                    },
-                },
-            };
-            this._changeBuffer.push(eventObj);
-        }
-
-        const pasteInfo = {
-            location: pasteEvent.location,
-            pasteContent: pasteEvent.text,
-            pasteMetadata: eventObj,
-        };
-        this._didPaste = pasteInfo;
-        setTimeout(
-            () => {
-                console.log(
-                    'hewwo???',
-                    LocationPlus.fromLocation(pasteEvent.location)
-                );
-                const pasteTracker: TrackedPasteDetails = {
-                    ...pasteInfo,
-                    location: LocationPlus.fromLocation(pasteEvent.location),
-                    currContent: pasteEvent.text,
-                    id: baseChange.id,
-                    style: getColorTheme(this.container.copyBuffer),
+        setTimeout(() => {
+            console.log(
+                'PASTED',
+                this,
+                'paste',
+                pasteEvent,
+                this.container.copyBuffer
+            );
+            const doc =
+                window.activeTextEditor?.document ||
+                window.visibleTextEditors[0].document;
+            const location = LocationPlus.fromLocation(pasteEvent.location);
+            this.readableNode.location.updateContent(doc);
+            // if (!this.readableNode.location.content.includes(pasteEvent.text)) {
+            //     await setTimeout(() => {
+            //         // feels... hacky!
+            //         this.handleOnPaste(pasteEvent);
+            //     }, 300);
+            //     return;
+            // }
+            let eventObj: ChangeBuffer | undefined;
+            // const eventId: string = `${this.readableNode.id}:paste-${uuidv4()}`;
+            const baseChange = this.getBaseChangeBuffer();
+            if (this.container.copyBuffer) {
+                const { repository, ...rest } = this.container.gitController
+                    ?.gitState as CurrentGitState;
+                const details = {
+                    ...this.container.copyBuffer,
+                    location: pasteEvent.location,
+                    pasteTime: Date.now(),
+                    gitMetadata: rest,
                 };
-                console.log('pasteTracker init', pasteTracker);
+                this._webMetaData.push(details);
+                eventObj = {
+                    ...this.getBaseChangeBuffer(),
+                    // location: this.readableNode.location.serialize(),
+                    // location: location.serialize(),
 
-                // setTimeout(
-                //     () =>
-                pasteTracker.location.onChanged.event(
-                    (changeEvent: ChangeEvent) => {
-                        console.log('changeEvent', changeEvent);
-                        pasteTracker.currContent = changeEvent.location.content;
-                        console.log('pasteTracker', pasteTracker);
-                        // this.handleOnChange(changeEvent)
-                    }
-                );
-                this._pasteLocations.push(pasteTracker);
-            },
-            5000,
-            pasteInfo
-        );
+                    typeOfChange: TypeOfChange.CONTENT_ONLY,
+                    changeContent: pasteEvent.text,
+                    // eventId,
+                    eventData: {
+                        [Event.WEB]: {
+                            copyBuffer: this.container.copyBuffer,
+                        },
+                    },
+                };
+                this._changeBuffer.push(eventObj);
+                this._debug = true;
+                this._emit = true;
+                // console.log('posting', this.serialize());
+            } else if (this.container._copyVscodeMetadata) {
+                // it's kinda goofy that this is separate from the copybuffer -- would be better if they were the same
+                const { vscodeMetadata } = pasteEvent;
+                // console.log(
+                //     'location...',
+                //     LocationPlus.fromLocation(pasteEvent.location).updateContent().serialize()
+                // );
+                eventObj = {
+                    ...this.getBaseChangeBuffer(),
+                    location: this.readableNode.location.serialize(),
+                    typeOfChange: TypeOfChange.CONTENT_ONLY,
+                    changeContent: pasteEvent.text,
+                    // eventId,
+                    eventData: {
+                        [Event.PASTE]: {
+                            pasteContent: pasteEvent.text,
+                            nodeId: this.container._copyVscodeMetadata.id, // replace with readable node id that was copiedd
+                            vscodeMetadata: this.container._copyVscodeMetadata,
+                        },
+                    },
+                };
+                this._changeBuffer.push(eventObj);
+            } else {
+                const { vscodeMetadata } = pasteEvent;
+                eventObj = {
+                    ...this.getBaseChangeBuffer(),
+                    location: this.readableNode.location.serialize(),
+                    typeOfChange: TypeOfChange.CONTENT_ONLY,
+                    changeContent: pasteEvent.text,
+                    // eventId,
+                    eventData: {
+                        [Event.PASTE]: {
+                            pasteContent: pasteEvent.text,
+                            nodeId: this.readableNode.id, // replace with readable node id that was copiedd
+                            vscodeMetadata,
+                        },
+                    },
+                };
+                this._changeBuffer.push(eventObj);
+            }
 
-        if (pasteEvent.text.includes('{') && pasteEvent.text.includes('}')) {
-            this.handleInsertBlock(
-                pasteEvent.text,
-                pasteEvent.location.range,
-                eventObj
+            const pasteInfo = {
+                location: pasteEvent.location,
+                pasteContent: pasteEvent.text,
+                pasteMetadata: eventObj,
+            };
+            this._didPaste = pasteInfo;
+            setTimeout(
+                () => {
+                    const pasteTracker: TrackedPasteDetails = {
+                        ...pasteInfo,
+                        location: LocationPlus.fromLocation(
+                            pasteEvent.location
+                        ),
+                        originalLocation: {
+                            ...LocationPlus.staticSerialize(
+                                pasteEvent.location
+                            ),
+                            content: pasteEvent.text,
+                        },
+                        currContent: pasteEvent.text,
+                        id: baseChange.id,
+                        style: getColorTheme(this.container.copyBuffer),
+                    };
+                    console.log('pasteTracker init', pasteTracker);
+
+                    // setTimeout(
+                    //     () =>
+                    pasteTracker.location.onChanged.event(
+                        (changeEvent: ChangeEvent) => {
+                            console.log('changeEvent', changeEvent);
+                            pasteTracker.currContent =
+                                changeEvent.location.content;
+                            console.log('pasteTracker', pasteTracker);
+                            // this.handleOnChange(changeEvent)
+                        }
+                    );
+                    this._pasteLocations.push(pasteTracker);
+                },
+                5000,
+                pasteInfo
             );
 
-            // return;
-        }
+            if (
+                pasteEvent.text.includes('{') &&
+                pasteEvent.text.includes('}')
+            ) {
+                this.handleInsertBlock(
+                    pasteEvent.text,
+                    pasteEvent.location.range,
+                    eventObj
+                );
+
+                // return;
+            }
+        }, 300);
     }
 
     handleOnChange(changeEvent: ChangeEvent) {

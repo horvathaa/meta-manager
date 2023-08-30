@@ -349,6 +349,14 @@ export default class LocationPlus extends Location {
         }
     }
 
+    static staticSerialize(location: Location) {
+        return {
+            fsPath: location.uri.fsPath,
+            range: RangePlus.staticSerialize(location.range),
+            content: '', // bad
+        };
+    }
+
     serialize(): SerializedLocationPlus {
         return {
             fsPath: this.uri.fsPath,

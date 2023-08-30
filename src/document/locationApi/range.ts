@@ -81,6 +81,19 @@ class RangePlus extends Range {
         return new RangePlus(start, end);
     }
 
+    static staticSerialize(range: Range) {
+        return {
+            start: {
+                line: range.start.line,
+                character: range.start.character,
+            },
+            end: {
+                line: range.end.line,
+                character: range.end.character,
+            },
+        };
+    }
+
     public translate(range: Range) {
         return RangePlus.fromLineNumbers(
             this.start.line + range.start.line,

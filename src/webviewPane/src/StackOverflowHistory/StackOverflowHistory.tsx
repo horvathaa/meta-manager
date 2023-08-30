@@ -122,7 +122,7 @@ export function StackOverflowHistory({
     const formatStackOverflowAnswer = (answer: StackOverflowAnswer) => {
         const lastViewedStr = answer.lastEditDate
             ? ` last
-        edited on ${new Date(answer.lastEditDate).toLocaleString()}`
+        edited on ${new Date(answer.lastEditDate).toLocaleString()}, `
             : '';
         const isAcceptedStr = answer.isAccepted
             ? ', answer is accepted'
@@ -132,7 +132,7 @@ export function StackOverflowHistory({
                 <div>
                     <div className={styles['meta']}>
                         Answered on {new Date(answer.postDate).toLocaleString()}
-                        ,{lastViewedStr}
+                        {lastViewedStr}
                         {isAcceptedStr}, and received {answer.votes} vote(s).
                     </div>
                 </div>

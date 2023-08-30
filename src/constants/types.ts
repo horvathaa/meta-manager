@@ -284,6 +284,7 @@ export interface PasteDetails {
 
 export interface TrackedPasteDetails extends PasteDetails {
     location: LocationPlus;
+    originalLocation: SerializedLocationPlus;
     // changeBuffer: ChangeBuffer[];
     currContent: string;
     id: string;
