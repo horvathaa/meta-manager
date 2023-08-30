@@ -380,7 +380,7 @@ class TimelineController {
     _lookingAtFiltered: boolean = false;
     _queue: (TimelineEvent | undefined)[] = [];
     constructor() {
-        console.log('constructing');
+        // console.log('constructing');
         const header =
             document.getElementById('header') || document.createElement('div');
         this._headerRef = createRoot(header);
@@ -393,13 +393,13 @@ class TimelineController {
         this._graphController = new GraphController(this);
         this._gitInformationController = new GitInformationController(this);
         this._metaInformationController = new MetaInformationController(this);
-        console.log('graph', this._graphController);
+        // console.log('graph', this._graphController);
         this.initListeners();
         // this.constructGraph();
     }
 
     initListeners() {
-        console.log('hewwo!!!!!!!!!!!!!!');
+        // console.log('hewwo!!!!!!!!!!!!!!');
         window.addEventListener('message', (e) =>
             this.handleIncomingMessage(e, this)
         );
@@ -415,7 +415,7 @@ class TimelineController {
     }
 
     renderTimelineEventMetadata(k: TimelineEvent) {
-        console.log('k!', k);
+        // console.log('k!', k);
         switch (k._dataSourceType) {
             case 'git': {
                 return this._gitInformationController.render(k);
@@ -432,7 +432,7 @@ class TimelineController {
     renderFirstInstance() {
         if (this._node) {
             const { firstInstance } = this._node;
-            console.log('this', this);
+            // console.log('this', this);
             if (firstInstance) {
                 return this.renderTimelineEventMetadata(firstInstance);
             } else {
@@ -493,7 +493,9 @@ class TimelineController {
         originalData: SerializedChangeBuffer[],
         timelineArr: TimelineEvent[]
     ) {
-        if (!this._node) return null;
+        if (!this._node) {
+            return null;
+        }
         return (
             <div>
                 <h4>Some Code Came from Other Parts of this Code Base</h4>
@@ -509,6 +511,36 @@ class TimelineController {
                                 {new Date(event.time).toLocaleString()}
                                 <CodeBox
                                     oldCode={eventData.pasteContent}
+                                    newCode={this._node!.node.location.content}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+                <RenderFilterButtons timelineArr={timelineArr} context={this} />
+            </div>
+        );
+    }
+
+    renderCommentOutEvent(
+        originalData: SerializedChangeBuffer[],
+        timelineArr: TimelineEvent[]
+    ) {
+        if (!this._node) {
+            return null;
+        }
+        return (
+            <div>
+                <h4>Comment</h4>
+                {originalData.map((event) => {
+                    const eventData = event.eventData![Event.COMMENT_OUT]!;
+                    return (
+                        <div className={styles['flex']}>
+                            <div>
+                                Code stopped being used on{' '}
+                                {new Date(event.time).toLocaleString()}.
+                                <CodeBox
+                                    oldCode={eventData.location.content}
                                     newCode={this._node!.node.location.content}
                                 />
                             </div>
@@ -542,6 +574,10 @@ class TimelineController {
 
                         case Event.PASTE: {
                             return this.renderPasteEvent(originalData, e);
+                        }
+
+                        case Event.COMMENT_OUT: {
+                            return this.renderCommentOutEvent(originalData, e);
                         }
                     }
                     // return (

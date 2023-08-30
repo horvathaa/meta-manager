@@ -174,6 +174,11 @@ export class DataController {
                     this.handleOnPaste(pasteEvent);
                 }
             }),
+            this.container.onCommented((commentEvent) => {
+                if (this.isContained(commentEvent.location)) {
+                    this.handleOnCommented(commentEvent);
+                }
+            }),
             this.readableNode.location.onChanged.event(
                 // debounce(async (changeEvent: ChangeEvent) => {
                 (changeEvent: ChangeEvent) => this.handleOnChange(changeEvent)
@@ -488,6 +493,33 @@ export class DataController {
                 node: this.readableNode.serialize(),
             });
         }
+    }
+
+    handleOnCommented(commentEvent: {
+        location: Location;
+        time: number;
+        text: string;
+    }) {
+        const event =
+            commentEvent.text.trim()[0] === '/'
+                ? Event.COMMENT_OUT
+                : Event.COMMENT_IN;
+        // if (this.isContained(commentEvent.location)) {
+        this._changeBuffer.push({
+            ...this.getBaseChangeBuffer(),
+            typeOfChange: TypeOfChange.CONTENT_ONLY,
+            changeContent: this.readableNode.location.content,
+            eventData: {
+                [event]: {
+                    location: LocationPlus.staticSerialize(
+                        commentEvent.location
+                    ),
+                    time: commentEvent.time,
+                },
+            },
+        });
+        console.log('this', this);
+        // }
     }
 
     handleOnPaste(pasteEvent: ClipboardMetadata) {

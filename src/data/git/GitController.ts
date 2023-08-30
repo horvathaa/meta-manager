@@ -67,9 +67,9 @@ class GitController extends Disposable {
             if (authSession) {
                 this._authSession = authSession;
                 console.log('authSession', authSession);
-                this._octokit = new Octokit({
-                    auth: authSession.accessToken,
-                });
+                // this._octokit = new Octokit({
+                //     auth: authSession.accessToken,
+                // });
                 this._onDidChangeGitAuth.fire(authSession);
             }
         } catch (e) {
@@ -229,92 +229,93 @@ class GitController extends Disposable {
             res.map(async (log, i) => {
                 // this._gitState.
                 // anotherFrickinMap.set(log.hash, getCommitInformation(log.hash))
-                const octokitPullResponse = await this._octokit?.request(
-                    `GET /repos/${this._gitState!.owner}/${
-                        this._gitState!.repoName
-                    }/commits/${log.hash}/pulls`,
-                    {
-                        owner: this._gitState!.owner,
-                        repo: this._gitState!.repoName,
-                        commit_sha: log.hash,
-                    }
-                );
+                // const octokitPullResponse = await this._octokit?.request(
+                //     `GET /repos/${this._gitState!.owner}/${
+                //         this._gitState!.repoName
+                //     }/commits/${log.hash}/pulls`,
+                //     {
+                //         owner: this._gitState!.owner,
+                //         repo: this._gitState!.repoName,
+                //         commit_sha: log.hash,
+                //     }
+                // );
 
-                const octokitResponseData: any = Array.isArray(
-                    octokitPullResponse
-                )
-                    ? octokitPullResponse.flatMap((o) => o.data)
-                    : octokitPullResponse?.data;
+                const octokitResponseData: any = [];
+                // Array.isArray(
+                //     octokitPullResponse
+                // )
+                //     ? octokitPullResponse.flatMap((o) => o.data)
+                //     : octokitPullResponse?.data;
                 // console.log('octokitResponseData', octokitResponseData)
                 const prNumbers = octokitResponseData.map(
                     (d: any) => `#${d.number}`
                 );
                 // console.log('reps', octokitResponseData, prNumbers);
-                const linkedResponseIssuesOrPullRequests =
-                    octokitResponseData.flatMap((o: any) => [
-                        ...new Set(
-                            o.body?.match(/#\d+/g)
-                                ? o.body
-                                      .match(/#\d+/g)
-                                      .concat(o.title.match(/#\d+/g) ?? [])
-                                : o.title?.match(/#\d+/g)
-                                ? o.title.match(/#\d+/g)
-                                : []
-                        ),
-                    ]);
+                // const linkedResponseIssuesOrPullRequests =
+                //     octokitResponseData.flatMap((o: any) => [
+                //         ...new Set(
+                //             o.body?.match(/#\d+/g)
+                //                 ? o.body
+                //                       .match(/#\d+/g)
+                //                       .concat(o.title.match(/#\d+/g) ?? [])
+                //                 : o.title?.match(/#\d+/g)
+                //                 ? o.title.match(/#\d+/g)
+                //                 : []
+                //         ),
+                //     ]);
                 // console.log('lll', linkedResponseIssuesOrPullRequests)
-                const linkedIssuesOrPullRequests: any[] = (
-                    [
-                        ...new Set(
-                            linkedResponseIssuesOrPullRequests &&
-                            log.message.match(/#\d+/g)
-                                ? log.message
-                                      .match(/#\d+/g)
-                                      ?.concat(
-                                          linkedResponseIssuesOrPullRequests
-                                      )
-                                : log.message.match(/#\d+/g)
-                                ? log.message.match(/#\d+/g)
-                                : linkedResponseIssuesOrPullRequests
-                                ? linkedResponseIssuesOrPullRequests
-                                : []
-                        ),
-                    ] as any[]
-                ).filter((p: string) => !prNumbers.includes(p));
+                // const linkedIssuesOrPullRequests: any[] = (
+                //     [
+                //         ...new Set(
+                //             linkedResponseIssuesOrPullRequests &&
+                //             log.message.match(/#\d+/g)
+                //                 ? log.message
+                //                       .match(/#\d+/g)
+                //                       ?.concat(
+                //                           linkedResponseIssuesOrPullRequests
+                //                       )
+                //                 : log.message.match(/#\d+/g)
+                //                 ? log.message.match(/#\d+/g)
+                //                 : linkedResponseIssuesOrPullRequests
+                //                 ? linkedResponseIssuesOrPullRequests
+                //                 : []
+                //         ),
+                //     ] as any[]
+                // ).filter((p: string) => !prNumbers.includes(p));
                 // console.log('linked?', linkedIssuesOrPullRequests)
-                let lmao;
-                if (linkedIssuesOrPullRequests) {
-                    lmao = await Promise.all(
-                        linkedIssuesOrPullRequests.map(async (m) => {
-                            const num = m.replace('#', '');
-                            const octokitIssueResponse =
-                                await this._octokit?.request(
-                                    `GET /repos/${this._gitState!.owner}/${
-                                        this._gitState!.repoName
-                                    }/issues/${num}`,
-                                    // `GET /repos/${owner}/${repo}/commits/${log.hash}/pulls`,
-                                    {
-                                        owner: this._gitState!.owner,
-                                        repo: this._gitState!.repoName,
-                                        issue_number: num,
-                                    }
-                                );
-                            return Array.isArray(octokitIssueResponse)
-                                ? octokitIssueResponse.flatMap((o) => o.data)
-                                : octokitIssueResponse?.data;
-                            // {
-                            //     [m]:
+                // let lmao;
+                // if (linkedIssuesOrPullRequests) {
+                //     lmao = await Promise.all(
+                //         linkedIssuesOrPullRequests.map(async (m) => {
+                //             const num = m.replace('#', '');
+                //             const octokitIssueResponse =
+                //                 await this._octokit?.request(
+                //                     `GET /repos/${this._gitState!.owner}/${
+                //                         this._gitState!.repoName
+                //                     }/issues/${num}`,
+                //                     // `GET /repos/${owner}/${repo}/commits/${log.hash}/pulls`,
+                //                     {
+                //                         owner: this._gitState!.owner,
+                //                         repo: this._gitState!.repoName,
+                //                         issue_number: num,
+                //                     }
+                //                 );
+                //             return Array.isArray(octokitIssueResponse)
+                //                 ? octokitIssueResponse.flatMap((o) => o.data)
+                //                 : octokitIssueResponse?.data;
+                //             // {
+                //             //     [m]:
 
-                            // }
-                        })
-                    );
-                    // console.log('hewwwooooo???', lmao)
-                }
+                //             // }
+                //         })
+                //     );
+                //     // console.log('hewwwooooo???', lmao)
+                // }
 
                 return {
                     ...log,
-                    githubData: octokitResponseData,
-                    linkedGithubData: lmao ?? [],
+                    githubData: [], // octokitResponseData,
+                    linkedGithubData: [], // lmao ?? [],
                 };
             })
         );

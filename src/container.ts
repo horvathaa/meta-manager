@@ -51,6 +51,7 @@ export class Container {
         new EventEmitter<ClipboardMetadata>();
     _onPaste: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
+    _onCommented: EventEmitter<any> = new EventEmitter<any>();
     _copyVscodeMetadata: VSCClipboardMetadata | null = null;
     // activeNode: DataController | null = null;
     activeFile: DocumentWatcher | null = null;
@@ -81,6 +82,11 @@ export class Container {
             (textEditor: TextEditor, edit: TextEditorEdit, params: any) =>
                 this.overriddenClipboardPasteAction(textEditor, edit, params)
         );
+        this._commentDisposable = commands.registerTextEditorCommand(
+            'editor.action.commentLine',
+            (textEditor: TextEditor, edit: TextEditorEdit, params: any) =>
+                this.overriddenCommentAction(textEditor, edit, params)
+        );
         this._loggedInUserMap = {
             firestoreEmail: '',
             firestoreUid: '',
@@ -94,7 +100,8 @@ export class Container {
             // (this._dataController = new DataController(this))
             // (this._fileParser = FileParser.createFileParser(context, this)) // new FileParser(context, this))
             this._clipboardCopyDisposable,
-            this._clipboardPasteDisposable
+            this._clipboardPasteDisposable,
+            this._commentDisposable
         );
         // this._context = context;
     }
@@ -188,6 +195,11 @@ export class Container {
         return this._clipboardCopyDisposable;
     }
 
+    private _commentDisposable: Disposable | undefined;
+    public get commentDisposable(): Disposable | undefined {
+        return this._commentDisposable;
+    }
+
     public get onInitComplete() {
         return this._onInitComplete.event;
     }
@@ -206,6 +218,10 @@ export class Container {
 
     public get onRead() {
         return this._onRead.event;
+    }
+
+    public get onCommented() {
+        return this._onCommented.event;
     }
 
     static async create(context: ExtensionContext) {
@@ -270,6 +286,42 @@ export class Container {
         }
     }
 
+    async overriddenCommentAction(
+        textEditor: TextEditor,
+        edit: TextEditorEdit,
+        params: any
+    ) {
+        this._commentDisposable?.dispose();
+        commands.executeCommand('editor.action.commentLine').then(() => {
+            // commands
+            //     .executeCommand('editor.action.clipboardPasteAction')
+            //     .then(() => {
+            //add the overridden editor.action.clipboardCopyAction back
+            this._commentDisposable = commands.registerTextEditorCommand(
+                'editor.action.commentLine',
+                (textEditor: TextEditor, edit: TextEditorEdit, params: any) =>
+                    this.overriddenCommentAction(textEditor, edit, params)
+            );
+            this.context.subscriptions.push(this._commentDisposable);
+            // });
+            const location: Location = new Location(
+                textEditor.document.uri,
+                RangePlus.fromRange(textEditor.selection)
+            );
+            const commentedText = textEditor.document.getText(
+                textEditor.selection
+            );
+            console.log('COMMENTED!!!!!', commentedText);
+            this._onCommented.fire({
+                // text: pastedText,
+                location,
+                time: Date.now(),
+                text: commentedText,
+            });
+            // this._copyVscodeMetadata = null;
+        });
+    }
+
     async overriddenClipboardPasteAction(
         textEditor: TextEditor,
         edit: TextEditorEdit,
@@ -322,39 +374,7 @@ export class Container {
                     time: Date.now(),
                     vscodeMetadata: this._copyVscodeMetadata,
                 });
-                this._copyVscodeMetadata = null;
             });
-        // console.log('textEditor', textEditor);
-        // console.log('edit', edit);
-        // console.log('params', params);
-        // console.log('this', this);
-        // if (textEditor.document.uri !== this.readableNode.location.uri) {
-        //     return;
-        // }
-
-        // const selection = textEditor.selection;
-        // if (!this.readableNode.location.range.contains(selection)) {
-        //     return;
-        // }
-        // const selectionRange = RangePlus.fromPositions(
-        //     selection.start,
-        //     selection.end
-        // );
-        // const selectionContent = textEditor.document.getText(selectionRange);
-        // const newNodeMetadata =
-        //     this.container.languageServiceProvider.parseCodeBlock(
-        //         selectionContent,
-        //         doc,
-        //         this.readableNode.location
-        //     );
-        // // console.log(
-        // //     'newNodeMetadata',
-        // //     newNodeMetadata,
-        // //     'this',
-        // //     this
-        // // );
-        // this._vscNodeMetadata = newNodeMetadata;
-        // console.log('this._vscNodeMe
     }
 
     overriddenClipboardCopyAction(

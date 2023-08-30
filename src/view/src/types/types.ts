@@ -271,6 +271,8 @@ export enum Event {
     COPY = 'COPY',
     PASTE = 'PASTE',
     COMMENT = 'COMMENT',
+    COMMENT_OUT = 'COMMENT_OUT',
+    COMMENT_IN = 'COMMENT_IN',
 }
 
 export interface SerializedDataControllerEvent {
@@ -367,6 +369,17 @@ export interface ChangeBuffer {
         };
         [Event.WEB]?: {
             copyBuffer: CopyBuffer;
+        };
+
+        [Event.COMMENT_OUT]?: {
+            // commentedOut: boolean;
+            location: SerializedLocationPlus;
+            time: number;
+        };
+        [Event.COMMENT_IN]?: {
+            // uncommented: boolean;
+            location: SerializedLocationPlus;
+            time: number;
         };
     };
 }

@@ -149,9 +149,10 @@ class MetaInformationController {
             (c) => c.id === g._formattedData.id
         );
 
-        if (!match) {
+        if (!match || !match?.originalLocation) {
             return undefined;
         }
+
         const { originalLocation } = match;
         const range = getRangeOfNumbers(originalLocation).map((i) => i + 1);
         return (lineNumber: number) => {
@@ -197,12 +198,12 @@ class MetaInformationController {
         return (
             <Accordion style={{ color: 'white' }}>
                 <AccordionSummary>
-                    <h3>See Original Copied Code</h3>
+                    <h4>See Original Pasted Code</h4>
                 </AccordionSummary>
                 <AccordionDetails>
                     <CodeBlock
                         codeString={this._gCopy._formattedData.code}
-                        highlightLogic={this.getPasteLocationLogic(this._gCopy)}
+                        highlightLogic={this.getPasteLocationLogic(this._gCopy)} // stupid
                         startingLineNumber={node.location.range.start.line + 1}
                     />
                 </AccordionDetails>
