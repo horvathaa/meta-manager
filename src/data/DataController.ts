@@ -792,14 +792,21 @@ export class DataController {
         return masterEventObject;
     }
 
+    isInteresting(change: ChangeBuffer): boolean {
+        if (change.eventData) {
+            return true;
+        }
+        return false;
+    }
+
     formatWebviewData(): WebviewData {
         const allData = this.serialize();
         const pastVersions = this._pastVersions.map(
             (v) => new TimelineEvent(v)
         );
-        const changeBuffer = this._changeBuffer.map(
-            (c) => new TimelineEvent(c)
-        );
+        const changeBuffer = this._changeBuffer
+            .filter((c) => this.isInteresting(c))
+            .map((c) => new TimelineEvent(c));
         const meta = pastVersions.concat(changeBuffer);
         const items = meta.concat(this._gitData || []).sort((a, b) => {
             const aDate = a._formattedData.x;
@@ -946,7 +953,11 @@ export class DataController {
         if (this.container.gitController?.gitState) {
             const { commit, branch } = this.container.gitController
                 ?.gitState as CurrentGitState;
-            this._changeBuffer.forEach((c) => {
+            const lastEdit = this._changeBuffer[this._changeBuffer.length - 1];
+            [
+                ...this._changeBuffer.filter((c) => this.isInteresting(c)),
+                lastEdit,
+            ].forEach((c) => {
                 const { diff, ...rest } = c;
                 const obj = {
                     ...rest,
