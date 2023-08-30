@@ -1100,7 +1100,14 @@ export class DataController {
     }
 
     getGitData() {
-        return this.container.gitController?.gitLog(this.readableNode.location);
+        try {
+            const res = this.container.gitController?.gitLog(
+                this.readableNode.location
+            );
+            return res;
+        } catch (e) {
+            return [];
+        }
     }
 
     async getFirestoreData() {

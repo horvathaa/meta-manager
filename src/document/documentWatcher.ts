@@ -55,7 +55,7 @@ class DocumentWatcher extends Disposable {
 
         this._nodesInFile = undefined;
         const otherListener = container.onNodesComplete(() => {
-            // console.log('new project', this);
+            console.log('new project', this);
             if (this._nodesInFile === undefined) {
                 // console.log('hewwo????', this);
                 this._nodesInFile = this.initNodes();

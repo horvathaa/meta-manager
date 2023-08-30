@@ -90,6 +90,7 @@ class FirestoreController extends Disposable {
     readonly _refs: Map<string, CollectionReference> | undefined;
     _onCopy: EventEmitter<CopyBuffer> = new EventEmitter<CopyBuffer>();
     _onRead: EventEmitter<any> = new EventEmitter<any>();
+    _onReadComplete: EventEmitter<any> = new EventEmitter<any>();
     _projectName: string = '';
     constructor(private readonly container: Container) {
         super(() => this.dispose());
@@ -122,6 +123,11 @@ class FirestoreController extends Disposable {
 
     get onRead() {
         return this._onRead.event;
+    }
+
+    // if time, do this
+    get onReadComplete() {
+        return this._onReadComplete.event;
     }
 
     private async setUpUser(
@@ -452,8 +458,8 @@ class FirestoreController extends Disposable {
         }
 
         const data = await getDocs(filesRef);
+
         data.forEach(async (doc) => {
-            // console.log('doc', doc.data());
             const parentRefPath = `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}/${doc.id}/${SUB_COLLECTIONS.NODES}`;
             const res = this._refs?.get(parentRefPath);
             if (!res) {
@@ -472,6 +478,7 @@ class FirestoreController extends Disposable {
                 data: subData,
                 map: dataMap,
             });
+            // console.log('doc', doc.data());
         });
     }
 

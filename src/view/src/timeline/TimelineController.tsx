@@ -129,11 +129,12 @@ interface FormattedSerializedTrackedPasteDetails
     lineNumber: number;
 }
 
-const CodeBox: React.FC<{ oldCode: string; newCode: string }> = ({
-    oldCode,
-    newCode,
-}) => {
-    const [showDiff, setShowDiff] = React.useState(true);
+const CodeBox: React.FC<{
+    oldCode: string;
+    newCode: string;
+    showDiffArg?: boolean;
+}> = ({ oldCode, newCode, showDiffArg = true }) => {
+    const [showDiff, setShowDiff] = React.useState(showDiffArg);
 
     return (
         <div>
@@ -454,7 +455,7 @@ class TimelineController {
     }
 
     renderSmallEventWeb(e: CopyBuffer[], timelineArr: TimelineEvent[]) {
-        console.log('TIMELINE', timelineArr);
+        // console.log('TIMELINE', timelineArr);
 
         return (
             <div>
@@ -512,6 +513,7 @@ class TimelineController {
                                 <CodeBox
                                     oldCode={eventData.pasteContent}
                                     newCode={this._node!.node.location.content}
+                                    showDiffArg={false}
                                 />
                             </div>
                         </div>
@@ -600,21 +602,27 @@ class TimelineController {
         );
     }
 
-    renderVersion(k: TimelineEvent) {
-        console.log(
-            'ver',
-            k._formattedData.code,
-            'curr',
-            this._node!.items![this._node!.items!.length - 1]._formattedData
-                .code,
-            'diff',
-            Diff.diffLines(
-                k._formattedData.code || '',
-                this._node!.items![this._node!.items!.length - 1]._formattedData
-                    .code
-            )
-        );
+    getVersionFilter(k: TimelineEvent) {
+        return (t: TimelineEvent) => {
+            if (k._dataSourceType === 'meta-past-version') {
+                const data = k.originalData as SerializedChangeBuffer;
+                if (!data.eventData) {
+                    return t._dataSourceType === k._dataSourceType;
+                } else {
+                    const key = Object.keys(data.eventData)[0];
+                    const eventMap = this._node?.eventsMap[key];
+                    const ids = eventMap?.map((e) => e._formattedData.id);
+                    if (!eventMap || !ids) {
+                        return false;
+                    }
+                    return eventMap && ids && ids.includes(t._formattedData.id);
+                }
+            }
+            return t._formattedData.id === k._formattedData.id;
+        };
+    }
 
+    renderVersion(k: TimelineEvent) {
         return (
             <div className={styles['m2']} style={{ color: 'white' }}>
                 {this.renderTimelineEventMetadata(k)}
@@ -643,9 +651,11 @@ class TimelineController {
                             }
                         />
                         <RenderFilterButtons
-                            timelineArr={this._node!.items!.filter(
-                                (t) => t._dataSourceType === k._dataSourceType
-                            )}
+                            timelineArr={
+                                this._node?.items?.filter(
+                                    this.getVersionFilter(k)
+                                ) || []
+                            }
                             context={this}
                         />
                     </AccordionDetails>
@@ -794,7 +804,7 @@ class TimelineController {
                 accordionComponents.push(
                     <Accordion style={{ color: 'white ' }}>
                         <AccordionSummary>
-                            Explore Where Code was Pasted from
+                            What code has been pasted here?
                         </AccordionSummary>
 
                         <AccordionDetails>
@@ -832,6 +842,7 @@ class TimelineController {
                         <AccordionSummary>
                             What did it originally look like?
                         </AccordionSummary>
+
                         <AccordionDetails>
                             <CodeBox
                                 oldCode={
@@ -848,11 +859,11 @@ class TimelineController {
     }
 
     renderNode() {
-        console.log('this.node', this._node);
+        // console.log('this.node', this._node);
         if (this._node) {
             const { node } = this._node;
-            const { content } = node.location;
-            const { pasteLocations } = this._node;
+            // const { content } = node.location;
+            // const { pasteLocations } = this._node;
             const accordionComponents = this.getAccordionComponents();
             return <>{...accordionComponents}</>;
         }
@@ -860,7 +871,7 @@ class TimelineController {
     }
 
     renderMetadata(k?: TimelineEvent) {
-        console.log('k', k);
+        // console.log('k', k);
         this._headerRef.render(
             <div className={styles['flex']}>
                 <div className={styles['center']} style={{ margin: 'auto' }}>
@@ -894,7 +905,7 @@ class TimelineController {
                 </div>
             </div>
         );
-        console.log('theme!', theme);
+        // console.log('theme!', theme);
         this._ref.render(
             <ThemeProvider theme={theme}>
                 <Card style={cardStyle}>
@@ -911,12 +922,12 @@ class TimelineController {
 
     handleIncomingMessage(e: MessageEvent<any>, context: TimelineController) {
         const message = e.data; // The JSON data our extension sent
-        console.log('hewwo?????', message);
+        // console.log('hewwo?????', message);
         switch (message.command) {
             case 'updateTimeline': {
                 const { data } = message;
                 const { id, metadata } = data;
-                console.log('stuff', data, id, metadata);
+                // console.log('stuff', data, id, metadata);
                 this._node = {
                     ...(metadata as Payload),
                     pasteLocations: metadata.pasteLocations.flatMap(
