@@ -350,8 +350,8 @@ export interface ChangeBuffer {
     uid: string;
     id: string;
     changeInfo?: {
-        location: SerializedRangePlus;
-        associatedCode?: Location | undefined;
+        location: LocationPlus | SerializedLocationPlus;
+        associatedCode?: LocationPlus | SerializedLocationPlus | undefined;
         type: string;
         text: string;
         state?: META_STATE | undefined;

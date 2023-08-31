@@ -277,8 +277,8 @@ const Search: React.FC<{ context: TimelineController }> = ({ context }) => {
                                 <div className={styles['flex']}>
                                     {' '}
                                     From{' '}
-                                    <input
-                                        onChange={(e) => {
+                                    <VSCodeTextField
+                                        onChange={(e: any) => {
                                             setSearchOpts({
                                                 ...searchOpts,
                                                 searchTimeSpan: {
@@ -290,10 +290,10 @@ const Search: React.FC<{ context: TimelineController }> = ({ context }) => {
                                                 },
                                             });
                                         }}
-                                    ></input>
+                                    ></VSCodeTextField>
                                     to{' '}
-                                    <input
-                                        onChange={(e) => {
+                                    <VSCodeTextField
+                                        onChange={(e: any) => {
                                             setSearchOpts({
                                                 ...searchOpts,
                                                 searchTimeSpan: {
@@ -305,7 +305,7 @@ const Search: React.FC<{ context: TimelineController }> = ({ context }) => {
                                                 },
                                             });
                                         }}
-                                    ></input>
+                                    ></VSCodeTextField>
                                 </div>
                             </div>
                         ) : null}

@@ -1,4 +1,4 @@
-import { Location, TextDocument } from 'vscode';
+import { Location, TextDocument, Uri } from 'vscode';
 import { CommentConfigHandler } from './CommentManager';
 import {
     CodeComment,
@@ -11,6 +11,8 @@ import {
     getLegalLogValues,
     lineToPosition,
 } from './commentCreatorUtils';
+import RangePlus from '../document/locationApi/range';
+import LocationPlus from '../document/locationApi/location';
 
 enum SEARCH_VALUES {
     COMMENT = 'comment',
@@ -27,7 +29,8 @@ export class MetaInformationExtractor {
     constructor(
         private readonly languageId: string,
         private readonly content: string,
-        private readonly debug = false
+        private readonly debug = false,
+        private readonly uri: Uri
     ) {
         // this._document = document;
         // this._id = document.uri.toString();
@@ -86,7 +89,7 @@ export class MetaInformationExtractor {
     getCommentedLines(): number[] {
         return this.foundComments.map((c) => {
             this.debug && console.log('c', c);
-            return c.location.start.line;
+            return c.location.range.start.line;
         });
     }
 
@@ -112,13 +115,52 @@ export class MetaInformationExtractor {
         const codeLines = getCodeLine(content);
         this.debug && console.log('CODE LINES', codeLines);
         const metaInformation: MetaInformation[] = [];
-        codeLines.forEach((l) => {
-            if (l.code.some((c) => searchValues.includes(c.token))) {
+        codeLines.forEach((l, i) => {
+            const splitToken = l.code.find((c) =>
+                searchValues.includes(c.token)
+            );
+            if (splitToken) {
+                let associatedCode: LocationPlus | undefined = undefined;
+                if (type === SEARCH_VALUES.COMMENT) {
+                    if (
+                        l.code[0].token === splitToken.token &&
+                        i + 1 < codeLines.length
+                    ) {
+                        associatedCode = new LocationPlus(
+                            this.uri,
+                            RangePlus.fromRange(
+                                lineToPosition(codeLines[i + 1])
+                            )
+                        );
+                    } else {
+                        const splitIndex = l.code.findIndex(
+                            (c) => c.token === splitToken.token
+                        );
+                        associatedCode = new LocationPlus(
+                            this.uri,
+                            RangePlus.fromRange(
+                                lineToPosition({
+                                    ...l,
+                                    code: l.code.slice(splitIndex + 1),
+                                })
+                            )
+                        );
+                    }
+                }
                 metaInformation.push({
-                    type,
-                    text: l.code.map((c) => c.token).join(' '),
-                    location: lineToPosition(l),
-                    state: this.getMetaInformationState(oldVals, l),
+                    ...(type === SEARCH_VALUES.COMMENT && {
+                        splitter: splitToken.token,
+                        associatedCode: associatedCode,
+                    }),
+                    ...{
+                        type,
+                        text: l.code.map((c) => c.token).join(' '),
+                        location: new LocationPlus(
+                            this.uri,
+                            RangePlus.fromRange(lineToPosition(l))
+                        ),
+                        state: this.getMetaInformationState(oldVals, l),
+                    },
                 });
             }
         });
@@ -132,7 +174,9 @@ export class MetaInformationExtractor {
         line: CodeLine
     ): META_STATE {
         // const knownComments = oldVals.
-        const oldVal = oldVals.find((v) => v.location.start.line === line.line);
+        const oldVal = oldVals.find(
+            (v) => v.location.range.start.line === line.line
+        );
         if (!oldVal) {
             return META_STATE.NEW;
         }

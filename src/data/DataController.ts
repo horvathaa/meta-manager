@@ -123,7 +123,8 @@ export class DataController {
         this._metaInformationExtractor = new MetaInformationExtractor(
             this.readableNode.languageId,
             this.readableNode.location.content,
-            this.debug
+            this.debug,
+            this.readableNode.location.uri
         );
         this._displayName = this.readableNode.id.split(':')[0];
         this.debug && console.log('this', this);
@@ -335,17 +336,17 @@ export class DataController {
         this._metaInformationExtractor.updateMetaInformation(newContent);
 
         this._metaInformationExtractor.foundComments.forEach((c) => {
-            c.location = (
+            c.location.range = (
                 this.readableNode.location.range as RangePlus
-            ).translate(c.location);
+            ).translate(c.location.range as Range);
         });
-        const commentedLines =
-            this._metaInformationExtractor.getCommentedLines();
-
-        const rangeLines = (
-            this.readableNode.location.range as RangePlus
-        ).getLineNumbers();
-        const mainRangeLines = rangeLines.slice(1, rangeLines.length - 1);
+        // const commentedLines =
+        //     this._metaInformationExtractor.getCommentedLines();
+        // // console.log('commented lines', commentedLines);
+        // // const rangeLines = (
+        // //     this.readableNode.location.range as RangePlus
+        // ).getLineNumbers();
+        // // const mainRangeLines = rangeLines.slice(1, rangeLines.length - 1);
         // console.log(
         //     'commented',
         //     this._metaInformationExtractor.foundComments,
@@ -354,29 +355,41 @@ export class DataController {
         //     'range',
         //     rangeLines
         // );
-        let commentedOut = undefined;
-        if (
-            rangeLines.every((l) =>
-                this._metaInformationExtractor.foundComments.some(
-                    (c) => c.location.start.line === l
-                )
-            ) ||
-            mainRangeLines.every((l) => commentedLines.includes(l))
-        ) {
-            commentedOut = true;
-        }
+
         let commentInfo = undefined;
         if (
             oldComments.length !==
             this._metaInformationExtractor.foundComments.length
         ) {
+            console.log(
+                'in here',
+                this._metaInformationExtractor.foundComments
+            );
+            // commentInfo = {
+            //     newComments: this._metaInformationExtractor.foundComments,
+            // };
             commentInfo = {
                 newComments:
-                    this._metaInformationExtractor.foundComments.filter(
-                        (c) => c.state && c.state === META_STATE.NEW
-                    ),
+                    this._metaInformationExtractor.foundComments.filter((c) => {
+                        const sourceFile = ts.createSourceFile(
+                            this.readableNode.location.uri.fsPath,
+                            c.text.split(c.splitter || '//')[1],
+                            ts.ScriptTarget.Latest,
+                            true
+                        );
+
+                        // @ts-ignore
+                        return sourceFile.parseDiagnostics.every(
+                            (c: any) => c.code === 1434
+                        );
+                        // console.log('source!', sourceFile);
+                        // sourceFile.statements.forEach((s) => {
+                        //     console.log('parsed', ts.SyntaxKind[s.kind], s.getText());
+                        // });
+                    }),
             };
         }
+        // console.log('new comments', commentInfo);
         // update this to use removedContent, addedContent,
         // isInsertion, isRemoval, etc.
         // then send to view so we can have slightly better messages
@@ -385,16 +398,12 @@ export class DataController {
                 changeInfo: commentInfo.newComments.map((n) => {
                     return {
                         ...n,
-                        location: (n.location as RangePlus).serialize(),
+                        location: (n.location as LocationPlus).serialize(),
+                        associatedCode: n.associatedCode
+                            ? (n.associatedCode as LocationPlus).serialize()
+                            : undefined,
                     };
                 }),
-            }),
-            ...(commentedOut && {
-                eventData: {
-                    [Event.COMMENT]: {
-                        commentedOut: true,
-                    },
-                },
             }),
             ...this.getBaseChangeBuffer(),
             typeOfChange: changeEvent.typeOfChange,
@@ -403,6 +412,7 @@ export class DataController {
             addedBlock,
             removedBlock,
         });
+        console.log('change buffer', this._changeBuffer);
         // this._didPaste = false;
     }
 

@@ -1,5 +1,8 @@
 import { Location, Range, TextDocument } from 'vscode';
 import { CommentConfigHandler } from './CommentManager';
+import RangePlus from '../document/locationApi/range';
+import { SerializedLocationPlus } from '../constants/types';
+import LocationPlus from '../document/locationApi/location';
 
 const DEFAULT_COMMENT_TYPES = {
     lineComment: '//',
@@ -31,12 +34,13 @@ export interface MetaInformation {
     type: string;
     text: string;
     // location: Location;
-    location: Range;
+    location: LocationPlus | SerializedLocationPlus; // ??
     state?: META_STATE;
 }
 
 export interface CodeComment extends MetaInformation {
-    associatedCode?: Location;
+    associatedCode?: LocationPlus | SerializedLocationPlus;
+    splitter?: string;
 }
 
 export interface LogStatement extends MetaInformation {
