@@ -20,8 +20,8 @@ export const DiffBlock = (props: { str1: string; str2: string }) => {
             lineNumbers.push({ i: i + 1, removed: true });
         }
     });
-    console.log('lineNumbers', lineNumbers);
-    console.log('diff', diff);
+    // console.log('lineNumbers', lineNumbers);
+    // console.log('diff', diff);
     const highlightLogic = (lineNumber: number) => {
         const match = lineNumbers.find((l) => l.i === lineNumber);
         let style: React.CSSProperties = {};
@@ -33,7 +33,7 @@ export const DiffBlock = (props: { str1: string; str2: string }) => {
                 style.backgroundColor = '#ff000080';
             }
         }
-        console.log('WHAT IS DIFFERENT', style, 'ret', { style });
+        // console.log('WHAT IS DIFFERENT', style, 'ret', { style });
         return { style };
     };
     return <CodeBlock codeString={codeStr} highlightLogic={highlightLogic} />;

@@ -126,14 +126,19 @@ class MetaInformationController {
                 <div className={styles['git-information']}>
                     <div>
                         {data.changeInfo.map((c) => (
-                            <div>User added comments to the code: {c.text}</div>
+                            <div>
+                                {data.userString} added comments to the code:{' '}
+                                {c.text}
+                            </div>
                         ))}
                     </div>
                 </div>
             );
         }
         return (
-            <div className={styles['git-information']}>User changed code</div>
+            <div className={styles['git-information']}>
+                {data.userString} changed code
+            </div>
         );
     }
 
@@ -221,7 +226,7 @@ class MetaInformationController {
             case WEB_INFO_SOURCE.GITHUB: {
                 const { codeMetadata, repo } =
                     additionalMetadata as GitHubCopyBuffer;
-                const star = repo.stars ? `⭐️ ${repo.stars} stars` : ``;
+                const star = repo.stars ? ` (⭐️ ${repo.stars} stars).` : `.`;
                 const version = repo.version
                     ? ` on version ${repo.version}`
                     : ``;
@@ -235,8 +240,8 @@ class MetaInformationController {
                             Copied from GitHub repository {repo.owner}/
                             {repo.name}
                             {version} on branch {repo.branch} at commit{' '}
-                            {repo.commit}.{star} Code came from file{' '}
-                            {codeMetadata.filename}
+                            {repo.commit}
+                            {star} Code came from file {codeMetadata.filename}
                             {line}.
                         </div>
                         {/* <CodeBlock codeString={codeMetadata.code} /> */}
@@ -274,8 +279,8 @@ class MetaInformationController {
 
                 return (
                     <div>
-                        Copied from a Chat GPT thread titled "{thread._title}"
-                        on {new Date(messageCopied.time).toLocaleString()}.
+                        Copied from a Chat GPT thread titled "{thread.title}" on{' '}
+                        {new Date(messageCopied.time).toLocaleString()}.
                         {this.renderOriginalCopiedCode()}
                         {this.seeMore(copyBuffer, type)}
                     </div>

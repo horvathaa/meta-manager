@@ -120,7 +120,7 @@ export class MetaInformationExtractor {
                 searchValues.includes(c.token)
             );
             if (splitToken) {
-                let associatedCode: LocationPlus | undefined = undefined;
+                let associatedCode: LocationPlus | undefined = undefined; //
                 if (type === SEARCH_VALUES.COMMENT) {
                     if (
                         l.code[0].token === splitToken.token &&

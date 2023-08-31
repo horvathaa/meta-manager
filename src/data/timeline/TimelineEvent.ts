@@ -22,7 +22,7 @@ interface TimelineData {
     id: string;
     pullNumber?: number;
     source?: string;
-    user?: string;
+    user: string;
 }
 
 export enum DataSourceType {
@@ -109,7 +109,8 @@ class TimelineEvent extends Disposable {
                 return {
                     x: data.time,
                     y: data.location.content.split('\n').length,
-                    user: data.uid,
+                    // user: data.uid,
+                    user: data.userString || 'unknown',
                     id: `${data.id}`,
                     timeRange: [data.time, data.time + 10000000],
                     val: DataSourceType.META_PAST_VERSION,
@@ -128,6 +129,7 @@ class TimelineEvent extends Disposable {
                     code: 'code',
                     commit: 'commit',
                     id: 'id',
+                    user: 'user',
                 };
             }
         }

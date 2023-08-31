@@ -554,6 +554,36 @@ class TimelineController {
         );
     }
 
+    renderCommentInEvent(
+        originalData: SerializedChangeBuffer[],
+        timelineArr: TimelineEvent[]
+    ) {
+        if (!this._node) {
+            return null;
+        }
+        return (
+            <div>
+                <h4>Comment</h4>
+                {originalData.map((event) => {
+                    const eventData = event.eventData![Event.COMMENT_IN]!;
+                    return (
+                        <div className={styles['flex']}>
+                            <div>
+                                Code was brought back at{' '}
+                                {new Date(event.time).toLocaleString()}.
+                                <CodeBox
+                                    oldCode={eventData.location.content}
+                                    newCode={this._node!.node.location.content}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+                <RenderFilterButtons timelineArr={timelineArr} context={this} />
+            </div>
+        );
+    }
+
     renderEvents() {
         if (!this._node) {
             return null;
@@ -580,6 +610,9 @@ class TimelineController {
 
                         case Event.COMMENT_OUT: {
                             return this.renderCommentOutEvent(originalData, e);
+                        }
+                        case Event.COMMENT_IN: {
+                            return this.renderCommentInEvent(originalData, e);
                         }
                     }
                     // return (
@@ -623,18 +656,17 @@ class TimelineController {
     }
 
     renderVersion(k: TimelineEvent) {
+        const thisIdx =
+            this._node?.items?.findIndex(
+                (i) => i._formattedData.id === k._formattedData.id
+            ) || -1;
+        const verBefore =
+            thisIdx !== -1 ? this._node?.items![thisIdx - 1] : undefined;
+        console.log('verbefore', verBefore, 'k', k, 'i', thisIdx);
         return (
             <div className={styles['m2']} style={{ color: 'white' }}>
                 {this.renderTimelineEventMetadata(k)}
-                {/* {this.renderColorGuide()} */}
-                {/* <Accordion style={{ color: 'white' }}>
-                    <AccordionSummary>
-                        <h3>What happened?</h3>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                        {this.renderTimelineEventMetadata(k)}
-                    </AccordionDetails>
-                </Accordion> */}
+
                 <Accordion style={{ color: 'white' }}>
                     <AccordionSummary>
                         <h3>What did it used to look like?</h3>
@@ -649,6 +681,7 @@ class TimelineController {
                                     this._node!.items!.length - 1
                                 ]._formattedData.code
                             }
+                            showDiffArg={false}
                         />
                         <RenderFilterButtons
                             timelineArr={
@@ -660,6 +693,29 @@ class TimelineController {
                         />
                     </AccordionDetails>
                 </Accordion>
+                {verBefore ? (
+                    <Accordion style={{ color: 'white' }}>
+                        <AccordionSummary>
+                            <h3>What changes were made?</h3>
+                            {/* <CodeBlock codeString={k._formattedData.code || ''} />
+                             */}
+                        </AccordionSummary>
+                        <AccordionDetails>
+                            <CodeBox
+                                oldCode={verBefore._formattedData.code || ''}
+                                newCode={k._formattedData.code || ''}
+                            />
+                            <RenderFilterButtons
+                                timelineArr={
+                                    this._node?.items?.filter(
+                                        this.getVersionFilter(k)
+                                    ) || []
+                                }
+                                context={this}
+                            />
+                        </AccordionDetails>
+                    </Accordion>
+                ) : null}
             </div>
         );
     }
@@ -864,8 +920,23 @@ class TimelineController {
             const { node } = this._node;
             // const { content } = node.location;
             // const { pasteLocations } = this._node;
+            const lastInstance = this._node.items?.pop();
             const accordionComponents = this.getAccordionComponents();
-            return <>{...accordionComponents}</>;
+            return (
+                <>
+                    <div
+                        className={`${styles['flex']}  ${styles['p2']}`}
+                        style={{ justifyContent: 'flex-end' }}
+                    >
+                        Last updated by{' '}
+                        {lastInstance?._formattedData.user || 'unknown'} at{' '}
+                        {new Date(
+                            lastInstance?._formattedData.x || 0
+                        ).toLocaleString()}
+                    </div>
+                    {...accordionComponents}
+                </>
+            );
         }
         return null;
     }

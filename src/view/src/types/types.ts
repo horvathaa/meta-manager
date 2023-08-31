@@ -337,6 +337,7 @@ export interface ChangeBuffer {
     addedBlock?: boolean;
     removedBlock?: boolean;
     uid: string;
+    userString: string;
     id: string;
     changeInfo?: {
         location: SerializedRangePlus;

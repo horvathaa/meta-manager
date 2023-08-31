@@ -333,7 +333,8 @@ export class Container {
             textEditor,
             edit,
             params,
-            pastedText
+            pastedText,
+            this
         );
 
         this._clipboardPasteDisposable?.dispose();

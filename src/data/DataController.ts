@@ -336,9 +336,13 @@ export class DataController {
         this._metaInformationExtractor.updateMetaInformation(newContent);
 
         this._metaInformationExtractor.foundComments.forEach((c) => {
-            c.location.range = (
+            (c.location as LocationPlus)._range = (
                 this.readableNode.location.range as RangePlus
             ).translate(c.location.range as Range);
+            (c.associatedCode as LocationPlus)._range = (
+                this.readableNode.location.range as RangePlus
+            ).translate((c.associatedCode as LocationPlus).range as Range);
+            console.log('c.location', c);
         });
         // const commentedLines =
         //     this._metaInformationExtractor.getCommentedLines();
@@ -382,14 +386,10 @@ export class DataController {
                         return sourceFile.parseDiagnostics.every(
                             (c: any) => c.code === 1434
                         );
-                        // console.log('source!', sourceFile);
-                        // sourceFile.statements.forEach((s) => {
-                        //     console.log('parsed', ts.SyntaxKind[s.kind], s.getText());
-                        // });
                     }),
             };
         }
-        // console.log('new comments', commentInfo);
+        console.log('new comments', commentInfo);
         // update this to use removedContent, addedContent,
         // isInsertion, isRemoval, etc.
         // then send to view so we can have slightly better messages
@@ -421,6 +421,7 @@ export class DataController {
         return {
             time,
             uid: this.container.firestoreController?._user?.uid || 'anonymous',
+            userString: this.container.loggedInUser.githubLogin,
             id: `${this.readableNode.id}:${time}`,
             location: this.readableNode.location.serialize(),
             changeContent: this.readableNode.location.content,
