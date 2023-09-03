@@ -39,7 +39,7 @@ class DocumentWatcher extends Disposable {
     private _firestoreCollectionPath: string;
     _nodesInFile: SimplifiedTree<ReadableNode> | undefined;
     _writeWholeFile: boolean = false;
-
+    isDirty: boolean = false;
     constructor(
         readonly document: TextDocument,
         private readonly container: Container
@@ -67,24 +67,29 @@ class DocumentWatcher extends Disposable {
             (event: FileParsedEvent) => {
                 // console.log('EVENT', event);
                 const { filename, data, map, collectionPath } = event;
-                console.log('data!!!!!!!!!!!!!!!!!!', data);
+
                 if (filename === this._relativeFilePath) {
                     // console.log('HEWWWWOOOO!!!!!!!!!', event);
                     this._firestoreCollectionPath = collectionPath;
-                    const tree = new SimplifiedTree<ReadableNode>({
-                        name: this._relativeFilePath,
-                    }).deserialize(
-                        data,
-                        new ReadableNode(
-                            '',
-                            new LocationPlus(
-                                this.document.uri,
-                                new Range(0, 0, 0, 0)
-                            )
-                        ),
-                        this._relativeFilePath
-                    );
-                    this._nodesInFile = this.initNodes(tree, map, data);
+                    // fudge for new files
+                    if (!data) {
+                        this._nodesInFile = this.initNodes();
+                    } else {
+                        const tree = new SimplifiedTree<ReadableNode>({
+                            name: this._relativeFilePath,
+                        }).deserialize(
+                            data,
+                            new ReadableNode(
+                                '',
+                                new LocationPlus(
+                                    this.document.uri,
+                                    new Range(0, 0, 0, 0)
+                                )
+                            ),
+                            this._relativeFilePath
+                        );
+                        this._nodesInFile = this.initNodes(tree, map, data);
+                    }
 
                     console.log(
                         'file parsed complete for ' + this._relativeFilePath,
@@ -235,7 +240,7 @@ class DocumentWatcher extends Disposable {
                         oldTree,
                         readableNode,
                         name,
-                        debug
+                        name.includes('Google')
                     );
                     if (!matchInfo.name.includes(name)) {
                         readableNode.dataController.setDisplayName(name);
@@ -394,7 +399,7 @@ class DocumentWatcher extends Disposable {
         const matchInfo = otherTreeInstance.getNodeOfBestMatch(
             readableNode // .readableNode
         );
-        debug && console.log('wtf', readableNode, matchInfo);
+        debug && console.log('wtf', readableNode, matchInfo, otherTreeInstance);
 
         if (matchInfo.status === SummaryStatus.SAME && matchInfo.bestMatch) {
             return {

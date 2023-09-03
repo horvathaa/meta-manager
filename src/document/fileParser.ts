@@ -111,7 +111,10 @@ class FileParser extends Disposable {
                         this.getFilesToIgnore(doc);
                     }
 
-                    if (this.isTsJsTsxJsx(doc)) {
+                    if (
+                        this.isTsJsTsxJsx(doc) &&
+                        !doc.uri.fsPath.includes('.d.ts')
+                    ) {
                         this._docs.set(
                             doc.uri.fsPath,
                             new DocumentWatcher(doc, this.container)

@@ -133,6 +133,10 @@ export function isTextDocument(doc: any): doc is TextDocument {
     );
 }
 
+export function getRandomArbitrary(min: number, max: number) {
+    return Math.random() * (max - min) + min;
+}
+
 // export function isCodeValid(input: string): boolean {
 //     input = input.toLowerCase();
 

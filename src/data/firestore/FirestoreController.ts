@@ -4,6 +4,8 @@ import {
     Uri,
     EventEmitter,
     window,
+    Extension,
+    ExtensionContext,
 } from 'vscode';
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import {
@@ -35,11 +37,14 @@ import {
     CopyBuffer,
     SerializedChangeBuffer,
     SerializedDataController,
+    WEB_INFO_SOURCE,
 } from '../../constants/types';
 import GitController from '../git/GitController';
 import { FirestoreControllerInterface } from '../DataController';
 import DocumentWatcher from '../../document/documentWatcher';
 import { isBoolean, isNumber } from 'lodash';
+import { getRandomArbitrary } from '../../document/lib';
+import { v4 as uuidv4 } from 'uuid';
 
 export type DB_REFS =
     | 'users'
@@ -77,6 +82,11 @@ export function getListFromSnapshots(
     });
     return out;
 }
+
+// first init
+const COMMIT_53c0d24_TIME = 1625029620000;
+const COMMIT_4b69d50_TIME = 1625033340000;
+const COMMIT_7227853_TIME = 1625103540000; // 57 add, 0 delete
 
 class FirestoreController extends Disposable {
     _disposable: Disposable;
@@ -223,6 +233,29 @@ class FirestoreController extends Disposable {
         firestoreController._disposable = Disposable.from(event);
 
         return firestoreController;
+    }
+
+    public static initFirebaseApp(context: ExtensionContext) {
+        // try {
+        // if (this.container.workspaceFolder) {
+        const path = Uri.joinPath(context.extensionUri, '.env.local');
+        const env = dotenv.config({ path: path.fsPath });
+        if (env.error) {
+            throw new Error('Firestore Controller: .env.local not found');
+        }
+        const firebaseConfig = {
+            apiKey: env.parsed?.FB_API_KEY,
+            authDomain: env.parsed?.FB_AUTH_DOMAIN,
+            projectId: env.parsed?.FB_PROJECT_ID,
+            storageBucket: env.parsed?.FB_STORAGE_BUCKET,
+            messagingSenderId: env.parsed?.FB_MESSAGING_SENDER_ID,
+            appId: env.parsed?.FB_APP_ID,
+        };
+        return initializeApp(firebaseConfig); // consider making event emit so that other classes can listen for this
+        // }
+        // } catch (e) {
+        //     throw new Error('Firestore Controller: .env.local not found');
+        // }
     }
 
     private initFirebaseApp() {
@@ -472,6 +505,7 @@ class FirestoreController extends Disposable {
                 parentRefPath
             );
             // console.log('got this data', subData, 'for this doc', doc.id);
+
             this._onRead.fire({
                 filename: doc.id.replace(/-/g, '/'),
                 collectionPath: parentRefPath,
@@ -517,7 +551,13 @@ class FirestoreController extends Disposable {
                 }
                 const docRef = doc(pastVersionsCollection, versionId);
                 console.log('SIGH', docRef);
-                await setDoc(docRef, newNode);
+                await setDoc(docRef, {
+                    ...newNode,
+                    time: getRandomArbitrary(
+                        COMMIT_4b69d50_TIME,
+                        COMMIT_7227853_TIME
+                    ),
+                });
             },
             readPastVersions: async () => {
                 const querySnapshot = await getDocs(pastVersionsCollection);
@@ -639,6 +679,68 @@ class FirestoreController extends Disposable {
                 node.node.id
             );
             setDoc(docRef, node);
+        });
+    }
+
+    async getWebEvent(type: WEB_INFO_SOURCE) {
+        const collection = this._refs?.get(DB_COLLECTIONS.WEB_META);
+        if (collection) {
+            const doc = query(
+                collection,
+                where('type', '==', type),
+                where('timeCopied', '>', 1691004846802)
+            );
+            const snapshot = await getDocs(doc);
+            const list = getListFromSnapshots(snapshot);
+            return list;
+        }
+        return [];
+    }
+
+    async copyOver(
+        projName: string,
+        sourceFilename: string,
+        sourceNodeName: string,
+        destFilename: string,
+        destNodeName: string
+    ) {
+        const coll = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        if (!coll) {
+            return;
+        }
+        const destId = destNodeName.includes(':')
+            ? destNodeName
+            : `${destNodeName}:${uuidv4()}`;
+        const docRef = doc(
+            coll,
+            `${projName}`,
+            SUB_COLLECTIONS.FILES,
+            `${sourceFilename}`,
+            SUB_COLLECTIONS.NODES,
+            `${sourceNodeName}`
+        );
+        const docRef2 = doc(
+            coll,
+            `${projName}`,
+            SUB_COLLECTIONS.FILES,
+            `${destFilename}`,
+            SUB_COLLECTIONS.NODES,
+            `${destId}`
+        );
+        setDoc(docRef2, (await getDoc(docRef)).data());
+        const pastVersionsCollectionSource = collection(
+            this._firestore!,
+            `${DB_COLLECTIONS.CODE_METADATA}/${projName}/${SUB_COLLECTIONS.FILES}/${sourceFilename}/${SUB_COLLECTIONS.NODES}/${sourceNodeName}/${SUB_COLLECTIONS.PAST_VERSIONS}`
+        );
+        const pastVersionsCollectionDest = collection(
+            this._firestore!,
+            `${DB_COLLECTIONS.CODE_METADATA}/${projName}/${SUB_COLLECTIONS.FILES}/${destFilename}/${SUB_COLLECTIONS.NODES}/${destId}/${SUB_COLLECTIONS.PAST_VERSIONS}`
+        );
+        const querySnapshot = await getDocs(pastVersionsCollectionSource);
+        const list = getListFromSnapshots(querySnapshot);
+        list.forEach((item) => {
+            const docRef = doc(pastVersionsCollectionDest, item.id);
+            setDoc(docRef, item);
         });
     }
 

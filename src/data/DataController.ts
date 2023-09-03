@@ -411,6 +411,7 @@ export class DataController {
             diff,
             addedBlock,
             removedBlock,
+            ...(changeEvent.time && { time: changeEvent.time }),
         });
         console.log('change buffer', this._changeBuffer);
         // this._didPaste = false;

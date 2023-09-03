@@ -374,7 +374,7 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
                 };
             }
         }
-
+        // console.log('NO MATCH!!!!!!');
         return {
             status: SummaryStatus.UNKNOWN,
         };
@@ -465,12 +465,17 @@ export class SimplifiedTree<T extends AbstractTreeReadableNode<T>> {
             const metadata: NodeMetadata<T> = {
                 name: deserialized.id,
             };
-
+            // since firestore does not order objects by their actual insertion order, this doesn't
+            // really work
+            // more extreme solution is either to search/sorted the tree somehow prior to doing this
+            // or to reorder our firestore data such that each like parent has a subcollection of nodes and so on
+            // both sound like a lot of work so.... probably not gonna do rn
             const insertionPoint = tree.getRootNodeWithValue(
                 (d) => d.id === node.parent
             );
-
+            // console.log('node!', node, 'des', deserialized);
             if (!insertionPoint) {
+                // const elsewhereParent = serialized.find(f => f.node.id === node.parent || f.id === node.parent);
                 tree.insert(deserialized, metadata);
                 return;
             }

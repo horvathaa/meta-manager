@@ -45,6 +45,7 @@ export interface ChangeEvent {
     typeOfChange: TypeOfChange;
     previousRangeContent: PreviousRangeContent;
     originalChangeEvent: TextDocumentContentChangeEvent;
+    time?: number;
     addedContent?: string;
     removedContent?: string | null;
     isInsertion?: boolean;
@@ -80,7 +81,8 @@ export default class LocationPlus extends Location {
                 ? RangePlus.fromPosition(rangeOrPosition)
                 : RangePlus.fromLineNumbers(0, 0, 0, 0); // may just want to throw an error instead
         const debouncedOnTextDocumentChanged = // debounce(
-            (e: TextDocumentChangeEvent) => this.onTextDocumentChanged(e); //,
+            (e: TextDocumentChangeEvent, time?: number) =>
+                this.onTextDocumentChanged(e, time); //,
         // 500 // Adjust the debounce time (in milliseconds) to your needs
         //);
 
@@ -235,13 +237,14 @@ export default class LocationPlus extends Location {
 
     onTextDocumentChanged(
         onTextDocumentChanged: TextDocumentChangeEvent,
-        thisArg?: any
+        time?: number
     ) {
         // debounce(() => {
         const { document, contentChanges } = onTextDocumentChanged;
         if (this.uri.fsPath === document.uri.fsPath) {
             for (const change of contentChanges) {
                 // let justAdded = false;
+                // console.log('updating', this);
                 if (!this._tempInsertedRange && change.text.length > 0) {
                     this._tempInsertedRange =
                         RangePlus.fromTextDocumentContentChangeEvent(change);
@@ -295,6 +298,7 @@ export default class LocationPlus extends Location {
                             previousRangeContent,
                             originalChangeEvent: change,
                         },
+                        ...(time && { time }),
                         ...(change.text.length > 0 &&
                             this._tempInsertedRange && {
                                 addedContent: document.getText(

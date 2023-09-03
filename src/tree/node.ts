@@ -12,6 +12,7 @@ import {
 } from './tree';
 import {
     intersectionBetweenStrings,
+    stringSimilarity,
     stripNonAlphanumeric,
 } from './helpers/lib';
 import { Container } from '../container';
@@ -208,11 +209,33 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
                 node.location.content
             ),
             isSameType: this.humanReadableKind === node.humanReadableKind,
-            isSameName: this.location.id === node.location.id,
+            isSameName: node.id.includes(this.id) || this.id.includes(node.id),
+            isNamedType: this.humanReadableKind.includes('Declaration'),
+            isSimilarNamedType:
+                stringSimilarity(
+                    this.id.includes(':') ? this.id.split(':')[0] : this.id,
+                    node.id
+                ) >= 0.5 && this.humanReadableKind.includes('Declaration'),
         };
 
+        (this.id.includes('SnippetResult') ||
+            node.id.includes('SnippetResult')) &&
+            console.log(
+                'res',
+                res,
+                'node',
+                node,
+                'this',
+                this,
+                stringSimilarity(
+                    this.id.includes(':') ? this.id.split(':')[0] : this.id,
+                    node.id
+                )
+            );
         // paper said .9 or above pretty much meant it is the same
         if (res.bagOfWordsScore >= 0.9 && res.isSameType) {
+            this.id.includes('StackoverflowContent') &&
+                console.log('MATCH - this', this, 'node', node);
             // little skeptical about this but we shall see
             // if (res.bagOfWordsScore >= 0.9) {
             this.visited = true;
@@ -221,8 +244,27 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
                 bestMatch: this,
                 additionalData: res,
             };
-        } else if (res.bagOfWordsScore >= 0.5 && res.isSameType) {
+        } else if (
+            (res.bagOfWordsScore >= 0.5 &&
+                res.isSameType &&
+                !res.isNamedType) ||
+            (res.isSameName && res.isNamedType)
+        ) {
             this.visited = true; // ?
+            return {
+                status: SummaryStatus.MODIFIED,
+                modifiedNodes: this,
+                additionalData: res,
+            };
+        } else if (this.id.includes('Google') && node.id.includes('Google')) {
+            this.visited = true; // ? BADBADBABDBAD
+            return {
+                status: SummaryStatus.MODIFIED,
+                modifiedNodes: this,
+                additionalData: res,
+            };
+        } else if (res.isSimilarNamedType && res.bagOfWordsScore > 0.2) {
+            this.visited = true; // ? BADBADBABDBAD
             return {
                 status: SummaryStatus.MODIFIED,
                 modifiedNodes: this,
