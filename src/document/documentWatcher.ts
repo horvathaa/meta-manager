@@ -8,6 +8,7 @@ import {
     TextEditorSelectionChangeEvent,
     TextDocumentContentChangeEvent,
     TextDocumentChangeEvent,
+    commands,
 } from 'vscode';
 import { Container } from '../container';
 import { getProjectName, getVisiblePath, makeReadableNode } from './lib';
@@ -50,18 +51,16 @@ class DocumentWatcher extends Disposable {
             this.document.uri.fsPath,
             this.container.context.extensionUri
         ).replace(/\\/g, '/');
-
+        // const commandDisposable = commands.registerCommand(
+        //     'meta-manager.indexFile',
+        //     () => {
+        // this._nodesInFile = this.initNodes();
+        //     }
+        // );
         this._firestoreCollectionPath = '';
 
         this._nodesInFile = undefined;
-        const otherListener = container.onNodesComplete(() => {
-            console.log('new project', this);
-            if (this._nodesInFile === undefined) {
-                // console.log('hewwo????', this);
-                this._nodesInFile = this.initNodes();
-                // console.log('NEW NODES', this._nodesInFile);
-            }
-        });
+        const otherListener = container.onNodesComplete(() => {});
 
         const firestoreReadListener = container.onRead(
             (event: FileParsedEvent) => {
@@ -99,6 +98,17 @@ class DocumentWatcher extends Disposable {
             }
         );
 
+        const reindexListener = this.container.reindexFileEmitter((event) => {
+            if (event.document === this.document) {
+                this._nodesInFile = this.traverse(
+                    this._nodesInFile,
+                    undefined,
+                    undefined,
+                    true
+                );
+            }
+        });
+
         const saveListener = workspace.onDidSaveTextDocument((e) =>
             this.handleOnDidSaveDidClose(e)
         );
@@ -107,6 +117,8 @@ class DocumentWatcher extends Disposable {
             // listener,
             otherListener,
             firestoreReadListener,
+            reindexListener,
+            // commandDisposable,
             // docChangeListener,
         ].filter((d) => d) as Disposable[];
         this._disposable = Disposable.from(...listeners);
@@ -131,6 +143,15 @@ class DocumentWatcher extends Disposable {
             // console.log('before traverse', this._nodesInFile);
             // this._nodesInFile = this.traverse(this._nodesInFile);
             // console.log('after traverse', this._nodesInFile);
+        }
+    }
+
+    initNewFile() {
+        console.log('new project', this);
+        if (this._nodesInFile === undefined) {
+            // console.log('hewwo????', this);
+            this._nodesInFile = this.initNodes();
+            // console.log('NEW NODES', this._nodesInFile);
         }
     }
 
@@ -163,7 +184,8 @@ class DocumentWatcher extends Disposable {
     traverse(
         oldTree?: SimplifiedTree<ReadableNode>,
         map?: Map<string, FirestoreControllerInterface>,
-        data?: any[]
+        data?: any[],
+        copy = false
     ) {
         // traverse the document and find the code anchors
         const sourceFile = ts.createSourceFile(
@@ -221,7 +243,7 @@ class DocumentWatcher extends Disposable {
                 let name = `${getSimplifiedTreeName(
                     readableNodeArrayCopy.reverse()
                 )}`;
-                const readableNode = // context.initNode(
+                let readableNode = // context.initNode(
                     // new DataController(
                     ReadableNode.create(node, docCopy, context.container, name);
 
@@ -249,9 +271,16 @@ class DocumentWatcher extends Disposable {
                     seenNodes.add(name);
                     otherTreeInstance = matchInfo.otherTreeInstance;
                     newNode = matchInfo.new || false;
+                    if (copy) {
+                        readableNode.dataController =
+                            (matchInfo.node as ReadableNode).dataController! ||
+                            readableNode.dataController;
+                        updateTreeRef(readableNode, name);
+                        return;
+                    }
                     if (data && data.length) {
                         const nodeData = data.find((d) => d.node.id === name);
-                        if (nodeData && nodeData.pasteLocations) {
+                        if (nodeData && nodeData.pasteLocations && !copy) {
                             readableNode.dataController._pasteLocations =
                                 nodeData.pasteLocations.map((p: any) => {
                                     return {
@@ -316,6 +345,35 @@ class DocumentWatcher extends Disposable {
                 debug = false;
             }
         }
+
+        const updateTreeRef = (readableNode: ReadableNode, name: string) => {
+            const treeRef = currTreeInstance[
+                currTreeInstance.length - 1
+            ].insert(
+                readableNode, // .readableNode,
+                { name }
+            );
+            if (name === 'If:8ae6e843-2a0f-462e-ba36-1ac534bb76d8}') {
+                console.log(
+                    'TREE REF',
+                    treeRef,
+                    'currTreeInstance',
+                    currTreeInstance,
+                    'map',
+                    crazyIdeaMap,
+                    'name',
+                    name,
+                    'readableNode',
+                    readableNode,
+                    'tree',
+                    tree
+                );
+            }
+            readableNode.dataController!.setTree(treeRef);
+            currTreeInstance.push(treeRef);
+            crazyIdeaMap.set(name, readableNode);
+            debug = false;
+        };
 
         // Leave function will be executed after all children have been interacted with
         function leave(node: ts.Node) {
@@ -405,11 +463,13 @@ class DocumentWatcher extends Disposable {
             return {
                 name: matchInfo.bestMatch.id,
                 otherTreeInstance: matchInfo.subtree,
+                node: matchInfo.bestMatch,
             };
         } else if (matchInfo.status === SummaryStatus.MODIFIED) {
             return {
                 name: matchInfo.modifiedNodes?.id || name,
                 otherTreeInstance: matchInfo.subtree,
+                node: matchInfo.bestMatch,
             };
         } else {
             const matchInfo = oldTree.getNodeOfBestMatch(
@@ -429,6 +489,7 @@ class DocumentWatcher extends Disposable {
                 return {
                     name: matchInfo.bestMatch.id,
                     otherTreeInstance: matchInfo.subtree,
+                    node: matchInfo.bestMatch,
                 };
             } else if (
                 matchInfo.status === SummaryStatus.MODIFIED // may want to do something smarter with this
@@ -436,6 +497,7 @@ class DocumentWatcher extends Disposable {
                 return {
                     name: matchInfo.modifiedNodes?.id || name,
                     otherTreeInstance: matchInfo.subtree,
+                    node: matchInfo.bestMatch,
                 };
             } else {
                 // console.log('NEWBIE!!!!!!!!!!!!!', name, oldTree, readableNode);

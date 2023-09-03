@@ -13,6 +13,7 @@ import ReadableNode from '../tree/node';
 import RangePlus from '../document/locationApi/range';
 import { interval } from 'd3';
 import { getRandomArbitrary } from '../document/lib';
+import { WEB_INFO_SOURCE } from '../constants/types';
 
 const getEvent = (roll: number) => {
     // copy
@@ -58,20 +59,25 @@ enum TypeOfChange {
     PASTE_CHATGPT,
 }
 
-const totalNumEdits = 100;
+const totalNumEdits = 50;
 
 // first init
 const COMMIT_53c0d24_TIME = 1625029620000;
 // hour later completed edits
 const COMMIT_4b69d50_TIME = 1625033340000; // had 50 additions, 22 deletions
 const COMMIT_7227853_TIME = 1625103540000; // 57 add, 0 delete
+const COMMIT_D224524_TIME = 1625151660000; // 12 additions 20 deletions
+const COMMIT_86c56b1_TIME = 1626295140000;
+const COMMIT_986de57_TIME = 1626531900000;
+
+const currRange = [COMMIT_86c56b1_TIME, COMMIT_986de57_TIME];
 
 const relativePaths = [
-    'src/utils/search.ts',
+    // 'src/utils/search.ts',
     'src/extension.ts',
-    'src/utils/extractGoogleResults.ts',
-    'src/utils/fetchPageContent.ts',
-    'src/utils/sortResults.ts',
+    // 'src/utils/extractGoogleResults.ts',
+    // 'src/utils/fetchPageContent.ts',
+    // 'src/utils/extractStackOverflowResults.ts',
 ];
 
 const LinesToInsert = [
@@ -158,6 +164,7 @@ const SearchLinesToInsert = [
 class Test {
     _docs: DocumentWatcher[] = [];
     _nodes: ReadableNode[] = [];
+    _nodesCopy: ReadableNode[] = [];
     interval: NodeJS.Timer | null;
     constructor(private readonly container: Container) {
         this._docs = Array.from(this.container.fileParser?.docs || [])
@@ -168,6 +175,7 @@ class Test {
         this.interval = null;
 
         this._nodes = this._docs.map((d) => d._nodesInFile!.toArray()).flat();
+        this._nodesCopy = this._nodes.map((n) => n);
         console.log('made these docs n nodes', this);
         // on init get nodes
         // in db mark all the nodes that should be able to be changed in the db
@@ -229,6 +237,11 @@ class Test {
 
         if (i > totalNumEdits) {
             this.interval && clearInterval(this.interval);
+            // reset edits to "canon"
+            this._nodesCopy.forEach((n) => {
+                console.log('RESET', n);
+                n.dataController?.handleOnSaveTextDocument(doc);
+            });
         }
         // setTimeout(this.applyEdit, 1000);
         // }, 1000);
@@ -257,20 +270,18 @@ class Test {
                 return await this.makeAddLine(doc);
             case TypeOfChange.REMOVE_LINE:
                 return await this.makeRemoveLine(doc);
-            // default:
-            // case TypeOfChange.MODIFY_LINE:
-            //     return this.makeModifyLine();
+            default:
+            case TypeOfChange.MODIFY_LINE:
+                return this.makeModifyLine(doc, eventTime);
             case TypeOfChange.PASTE_VSCODE:
             case TypeOfChange.COPY:
                 return this.vscCopyPaste(doc, eventTime);
-            // case TypeOfChange.PASTE_VSCODE:
-            //     return this.makePasteVscode();
-            // case TypeOfChange.PASTE_STACKOVERFLOW:
-            //     return this.makePasteStackoverflow();
-            // case TypeOfChange.PASTE_GITHUB:
-            //     return this.makePasteGithub();
-            // case TypeOfChange.PASTE_CHATGPT:
-            //     return this.makePasteChatgpt();
+            case TypeOfChange.PASTE_STACKOVERFLOW:
+                return this.makeWebPaste(WEB_INFO_SOURCE.STACKOVERFLOW, doc);
+            case TypeOfChange.PASTE_GITHUB:
+                return this.makeWebPaste(WEB_INFO_SOURCE.GITHUB, doc);
+            case TypeOfChange.PASTE_CHATGPT:
+                return this.makeWebPaste(WEB_INFO_SOURCE.CHAT_GPT, doc);
         }
     }
 
@@ -285,55 +296,58 @@ class Test {
             new Position(line, text.length),
             new Position(line, text.length)
         );
-        const changeEvent: TextDocumentChangeEvent = {
-            contentChanges: [
-                {
-                    range,
-                    rangeLength: 0,
-                    rangeOffset: textDocument.offsetAt(range.start),
-                    text: '\n' + spaceStr,
-                },
-            ],
-            document: textDocument,
-            reason: 1,
-        };
-        const edit = new WorkspaceEdit();
-        if (
-            line > 60 &&
-            line < 70 &&
-            textDocument.fileName.includes('search')
-        ) {
-            edit.insert(
-                textDocument.uri,
-                range.start,
-                `\n${SearchLinesToInsert.shift()}\n${spaceStr}`
-            );
-        } else if (
-            line > 30 &&
-            line < 45 &&
-            textDocument.fileName.includes('extension')
-        ) {
-            edit.insert(
-                textDocument.uri,
-                range.start,
-                `\n${ExtensionLinesToInsert.shift()}\n${spaceStr}`
-            );
-        } else {
-            Math.random() > 0.5
-                ? edit.insert(
-                      textDocument.uri,
-                      range.start,
-                      `\n${
-                          LinesToInsert[
-                              Math.floor(Math.random() * LinesToInsert.length)
-                          ]
-                      }\n${spaceStr}`
-                  )
-                : edit.insert(textDocument.uri, range.start, `\n${spaceStr}`);
-        }
+        const edit = this.getReasonableEdit(range, textDocument);
+        edit.insert(textDocument.uri, range.start, '\n');
+
+        // const changeEvent: TextDocumentChangeEvent = {
+        //     contentChanges: [
+        //         {
+        //             range,
+        //             rangeLength: 0,
+        //             rangeOffset: textDocument.offsetAt(range.start),
+        //             text: '\n' + spaceStr,
+        //         },
+        //     ],
+        //     document: textDocument,
+        //     reason: 1,
+        // };
+        // const edit = new WorkspaceEdit();
+        // if (
+        //     line > 60 &&
+        //     line < 70 &&
+        //     textDocument.fileName.includes('search')
+        // ) {
+        //     edit.insert(
+        //         textDocument.uri,
+        //         range.start,
+        //         `\n${SearchLinesToInsert.shift()}\n${spaceStr}`
+        //     );
+        // } else if (
+        //     line > 30 &&
+        //     line < 45 &&
+        //     textDocument.fileName.includes('extension')
+        // ) {
+        //     edit.insert(
+        //         textDocument.uri,
+        //         range.start,
+        //         `\n${ExtensionLinesToInsert.shift()}\n${spaceStr}`
+        //     );
+        // } else {
+        //     Math.random() > 0.5
+        //         ? edit.insert(
+        //               textDocument.uri,
+        //               range.start,
+        //               `\n${
+        //                   LinesToInsert[
+        //                       Math.floor(Math.random() * LinesToInsert.length)
+        //                   ]
+        //               }\n${spaceStr}`
+        //           )
+        //         : edit.insert(textDocument.uri, range.start, `\n${spaceStr}`);
+        // }
         // edit.insert(textDocument.uri, range.start, '\n' + spaceStr);
         await workspace.applyEdit(edit);
-        return changeEvent;
+        // return changeEvent;
     }
 
     async makeRemoveLine(textDocument: TextDocument) {
@@ -351,6 +365,25 @@ class Test {
             );
             const edit = new WorkspaceEdit();
             edit.replace(textDocument.uri, range, '');
+            await workspace.applyEdit(edit);
+            return edit;
+        }
+    }
+
+    async makeModifyLine(textDocument: TextDocument, eventTime: number) {
+        const line = Math.floor(Math.random() * textDocument.lineCount - 1);
+        const text = textDocument.lineAt(line).text;
+        // don't remove "good" lines
+        if (
+            LinesToInsert.includes(text) ||
+            ExtensionLinesToInsert.includes(text) ||
+            SearchLinesToInsert.includes(text)
+        ) {
+            const range = new Range(
+                new Position(line, 0),
+                new Position(line, textDocument.lineAt(line).text.length)
+            );
+            const edit = this.getReasonableEdit(range, textDocument);
             await workspace.applyEdit(edit);
             return edit;
         }
@@ -416,6 +449,103 @@ class Test {
         const edit = new WorkspaceEdit();
         edit.insert(doc.uri, destRangeSlice.end, '\n' + pasteEvent.text);
         await workspace.applyEdit(edit);
+    }
+
+    async makeWebPaste(webSource: WEB_INFO_SOURCE, doc: TextDocument) {
+        const webEvent = await this.container.firestoreController?.getWebEvent(
+            webSource
+        );
+        if (webEvent) {
+            const node =
+                this._nodes[Math.floor(Math.random() * this._nodes.length)];
+            const line = Math.floor(
+                getRandomArbitrary(
+                    node.location.range.start.line,
+                    node.location.range.end.line
+                )
+            );
+            const rangeSlice = new Range(
+                new Position(line, doc.lineAt(line).text.length),
+                new Position(line, doc.lineAt(line).text.length)
+            );
+            this.container.setCopyBuffer(webEvent);
+            const pasteEvent = {
+                location: new Location(
+                    node.location.uri,
+                    RangePlus.fromRangeAndText(
+                        rangeSlice,
+                        webEvent.code
+                    ).toRange()
+                ),
+                text: webEvent.code,
+                time: Math.floor(
+                    getRandomArbitrary(currRange[0], currRange[1])
+                ),
+            };
+            node.dataController?.handleOnPaste(pasteEvent);
+            const edit = new WorkspaceEdit();
+            edit.insert(
+                node.location.uri,
+                rangeSlice.start,
+                '\n' + pasteEvent.text
+            );
+            return edit;
+        }
+    }
+
+    private getReasonableEdit(range: Range, document: TextDocument) {
+        const node = this._nodes.find(
+            (n) =>
+                n.location.uri.fsPath === document.uri.fsPath &&
+                n.dataController!.isOwnerOfRange(range)
+        );
+        if (node) {
+            const vscMetadata =
+                node.dataController?.vscodeNodeMetadata?.identifiers;
+            if (vscMetadata) {
+                const randomId =
+                    vscMetadata[Math.floor(Math.random() * vscMetadata.length)];
+                const otherId =
+                    vscMetadata[Math.floor(Math.random() * vscMetadata.length)];
+                if (randomId.kind === 'FunctionDeclaration') {
+                    const edit = new WorkspaceEdit();
+                    edit.replace(
+                        document.uri,
+                        range,
+                        `function ${randomId.name}() {}`
+                    );
+                    // await workspace.applyEdit(edit);
+                    return edit;
+                }
+                if (randomId.kind === 'VariableDeclaration') {
+                    const edit = new WorkspaceEdit();
+                    edit.replace(
+                        document.uri,
+                        range,
+                        `const ${randomId.name} = ${otherId.name};`
+                    );
+                    // await workspace.applyEdit(edit);
+                    return edit;
+                }
+                if (randomId.kind === 'PropertyAssignment') {
+                    const edit = new WorkspaceEdit();
+                    edit.replace(
+                        document.uri,
+                        range,
+                        `{ ${randomId.name}: ${otherId.name} };`
+                    );
+                    // await workspace.applyEdit(edit);
+                    return edit;
+                }
+            }
+        }
+        const edit = new WorkspaceEdit();
+        edit.replace(
+            document.uri,
+            range,
+            LinesToInsert[Math.floor(Math.random() * LinesToInsert.length)]
+        );
+        return edit;
     }
 }
 

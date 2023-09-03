@@ -52,7 +52,8 @@ export type DB_REFS =
     | 'vscode-annotations'
     | 'commits'
     | 'web-meta'
-    | 'code-metadata';
+    | 'code-metadata'
+    | 'test-data';
 
 export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
     USERS: 'users',
@@ -61,6 +62,7 @@ export const DB_COLLECTIONS: { [key: string]: DB_REFS } = {
     COMMITS: 'commits',
     WEB_META: 'web-meta',
     CODE_METADATA: 'code-metadata',
+    TEST_DATA: 'test-data',
     // PLAY_TOY: 'play-toy',
 };
 
@@ -68,6 +70,7 @@ const SUB_COLLECTIONS = {
     FILES: 'files',
     NODES: 'nodes',
     PAST_VERSIONS: 'past-versions',
+    LINES: 'lines',
 };
 
 export function getListFromSnapshots(
@@ -87,6 +90,9 @@ export function getListFromSnapshots(
 const COMMIT_53c0d24_TIME = 1625029620000;
 const COMMIT_4b69d50_TIME = 1625033340000;
 const COMMIT_7227853_TIME = 1625103540000; // 57 add, 0 delete
+const COMMIT_D224524_TIME = 1625151660000; // 12 additions 20 deletions
+const COMMIT_86c56b1_TIME = 1626295140000;
+const COMMIT_986de57_TIME = 1626531900000;
 
 class FirestoreController extends Disposable {
     _disposable: Disposable;
@@ -533,6 +539,11 @@ class FirestoreController extends Disposable {
         );
         const nodePath = `${parentCollectionPath}/${id}`;
         const ref = doc(this._firestore!, `${parentCollectionPath}/${id}`);
+        const testData = doc(this._refs!.get(DB_COLLECTIONS.TEST_DATA)!, id);
+        const testDataRef = collection(
+            this._refs!.get(DB_COLLECTIONS.TEST_DATA)!,
+            `${id}/${SUB_COLLECTIONS.LINES}`
+        );
         const firestoreMetadata = {
             ref,
             pastVersionsCollection,
@@ -543,7 +554,7 @@ class FirestoreController extends Disposable {
             },
             logVersion: async (
                 versionId: string,
-                newNode: SerializedDataController
+                newNode: SerializedChangeBuffer
             ) => {
                 console.log('new hewwo', versionId, newNode);
                 if (versionId.includes('/') || versionId.includes('\\')) {
@@ -553,11 +564,33 @@ class FirestoreController extends Disposable {
                 console.log('SIGH', docRef);
                 await setDoc(docRef, {
                     ...newNode,
-                    time: getRandomArbitrary(
-                        COMMIT_4b69d50_TIME,
-                        COMMIT_7227853_TIME
+                    time: Math.floor(
+                        getRandomArbitrary(
+                            // COMMIT_86c56b1_TIME,
+                            // COMMIT_986de57_TIME
+                            COMMIT_53c0d24_TIME,
+                            COMMIT_4b69d50_TIME
+                        )
                     ),
                 });
+                await setDoc(testData, { name: newNode.id });
+                newNode.location.content
+                    .split('\n')
+                    .filter((f) =>
+                        f.matchAll(/^(?=.*[0-9])(?=.*[a-zA-Z])([a-zA-Z0-9]+)$/g)
+                    )
+                    .forEach((line) => {
+                        const lineRef = doc(testDataRef, uuidv4());
+                        setDoc(lineRef, {
+                            line,
+                            time: Math.floor(
+                                getRandomArbitrary(
+                                    COMMIT_86c56b1_TIME,
+                                    COMMIT_986de57_TIME
+                                )
+                            ),
+                        });
+                    });
             },
             readPastVersions: async () => {
                 const querySnapshot = await getDocs(pastVersionsCollection);
@@ -589,6 +622,16 @@ class FirestoreController extends Disposable {
             });
         });
         return { subData: formattedNodes, dataMap };
+    }
+
+    async indexProject() {
+        this.initProject();
+        console.log('does not exist', this.container.fileParser?.docs);
+        this.container.fileParser?.docs.forEach((file) => {
+            file.initNewFile();
+        });
+        await this.initFile(this.container.fileParser?.docs!);
+        return;
     }
 
     async initFile(map: Map<string, DocumentWatcher>) {
@@ -691,10 +734,52 @@ class FirestoreController extends Disposable {
                 where('timeCopied', '>', 1691004846802)
             );
             const snapshot = await getDocs(doc);
-            const list = getListFromSnapshots(snapshot);
-            return list;
+            const list = getListFromSnapshots(snapshot) as CopyBuffer[];
+            return list[Math.floor(Math.random() * list.length)];
         }
-        return [];
+        return undefined;
+    }
+
+    async renameFile(sourceFilename: string, destFilename: string) {
+        const coll = this._refs?.get(DB_COLLECTIONS.CODE_METADATA);
+        if (!coll) {
+            return;
+        }
+
+        const docRef = doc(
+            coll,
+            `${this._projectName}`,
+            SUB_COLLECTIONS.FILES,
+            `${sourceFilename}`
+        );
+
+        const docRef2 = doc(
+            coll,
+            `${this._projectName}`,
+            SUB_COLLECTIONS.FILES,
+            `${destFilename}`
+        );
+
+        setDoc(docRef2, (await getDoc(docRef)).data());
+        const nodesCollectionSource = collection(
+            this._firestore!,
+            `${DB_COLLECTIONS.CODE_METADATA}/${this._projectName}/${SUB_COLLECTIONS.FILES}/${sourceFilename}/${SUB_COLLECTIONS.NODES}`
+        );
+        const nodesCollectionDest = collection(
+            this._firestore!,
+            `${DB_COLLECTIONS.CODE_METADATA}/${this._projectName}/${SUB_COLLECTIONS.FILES}/${destFilename}/${SUB_COLLECTIONS.NODES}`
+        );
+        const querySnapshot = await getDocs(nodesCollectionSource);
+        const list = getListFromSnapshots(querySnapshot);
+        list.forEach((item) => {
+            this.copyOver(
+                this._projectName,
+                sourceFilename,
+                item.id,
+                destFilename,
+                item.id
+            );
+        });
     }
 
     async copyOver(

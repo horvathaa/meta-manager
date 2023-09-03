@@ -18,6 +18,22 @@
             {
                 "command": "meta-manager.helloWorld",
                 "title": "Hello World"
+            },
+            {
+                "command": "meta-manager.indexFile",
+                "title": "Meta Manager: Index File"
+            },
+            {
+                "command": "meta-manager.indexProject",
+                "title": "Meta Manager: Index Project"
+            },
+            {
+                "command": "meta-manager.indexBlock",
+                "title": "Meta Manager: Index Block"
+            },
+            {
+                "command": "meta-manager.reindexFile",
+                "title": "Meta Manager: Re-Index File"
             }
         ],
         "viewsContainers": {

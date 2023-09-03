@@ -180,6 +180,20 @@ export class DataController {
                     this.handleOnCommented(commentEvent);
                 }
             }),
+            this.container.indexBlockEmitter((block) => {
+                if (
+                    this.readableNode.location.uri.fsPath ===
+                        window.activeTextEditor?.document.uri.fsPath &&
+                    this.readableNode.location.contains(block.selection) &&
+                    this.isOwnerOfRange(block.selection)
+                ) {
+                    this.handleInsertBlock(
+                        block.text,
+                        block.selection
+                        // block.changeBuffer
+                    );
+                }
+            }),
             this.readableNode.location.onChanged.event(
                 // debounce(async (changeEvent: ChangeEvent) => {
                 (changeEvent: ChangeEvent) => this.handleOnChange(changeEvent)
@@ -714,7 +728,7 @@ export class DataController {
         this.updateWebviewData('recentChanges');
     }
 
-    private isOwnerOfRange(location: Range | Location) {
+    public isOwnerOfRange(location: Range | Location) {
         const comparator = isLocation(location) ? location.range : location;
         return (
             this._tree &&

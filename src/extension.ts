@@ -62,6 +62,10 @@ export async function activate(context: ExtensionContext) {
     });
     setTimeout(() => {
         console.log('about to run...');
+        // container.firestoreController?.renameFile(
+        //     'src-utils-sortResults.ts',
+        //     'src-utils-extractStackOverflowResults.ts'
+        // );
         const test = Test.create(container);
         // const proj = 'hieunc229-copilot-clone';
         // container.firestoreController?.copyOver(
@@ -71,7 +75,7 @@ export async function activate(context: ExtensionContext) {
         //     'src-utils-sortResults.ts',
         //     'extractSnippetResults'
         // );
-        test.run();
+        // test.run();
         // setInterval(() => test.run(), 5000);
     }, 10000);
 }

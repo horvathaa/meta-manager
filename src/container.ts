@@ -11,6 +11,7 @@ import {
     commands,
     TextEditorEdit,
     Location,
+    window,
 } from 'vscode';
 import { DataController } from './data/DataController';
 import FileParser from './document/fileParser';
@@ -44,6 +45,9 @@ export class Container {
     // https://stackoverflow.com/questions/59641564/what-are-the-differences-between-the-private-keyword-and-private-fields-in-types -- why # sign
     static #instance: Container;
     _disposables: Disposable[];
+    _indexProjectDisposable: Disposable;
+    _indexBlockDisposable: Disposable;
+    _reindexFileDisposable: Disposable;
     _onInitComplete: EventEmitter<Container> = new EventEmitter<Container>();
     _onNodesComplete: EventEmitter<Container> = new EventEmitter<Container>();
     _onRead: EventEmitter<any> = new EventEmitter<any>();
@@ -51,6 +55,8 @@ export class Container {
         new EventEmitter<ClipboardMetadata>();
     _onPaste: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
+    _indexBlockEmitter: EventEmitter<any> = new EventEmitter<any>();
+    _reindexFileEmitter: EventEmitter<any> = new EventEmitter<any>();
     _onCommented: EventEmitter<any> = new EventEmitter<any>();
     _copyVscodeMetadata: VSCClipboardMetadata | null = null;
     // activeNode: DataController | null = null;
@@ -87,6 +93,31 @@ export class Container {
             (textEditor: TextEditor, edit: TextEditorEdit, params: any) =>
                 this.overriddenCommentAction(textEditor, edit, params)
         );
+        this._indexProjectDisposable = commands.registerCommand(
+            'meta-manager.indexProject',
+            () => {
+                this._firestoreController?.indexProject();
+            }
+        );
+        this._indexBlockDisposable = commands.registerCommand(
+            'meta-manager.indexBlock',
+            () => {
+                this._indexBlockEmitter.fire({
+                    selection: window.activeTextEditor?.selection,
+                    text: window.activeTextEditor?.document.getText(
+                        window.activeTextEditor?.selection
+                    ),
+                });
+            }
+        );
+        this._reindexFileDisposable = commands.registerCommand(
+            'meta-manager.reindexFile',
+            () => {
+                this._reindexFileEmitter.fire({
+                    document: window.activeTextEditor?.document,
+                });
+            }
+        );
         this._loggedInUserMap = {
             firestoreEmail: '',
             firestoreUid: '',
@@ -101,7 +132,9 @@ export class Container {
             // (this._fileParser = FileParser.createFileParser(context, this)) // new FileParser(context, this))
             this._clipboardCopyDisposable,
             this._clipboardPasteDisposable,
-            this._commentDisposable
+            this._commentDisposable,
+            this._indexProjectDisposable,
+            this._indexBlockDisposable
         );
         // this._context = context;
     }
@@ -224,6 +257,14 @@ export class Container {
         return this._onCommented.event;
     }
 
+    public get indexBlockEmitter() {
+        return this._indexBlockEmitter.event;
+    }
+
+    public get reindexFileEmitter() {
+        return this._reindexFileEmitter.event;
+    }
+
     static async create(context: ExtensionContext) {
         const newContainer = new Container(context);
         const newFileParser = await FileParser.create(context, newContainer);
@@ -276,6 +317,10 @@ export class Container {
 
     public setWebviewController(webviewController: Webview) {
         this._webviewController = webviewController;
+    }
+
+    public setCopyBuffer(copyBuffer: CopyBuffer) {
+        this._copyBuffer = copyBuffer;
     }
 
     async initNodes() {

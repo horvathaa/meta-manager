@@ -134,6 +134,9 @@ export const getLegalLogValues = (languageId: string) => {
 };
 
 const lineToRange = (l: CodeLine): Range => {
+    if (l.code.length === 0) {
+        return new Range(l.line, 0, l.line, 0);
+    }
     return new Range(
         l.line,
         l.code[0].offset,
