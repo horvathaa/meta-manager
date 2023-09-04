@@ -17,7 +17,10 @@ import { DataController } from './data/DataController';
 import FileParser from './document/fileParser';
 import FileSystemController from './fs/FileSystemController';
 import GitController from './data/git/GitController';
-import FirestoreController from './data/firestore/FirestoreController';
+import FirestoreController, {
+    COMMIT_7227853_TIME,
+    COMMIT_AMBER_2d7_MAX,
+} from './data/firestore/FirestoreController';
 // import TimelineController from './view/src/timeline/TimelineController';
 import DebugController from './debug/debug';
 import LanguageServiceProvider from './document/languageServiceProvider/LanguageServiceProvider';
@@ -55,6 +58,8 @@ export class Container {
         new EventEmitter<ClipboardMetadata>();
     _onPaste: EventEmitter<ClipboardMetadata> =
         new EventEmitter<ClipboardMetadata>();
+    _resetTimes: EventEmitter<any> = new EventEmitter<any>();
+    _resetTimesDisposable: Disposable;
     _indexBlockEmitter: EventEmitter<any> = new EventEmitter<any>();
     _reindexFileEmitter: EventEmitter<any> = new EventEmitter<any>();
     _onCommented: EventEmitter<any> = new EventEmitter<any>();
@@ -115,6 +120,15 @@ export class Container {
             () => {
                 this._reindexFileEmitter.fire({
                     document: window.activeTextEditor?.document,
+                });
+            }
+        );
+        this._resetTimesDisposable = commands.registerCommand(
+            'meta-manager.reset-time',
+            () => {
+                this._resetTimes.fire({
+                    commit: 'b4f81f836613a593a6d7f2dc251e87b6a24de6fd',
+                    range: [COMMIT_AMBER_2d7_MAX, COMMIT_7227853_TIME],
                 });
             }
         );
@@ -263,6 +277,10 @@ export class Container {
 
     public get reindexFileEmitter() {
         return this._reindexFileEmitter.event;
+    }
+
+    public get resetTimesEmitter() {
+        return this._resetTimes.event;
     }
 
     static async create(context: ExtensionContext) {

@@ -83,6 +83,7 @@ export interface FirestoreControllerInterface {
     write: (newNode: any) => void;
     logVersion: (versionId: string, newNode: any) => void;
     readPastVersions: () => Promise<SerializedChangeBuffer[]>;
+    resetTimes?: (commit: string, range: number[]) => void;
 }
 
 export class DataController {
@@ -193,6 +194,18 @@ export class DataController {
                         // block.changeBuffer
                     );
                 }
+            }),
+            this.container.resetTimesEmitter((obj: any) => {
+                // if (
+                //     this.readableNode.id ===
+                //     'activate:028723b4-0578-4aa6-9654-6333e3291fcf'
+                // ) {
+                this.firestoreControllerInterface?.resetTimes &&
+                    this.firestoreControllerInterface?.resetTimes(
+                        obj.commit,
+                        obj.range
+                    );
+                // }
             }),
             this.readableNode.location.onChanged.event(
                 // debounce(async (changeEvent: ChangeEvent) => {

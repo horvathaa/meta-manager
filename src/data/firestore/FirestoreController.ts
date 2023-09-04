@@ -37,6 +37,7 @@ import {
     CopyBuffer,
     SerializedChangeBuffer,
     SerializedDataController,
+    SerializedLocationPlus,
     WEB_INFO_SOURCE,
 } from '../../constants/types';
 import GitController from '../git/GitController';
@@ -70,6 +71,7 @@ const SUB_COLLECTIONS = {
     FILES: 'files',
     NODES: 'nodes',
     PAST_VERSIONS: 'past-versions',
+    PAST_VERSIONS_TEST: 'past-versions-test',
     LINES: 'lines',
 };
 
@@ -86,13 +88,62 @@ export function getListFromSnapshots(
     return out;
 }
 
+const symbols = [
+    '!',
+    '@',
+    '#',
+    '$',
+    '%',
+    '^',
+    '&',
+    '*',
+    '(',
+    ')',
+    '_',
+    '[',
+    ']',
+    '{',
+    '}',
+    '|',
+    ';',
+    ':',
+    '"',
+    "'",
+    ',',
+    '.',
+    '/',
+    '<',
+    '>',
+    '?',
+    '`',
+    '~',
+    '-',
+    '=',
+    '+',
+];
+
+const diff = 68744349386; // from start edit of our project back to beginning of their project
+
 // first init
 const COMMIT_53c0d24_TIME = 1625029620000;
 const COMMIT_4b69d50_TIME = 1625033340000;
-const COMMIT_7227853_TIME = 1625103540000; // 57 add, 0 delete
+export const COMMIT_7227853_TIME = 1625103540000; // 57 add, 0 delete
+
+export const COMMIT_AMBER_2d7_MAX = 1625048321791;
+export const COMMIT_AMBER_dbc_MAX = 1625491624195;
+
+const COMMIT_8436591_TIME = 1625104080000;
+
 const COMMIT_D224524_TIME = 1625151660000; // 12 additions 20 deletions
 const COMMIT_86c56b1_TIME = 1626295140000;
 const COMMIT_986de57_TIME = 1626531900000;
+const COMMIT_8c8f691_TIME = 1627178700000;
+const COMMIT_03466b2_TIME = 1627609680000;
+const COMMIT_ce33f0e_TIME = 1627613940000;
+const COMMIT_a0b6523_TIME = 1627727880000;
+const COMMIT_e683a11_TIME = 1627785780000;
+const COMMIT_2836a72_TIME = 1647863760000;
+const COMMIT_5dfd5ba_TIME = 1648909200000;
 
 class FirestoreController extends Disposable {
     _disposable: Disposable;
@@ -537,6 +588,11 @@ class FirestoreController extends Disposable {
             this._firestore!,
             `${parentCollectionPath}/${id}/${SUB_COLLECTIONS.PAST_VERSIONS}`
         );
+        const pastVersionsCollectionTest = collection(
+            this._firestore!,
+            `${parentCollectionPath}/${id}/${SUB_COLLECTIONS.PAST_VERSIONS_TEST}`
+        );
+
         const nodePath = `${parentCollectionPath}/${id}`;
         const ref = doc(this._firestore!, `${parentCollectionPath}/${id}`);
         const testData = doc(this._refs!.get(DB_COLLECTIONS.TEST_DATA)!, id);
@@ -568,8 +624,18 @@ class FirestoreController extends Disposable {
                         getRandomArbitrary(
                             // COMMIT_86c56b1_TIME,
                             // COMMIT_986de57_TIME
-                            COMMIT_53c0d24_TIME,
-                            COMMIT_4b69d50_TIME
+                            // COMMIT_53c0d24_TIME,
+                            // COMMIT_4b69d50_TIME,
+                            // COMMIT_8436591_TIME,
+                            // COMMIT_D224524_TIME
+                            // COMMIT_986de57_TIME,
+                            // COMMIT_8c8f691_TIME,
+                            // COMMIT_03466b2_TIME,
+                            // COMMIT_ce33f0e_TIME,
+                            // COMMIT_a0b6523_TIME,
+                            // COMMIT_e683a11_TIME,
+                            COMMIT_2836a72_TIME,
+                            COMMIT_5dfd5ba_TIME
                         )
                     ),
                 });
@@ -585,8 +651,15 @@ class FirestoreController extends Disposable {
                             line,
                             time: Math.floor(
                                 getRandomArbitrary(
-                                    COMMIT_86c56b1_TIME,
-                                    COMMIT_986de57_TIME
+                                    // COMMIT_86c56b1_TIME,
+                                    // COMMIT_986de57_TIME,
+                                    // COMMIT_8c8f691_TIME,
+                                    // COMMIT_03466b2_TIME,
+                                    // COMMIT_ce33f0e_TIME,
+                                    // COMMIT_a0b6523_TIME,
+                                    // COMMIT_e683a11_TIME,
+                                    COMMIT_2836a72_TIME,
+                                    COMMIT_5dfd5ba_TIME
                                 )
                             ),
                         });
@@ -598,6 +671,155 @@ class FirestoreController extends Disposable {
                     querySnapshot
                 ) as SerializedChangeBuffer[];
                 return list;
+            },
+            resetTimes: async (commit: string, range: number[]) => {
+                console.log('calling', commit, range);
+                const querySnapshot = await getDocs(pastVersionsCollection);
+                // pastVersionsCollectionTest
+                const list = getListFromSnapshots(
+                    querySnapshot
+                ) as SerializedChangeBuffer[];
+                if (!list.some((c) => c.commit === commit)) {
+                    return;
+                }
+                const hewwo = await getDocs(testDataRef);
+                console.log('wtf???', hewwo, 'list', list);
+                const linesInRange = getListFromSnapshots(hewwo); // .filter((e) => e.time >= range[0] && e.time < range[1]);
+                console.log('linesInRange', linesInRange, 'ref', testDataRef);
+                const edits = linesInRange.filter(
+                    (e) =>
+                        e.line
+                            .split('')
+                            .filter((f: string) => !symbols.includes(f))
+                            .join('')
+                            .trim().length > 0
+                );
+                const editList = list.filter((l) => l.commit === commit);
+
+                //.forEach((c, i) => {
+                let i = 0;
+                for (const c of editList) {
+                    console.log('edits????', edits);
+                    const realEditTime = c.id.split(':')[2];
+                    const baseTime = parseInt(realEditTime) - diff;
+                    const docRef = doc(pastVersionsCollectionTest, c.id);
+                    // const time =
+                    //     range[0] + (range[1] - range[0]) * (i / list.length);
+                    setDoc(docRef, {
+                        ...c,
+                        baseTime,
+                    });
+                    const nextTime =
+                        i + 1 < editList.length
+                            ? parseInt(editList[i + 1].id.split(':')[2]) - diff
+                            : baseTime + 1000;
+                    // const nextTime =
+                    //     range[0] +
+                    //     (range[1] - range[0]) * (i + 1 / list.length);
+                    const numNewEdits = Math.floor(Math.random() * 20) + 2;
+                    let currVer: SerializedLocationPlus =
+                        c.location as SerializedLocationPlus;
+                    const seenEdits = new Set();
+                    const intervals = getEvenlySpacedIntervals(
+                        baseTime,
+                        nextTime,
+                        numNewEdits
+                    );
+                    for (let j = 0; j < numNewEdits; j++) {
+                        const newTime = intervals[j];
+                        // Math.floor(
+                        //     baseTime + (nextTime - baseTime) * (j / numNewEdits)
+                        // );
+                        if (Math.random() > 0.5) {
+                            const edit =
+                                edits[Math.floor(Math.random() * edits.length)];
+                            console.log('edit', edit);
+                            const split = currVer.content.split('\n');
+                            const insertionPoint = Math.floor(
+                                getRandomArbitrary(
+                                    currVer.range.start.line + 1,
+                                    currVer.range.end.line - 1
+                                )
+                            );
+                            seenEdits.add(edit.line);
+                            const idx = currVer.range.end.line - insertionPoint;
+                            console.log('idx', idx);
+                            split.splice(idx, 0, edit.line);
+                            console.log('split', split);
+                            const newContent = split.join('\n');
+                            // const start = Math.floor(Math.random() * currVer.content.length);
+                            // const end = Math.floor(Math.random() * currVer.content.length);
+                            // const newContent = currVer.content.slice(0, start) + edit + currVer.content.slice(end, currVer.content.length);
+                            currVer = {
+                                ...currVer,
+                                content: newContent,
+                                range: {
+                                    ...currVer.range,
+                                    end: {
+                                        ...currVer.range.end,
+                                        line: currVer.range.end.line + 1,
+                                    },
+                                },
+                            };
+                            const newRef = doc(
+                                pastVersionsCollectionTest,
+                                c.id + '-FAKE-' + j
+                            );
+                            const { changeInfo, eventData, ...rest } = c; // take fun things out
+                            setDoc(newRef, {
+                                ...rest,
+                                time: newTime,
+                                location: currVer,
+                            });
+                        } else {
+                            const lines = currVer.content.split('\n');
+                            const filtered = lines.filter(
+                                (l) => !seenEdits.has(l)
+                            );
+                            const newContent = filtered.join('\n');
+                            const newRef = doc(
+                                pastVersionsCollectionTest,
+                                c.id + '-FAKE-' + j
+                            );
+                            currVer = {
+                                ...currVer,
+                                content: newContent,
+                                range: {
+                                    ...currVer.range,
+                                    end: {
+                                        ...currVer.range.end,
+                                        line:
+                                            currVer.range.end.line -
+                                            (lines.length - filtered.length),
+                                    },
+                                },
+                            };
+                            const { changeInfo, eventData, ...rest } = c; // take fun things out
+                            setDoc(newRef, {
+                                ...rest,
+                                time: newTime,
+                                location: currVer,
+                            });
+                            // currVer = {
+                            //     ...currVer,
+                            //     content: newContent,
+                            // };
+                        }
+                    }
+                    i++;
+                }
+                // .map((l, i) => {
+                //     return {
+                //         ...l,
+                //         time:
+                //             range[0] +
+                //             (range[1] - range[0]) * (i / list.length),
+                //     };
+                // });
+                // translate.forEach(async (t) => {
+                //     const docRef = doc(pastVersionsCollection, t.id);
+                //     await setDoc(docRef, t);
+                // });
             },
         };
         return firestoreMetadata;
@@ -929,6 +1151,25 @@ class FirestoreController extends Disposable {
     dispose() {
         this._disposable.dispose();
     }
+}
+
+function getEvenlySpacedIntervals(
+    start: number,
+    end: number,
+    count: number
+): number[] {
+    if (count < 2) {
+        throw new Error('Count must be at least 2 to create intervals.');
+    }
+
+    const interval = (end - start) / (count - 1);
+    const intervals: number[] = [];
+
+    for (let i = 0; i < count; i++) {
+        intervals.push(start + i * interval);
+    }
+
+    return intervals;
 }
 
 export default FirestoreController;
