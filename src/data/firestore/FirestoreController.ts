@@ -122,7 +122,16 @@ const symbols = [
     '+',
 ];
 
-const diff = 68744349386; // from start edit of our project back to beginning of their project
+// const diff = 68744349386; // from start edit of our project back to beginning of their project - Jun 30 -- for us, first commit to 62097
+// const diff = 68629464795; // from end of 6207 commit time to their Jul 1 2021 commit time
+// const diff = 67487369805; // from end of 263 commit to their Jul 14 86... commmit
+// const diff = 67310951813; // from our cc commit to their july 17 986 commit
+// const diff = 66668475974; // from our b3b commit to their july 24 8c8 commit
+// const diff = 66238813893; // from our c386 commit to their july 29 034 commit
+// const diff = 66122604579; // from our 2a98 commit to their jul 31 a0b commit
+// const diff = 45990910863; // from our f2f commit to their mar 21 2022 283 commit
+// const diff = 44947187143; // from our 4aa commit to their apr 1 2022 5df commit
+const diff = 44847600000; // from our 4aa commit to their apr 1 2022 5df commit
 
 // first init
 const COMMIT_53c0d24_TIME = 1625029620000;
@@ -137,12 +146,12 @@ const COMMIT_8436591_TIME = 1625104080000;
 const COMMIT_D224524_TIME = 1625151660000; // 12 additions 20 deletions
 const COMMIT_86c56b1_TIME = 1626295140000;
 const COMMIT_986de57_TIME = 1626531900000;
-const COMMIT_8c8f691_TIME = 1627178700000;
-const COMMIT_03466b2_TIME = 1627609680000;
-const COMMIT_ce33f0e_TIME = 1627613940000;
-const COMMIT_a0b6523_TIME = 1627727880000;
-const COMMIT_e683a11_TIME = 1627785780000;
-const COMMIT_2836a72_TIME = 1647863760000;
+const COMMIT_8c8f691_TIME = 1627178700000; // jul 24
+const COMMIT_03466b2_TIME = 1627609680000; // jul 29
+const COMMIT_ce33f0e_TIME = 1627613940000; // jul 29
+const COMMIT_a0b6523_TIME = 1627727880000; // jul 31
+const COMMIT_e683a11_TIME = 1627785780000; // jul 31
+const COMMIT_2836a72_TIME = 1647863760000; // mar 21 22
 const COMMIT_5dfd5ba_TIME = 1648909200000;
 
 class FirestoreController extends Disposable {
@@ -694,6 +703,7 @@ class FirestoreController extends Disposable {
                             .join('')
                             .trim().length > 0
                 );
+                if (!edits.length) edits.push('console.log(test);');
                 const editList = list.filter((l) => l.commit === commit);
 
                 //.forEach((c, i) => {
@@ -716,7 +726,10 @@ class FirestoreController extends Disposable {
                     // const nextTime =
                     //     range[0] +
                     //     (range[1] - range[0]) * (i + 1 / list.length);
-                    const numNewEdits = Math.floor(Math.random() * 20) + 2;
+                    const numNewEdits =
+                        nextTime - baseTime > 10000
+                            ? Math.floor(Math.random() * 20) + 2
+                            : 2;
                     let currVer: SerializedLocationPlus =
                         c.location as SerializedLocationPlus;
                     const seenEdits = new Set();
@@ -741,10 +754,10 @@ class FirestoreController extends Disposable {
                                     currVer.range.end.line - 1
                                 )
                             );
-                            seenEdits.add(edit.line);
+                            seenEdits.add(edit?.line || '');
                             const idx = currVer.range.end.line - insertionPoint;
                             console.log('idx', idx);
-                            split.splice(idx, 0, edit.line);
+                            split.splice(idx, 0, edit?.line || '');
                             console.log('split', split);
                             const newContent = split.join('\n');
                             // const start = Math.floor(Math.random() * currVer.content.length);
