@@ -164,20 +164,20 @@ const RenderFilterButtons: React.FC<{
         <div className={styles['flex']}>
             <VSCodeButton
                 className={styles['m2']}
-                onClick={() => {
-                    setShowFiltered(true);
-                    context._graphController.constructGraph(timelineArr);
-                }}
+                // onClick={() => {
+                //     setShowFiltered(true);
+                //     context._graphController.constructGraph(timelineArr);
+                // }}
             >
                 Show Only These Instances?
             </VSCodeButton>
             {showFiltered && (
                 <VSCodeButton
                     appearance="secondary"
-                    onClick={() => {
-                        setShowFiltered(false);
-                        context._graphController.constructGraph(context._node);
-                    }}
+                    // onClick={() => {
+                    //     setShowFiltered(false);
+                    //     context._graphController.constructGraph(context._node);
+                    // }}
                     className={styles['m2']}
                 >
                     Reset?
@@ -410,8 +410,14 @@ class TimelineController {
             );
     }
 
-    updateTimeline(title: string, data: any[]) {
-        this._graphController.constructGraph(data);
+    updateTimeline(
+        title: string,
+        data: any[],
+        keys: string[],
+        windowed: any[],
+        keyMap: any
+    ) {
+        this._graphController.constructGraph(data, keys, windowed, keyMap);
         this.renderMetadata();
     }
 
@@ -997,17 +1003,17 @@ class TimelineController {
         switch (message.command) {
             case 'updateTimeline': {
                 const { data } = message;
-                const { id, metadata } = data;
-                // console.log('stuff', data, id, metadata);
-                this._node = {
-                    ...(metadata as Payload),
-                    pasteLocations: metadata.pasteLocations.flatMap(
-                        (p: SerializedTrackedPasteDetails) =>
-                            context.getPasteLocationData(p)
-                    ),
-                };
-
-                context.updateTimeline(id, metadata);
+                const { id, metadata, keys, windowed, keyMap } = data;
+                // // console.log('stuff', data, id, metadata);
+                // this._node = {
+                //     ...(metadata as Payload),
+                //     pasteLocations: metadata.pasteLocations.flatMap(
+                //         (p: SerializedTrackedPasteDetails) =>
+                //             context.getPasteLocationData(p)
+                //     ),
+                // };
+                console.log('HANDLING MESSAGE', metadata);
+                context.updateTimeline(id, metadata, keys, windowed, keyMap);
                 break;
             }
             default: {

@@ -112,12 +112,123 @@ class DocumentWatcher extends Disposable {
         const saveListener = workspace.onDidSaveTextDocument((e) =>
             this.handleOnDidSaveDidClose(e)
         );
+        // window, active, if, arrowFunction
+        // 1626297163796, [0, 60], [22, 33] [20, 45]
+
+        const activeListener = window.onDidChangeActiveTextEditor((e) => {
+            if (e?.document.uri.fsPath !== this.document.uri.fsPath) {
+                return;
+            }
+            console.log('nodes', this._nodesInFile);
+            const nodesArray = this._nodesInFile
+                ?.toArray()
+                .filter((d) => d.humanReadableKind !== 'file');
+            let keyMap: { [k: string]: any[] } = {};
+            const keys = nodesArray!.map((i) => {
+                keyMap = { ...keyMap, [i.id]: [] };
+                return i.id;
+            });
+
+            const windowed = [];
+            const lol = nodesArray!
+                .map((n) => n.dataController?._pastVersionsTest)
+                .flat()
+                .map((n) => {
+                    const key = keys?.find((k) => n?.id.includes(k)) || '';
+                    return {
+                        ...n,
+                        [key]: [
+                            n?.location.range.start.line,
+                            n?.location.range.end.line,
+                        ],
+                        parentId: key,
+                    };
+                })
+                .sort((a, b) => (a?.time || -1) - (b?.time || -1));
+            lol.forEach((n) => {
+                if (n.parentId) {
+                    const entry = keyMap[n.parentId];
+                    if (entry.length) {
+                        const startLinesByTime = entry[1];
+                        const endLinesByTime = entry[0];
+                        startLinesByTime.x.push(n.time);
+                        startLinesByTime.y.push(n.location?.range.start.line);
+                        endLinesByTime.x.push(n.time);
+                        endLinesByTime.y.push(n.location?.range.end.line);
+                    } else {
+                        entry.push({
+                            x: [n.time],
+                            y: [n.location?.range.end.line],
+                        });
+                        entry.push({
+                            x: [n.time],
+                            y: [n.location?.range.start.line],
+                        });
+                    }
+                }
+            });
+            const windowLength = 20;
+            for (let i = 0; i < (lol.length || 0); i += windowLength) {
+                const currWindow = lol.slice(i, i + windowLength);
+                // windowed.push();
+                let keyObj: { [k: string]: any } = {};
+                let windowMax = -Infinity;
+                let windowMin = Infinity;
+
+                keys?.forEach((k) => {
+                    keyObj[k] = currWindow
+                        .filter((n) => n.parentId === k)
+                        .reduce(
+                            // consider capturing specific start and end time + line range to then translate/bezier curve across
+                            // in vis
+                            (acc, curr, i) => {
+                                const update = {
+                                    start: Math.min(
+                                        acc.start,
+                                        curr.location?.range.start.line || 0
+                                    ),
+                                    end: Math.max(
+                                        acc.end,
+                                        curr.location?.range.end.line || 0
+                                    ),
+                                };
+                                if (update.start < windowMin)
+                                    windowMin = update.start;
+                                if (update.end > windowMax)
+                                    windowMax = update.end;
+                                return update;
+                            },
+                            { start: Infinity, end: -Infinity }
+                        );
+                });
+                const window = {
+                    start: currWindow?.[0]?.time,
+                    end: currWindow?.[currWindow.length - 1]?.time,
+                    windowMax,
+                    windowMin,
+                    ...keyObj,
+                };
+                windowed.push(window);
+            }
+            console.log('lol!', windowed);
+            lol?.length &&
+                this.container.webviewController?.postMessage({
+                    command: 'updateTimeline',
+                    data: {
+                        metadata: lol,
+                        keys,
+                        windowed,
+                        keyMap,
+                    },
+                });
+        });
         const listeners = [
             saveListener,
             // listener,
             otherListener,
             firestoreReadListener,
             reindexListener,
+            activeListener,
             // commandDisposable,
             // docChangeListener,
         ].filter((d) => d) as Disposable[];

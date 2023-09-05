@@ -22,6 +22,7 @@ import {
     setDoc,
     getDoc,
     QuerySnapshot,
+    getCountFromServer,
 } from 'firebase/firestore';
 import { Functions, getFunctions } from 'firebase/functions';
 import { Auth, User, getAuth } from 'firebase/auth';
@@ -688,139 +689,158 @@ class FirestoreController extends Disposable {
                 const list = getListFromSnapshots(
                     querySnapshot
                 ) as SerializedChangeBuffer[];
-                if (!list.some((c) => c.commit === commit)) {
-                    return;
-                }
-                const hewwo = await getDocs(testDataRef);
-                console.log('wtf???', hewwo, 'list', list);
-                const linesInRange = getListFromSnapshots(hewwo); // .filter((e) => e.time >= range[0] && e.time < range[1]);
-                console.log('linesInRange', linesInRange, 'ref', testDataRef);
-                const edits = linesInRange.filter(
-                    (e) =>
-                        e.line
-                            .split('')
-                            .filter((f: string) => !symbols.includes(f))
-                            .join('')
-                            .trim().length > 0
-                );
-                if (!edits.length) edits.push('console.log(test);');
-                const editList = list.filter((l) => l.commit === commit);
+                // if (!list.some((c) => c.commit === commit)) {
+                //     return;
+                // }
+                const hewwo = await getDocs(pastVersionsCollectionTest);
+                // const count = await getCountFromServer(
+                //     pastVersionsCollectionTest
+                // );
+                // console.log(
+                //     'wtf???',
+                //     ,
+                //     'list',
+                //     list,
+                //     'count',
+                //     count,
+                //     count.data().count,
+                //     'for id',
+                //     id
+                // );
+                return getListFromSnapshots(hewwo).map((m) => {
+                    return { ...m, dbId: m.id };
+                });
+                // if (id === 'activate:028723b4-0578-4aa6-9654-6333e3291fcf') {
+                //     // const vers = getListFromSnapshots(hewwo);
+                // }
+                // const linesInRange = getListFromSnapshots(hewwo); // .filter((e) => e.time >= range[0] && e.time < range[1]);
+                // console.log('linesInRange', linesInRange, 'ref', testDataRef);
+                // const edits = linesInRange.filter(
+                //     (e) =>
+                //         e.line
+                //             .split('')
+                //             .filter((f: string) => !symbols.includes(f))
+                //             .join('')
+                //             .trim().length > 0
+                // );
+                // if (!edits.length) edits.push('console.log(test);');
+                // const editList = list.filter((l) => l.commit === commit);
 
-                //.forEach((c, i) => {
-                let i = 0;
-                for (const c of editList) {
-                    console.log('edits????', edits);
-                    const realEditTime = c.id.split(':')[2];
-                    const baseTime = parseInt(realEditTime) - diff;
-                    const docRef = doc(pastVersionsCollectionTest, c.id);
-                    // const time =
-                    //     range[0] + (range[1] - range[0]) * (i / list.length);
-                    setDoc(docRef, {
-                        ...c,
-                        baseTime,
-                    });
-                    const nextTime =
-                        i + 1 < editList.length
-                            ? parseInt(editList[i + 1].id.split(':')[2]) - diff
-                            : baseTime + 1000;
-                    // const nextTime =
-                    //     range[0] +
-                    //     (range[1] - range[0]) * (i + 1 / list.length);
-                    const numNewEdits =
-                        nextTime - baseTime > 10000
-                            ? Math.floor(Math.random() * 20) + 2
-                            : 2;
-                    let currVer: SerializedLocationPlus =
-                        c.location as SerializedLocationPlus;
-                    const seenEdits = new Set();
-                    const intervals = getEvenlySpacedIntervals(
-                        baseTime,
-                        nextTime,
-                        numNewEdits
-                    );
-                    for (let j = 0; j < numNewEdits; j++) {
-                        const newTime = intervals[j];
-                        // Math.floor(
-                        //     baseTime + (nextTime - baseTime) * (j / numNewEdits)
-                        // );
-                        if (Math.random() > 0.5) {
-                            const edit =
-                                edits[Math.floor(Math.random() * edits.length)];
-                            console.log('edit', edit);
-                            const split = currVer.content.split('\n');
-                            const insertionPoint = Math.floor(
-                                getRandomArbitrary(
-                                    currVer.range.start.line + 1,
-                                    currVer.range.end.line - 1
-                                )
-                            );
-                            seenEdits.add(edit?.line || '');
-                            const idx = currVer.range.end.line - insertionPoint;
-                            console.log('idx', idx);
-                            split.splice(idx, 0, edit?.line || '');
-                            console.log('split', split);
-                            const newContent = split.join('\n');
-                            // const start = Math.floor(Math.random() * currVer.content.length);
-                            // const end = Math.floor(Math.random() * currVer.content.length);
-                            // const newContent = currVer.content.slice(0, start) + edit + currVer.content.slice(end, currVer.content.length);
-                            currVer = {
-                                ...currVer,
-                                content: newContent,
-                                range: {
-                                    ...currVer.range,
-                                    end: {
-                                        ...currVer.range.end,
-                                        line: currVer.range.end.line + 1,
-                                    },
-                                },
-                            };
-                            const newRef = doc(
-                                pastVersionsCollectionTest,
-                                c.id + '-FAKE-' + j
-                            );
-                            const { changeInfo, eventData, ...rest } = c; // take fun things out
-                            setDoc(newRef, {
-                                ...rest,
-                                time: newTime,
-                                location: currVer,
-                            });
-                        } else {
-                            const lines = currVer.content.split('\n');
-                            const filtered = lines.filter(
-                                (l) => !seenEdits.has(l)
-                            );
-                            const newContent = filtered.join('\n');
-                            const newRef = doc(
-                                pastVersionsCollectionTest,
-                                c.id + '-FAKE-' + j
-                            );
-                            currVer = {
-                                ...currVer,
-                                content: newContent,
-                                range: {
-                                    ...currVer.range,
-                                    end: {
-                                        ...currVer.range.end,
-                                        line:
-                                            currVer.range.end.line -
-                                            (lines.length - filtered.length),
-                                    },
-                                },
-                            };
-                            const { changeInfo, eventData, ...rest } = c; // take fun things out
-                            setDoc(newRef, {
-                                ...rest,
-                                time: newTime,
-                                location: currVer,
-                            });
-                            // currVer = {
-                            //     ...currVer,
-                            //     content: newContent,
-                            // };
-                        }
-                    }
-                    i++;
-                }
+                // //.forEach((c, i) => {
+                // let i = 0;
+                // for (const c of editList) {
+                //     console.log('edits????', edits);
+                //     const realEditTime = c.id.split(':')[2];
+                //     const baseTime = parseInt(realEditTime) - diff;
+                //     const docRef = doc(pastVersionsCollectionTest, c.id);
+                //     // const time =
+                //     //     range[0] + (range[1] - range[0]) * (i / list.length);
+                //     setDoc(docRef, {
+                //         ...c,
+                //         baseTime,
+                //     });
+                //     const nextTime =
+                //         i + 1 < editList.length
+                //             ? parseInt(editList[i + 1].id.split(':')[2]) - diff
+                //             : baseTime + 1000;
+                //     // const nextTime =
+                //     //     range[0] +
+                //     //     (range[1] - range[0]) * (i + 1 / list.length);
+                //     const numNewEdits =
+                //         nextTime - baseTime > 10000
+                //             ? Math.floor(Math.random() * 20) + 2
+                //             : 2;
+                //     let currVer: SerializedLocationPlus =
+                //         c.location as SerializedLocationPlus;
+                //     const seenEdits = new Set();
+                //     const intervals = getEvenlySpacedIntervals(
+                //         baseTime,
+                //         nextTime,
+                //         numNewEdits
+                //     );
+                //     for (let j = 0; j < numNewEdits; j++) {
+                //         const newTime = intervals[j];
+                //         // Math.floor(
+                //         //     baseTime + (nextTime - baseTime) * (j / numNewEdits)
+                //         // );
+                //         if (Math.random() > 0.5) {
+                //             const edit =
+                //                 edits[Math.floor(Math.random() * edits.length)];
+                //             console.log('edit', edit);
+                //             const split = currVer.content.split('\n');
+                //             const insertionPoint = Math.floor(
+                //                 getRandomArbitrary(
+                //                     currVer.range.start.line + 1,
+                //                     currVer.range.end.line - 1
+                //                 )
+                //             );
+                //             seenEdits.add(edit?.line || '');
+                //             const idx = currVer.range.end.line - insertionPoint;
+                //             console.log('idx', idx);
+                //             split.splice(idx, 0, edit?.line || '');
+                //             console.log('split', split);
+                //             const newContent = split.join('\n');
+                //             // const start = Math.floor(Math.random() * currVer.content.length);
+                //             // const end = Math.floor(Math.random() * currVer.content.length);
+                //             // const newContent = currVer.content.slice(0, start) + edit + currVer.content.slice(end, currVer.content.length);
+                //             currVer = {
+                //                 ...currVer,
+                //                 content: newContent,
+                //                 range: {
+                //                     ...currVer.range,
+                //                     end: {
+                //                         ...currVer.range.end,
+                //                         line: currVer.range.end.line + 1,
+                //                     },
+                //                 },
+                //             };
+                //             const newRef = doc(
+                //                 pastVersionsCollectionTest,
+                //                 c.id + '-FAKE-' + j
+                //             );
+                //             const { changeInfo, eventData, ...rest } = c; // take fun things out
+                //             setDoc(newRef, {
+                //                 ...rest,
+                //                 time: newTime,
+                //                 location: currVer,
+                //             });
+                //         } else {
+                //             const lines = currVer.content.split('\n');
+                //             const filtered = lines.filter(
+                //                 (l) => !seenEdits.has(l)
+                //             );
+                //             const newContent = filtered.join('\n');
+                //             const newRef = doc(
+                //                 pastVersionsCollectionTest,
+                //                 c.id + '-FAKE-' + j
+                //             );
+                //             currVer = {
+                //                 ...currVer,
+                //                 content: newContent,
+                //                 range: {
+                //                     ...currVer.range,
+                //                     end: {
+                //                         ...currVer.range.end,
+                //                         line:
+                //                             currVer.range.end.line -
+                //                             (lines.length - filtered.length),
+                //                     },
+                //                 },
+                //             };
+                //             const { changeInfo, eventData, ...rest } = c; // take fun things out
+                //             setDoc(newRef, {
+                //                 ...rest,
+                //                 time: newTime,
+                //                 location: currVer,
+                //             });
+                //             // currVer = {
+                //             //     ...currVer,
+                //             //     content: newContent,
+                //             // };
+                //         }
+                //     }
+                //     i++;
+                // }
                 // .map((l, i) => {
                 //     return {
                 //         ...l,

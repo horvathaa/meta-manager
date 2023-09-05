@@ -83,7 +83,10 @@ export interface FirestoreControllerInterface {
     write: (newNode: any) => void;
     logVersion: (versionId: string, newNode: any) => void;
     readPastVersions: () => Promise<SerializedChangeBuffer[]>;
-    resetTimes?: (commit: string, range: number[]) => void;
+    resetTimes?: (
+        commit: string,
+        range: number[]
+    ) => Promise<SerializedChangeBuffer[]>;
 }
 
 export class DataController {
@@ -110,6 +113,7 @@ export class DataController {
     _ownedLocations: LocationPlus[] = [];
     _webviewData: WebviewData | undefined;
     _pasteLocations: TrackedPasteDetails[] = [];
+    _pastVersionsTest: SerializedChangeBuffer[] = [];
     // _pasteDisposable: Disposable;
 
     constructor(
@@ -195,16 +199,17 @@ export class DataController {
                     );
                 }
             }),
-            this.container.resetTimesEmitter((obj: any) => {
+            this.container.resetTimesEmitter(async (obj: any) => {
                 // if (
                 //     this.readableNode.id ===
                 //     'activate:028723b4-0578-4aa6-9654-6333e3291fcf'
                 // ) {
                 this.firestoreControllerInterface?.resetTimes &&
-                    this.firestoreControllerInterface?.resetTimes(
-                        obj.commit,
-                        obj.range
-                    );
+                    (this._pastVersionsTest =
+                        await this.firestoreControllerInterface?.resetTimes(
+                            obj.commit,
+                            obj.range
+                        ));
                 // }
             }),
             this.readableNode.location.onChanged.event(
@@ -215,7 +220,7 @@ export class DataController {
             this.readableNode.location.onSelected.event(
                 async (location: Selection) => {
                     // can probably break these out into their own pages
-                    this.handleOnSelected(location);
+                    // this.handleOnSelected(location);
                 }
             ),
             workspace.onDidSaveTextDocument((document) => {

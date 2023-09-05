@@ -89,9 +89,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
         <div>
             <div id="header"></div>
             <div style="display: flex">
-                <svg style="width: 640px;position: sticky;top: 10px" height="500"></svg>
-                <div style="width: 50%" id="root"></div>
-                <div id="color" style="position: sticky;top: 10px"></div>
+            <svg style="width: 1200px;position: sticky;top: 10px" height="530"></svg>
             </div>
         </div>
         <script nonce="${nonce}" src="${reactAppPathOnDisk}"></script>
@@ -103,3 +101,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
 }
 
 export default ViewLoaderProvider;
+
+// <svg style="width: 640px;position: sticky;top: 10px" height="500"></svg>
+// <div style="width: 50%" id="root"></div>
+// <div id="color" style="position: sticky;top: 10px"></div>

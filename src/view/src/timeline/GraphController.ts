@@ -37,12 +37,12 @@ const lightenOrd = d3.scaleOrdinal(
 );
 
 class GraphController {
-    private readonly width = 640;
+    private readonly width = 1000;
     private readonly height = 500;
     private readonly marginTop = 20;
-    private readonly marginRight = 0;
-    private readonly marginBottom = 60;
-    private readonly marginLeft = 40;
+    private readonly marginRight = 30;
+    private readonly marginBottom = 30;
+    private readonly marginLeft = 60;
     private readonly totalWidth = window.innerWidth;
     chart: any;
 
@@ -74,12 +74,166 @@ class GraphController {
         return lighten ? lightenOrd('vscode') : source('vscode');
     }
 
-    constructGraph(data: any) {
-        const val = data.items // stupid bad
-            ? this.drawTimeline(data.items)
-            : this.drawTimeline(data);
+    constructGraph(data: any, keys: string[], windowed: any[], keyMap: any) {
+        // const val = data.items // stupid bad
+        //     ? this.drawTimeline(data.items)
+        //     : this.drawTimeline(data);
+        const val = this.drawStream(data, keys, windowed, keyMap);
         // const val = this.makeDynamicXAxis(data.prMap, data.items);
         return val;
+    }
+
+    drawStream(
+        data: SerializedChangeBuffer[],
+        keys: string[],
+        windowed: any[],
+        keyMap: { [k: string]: any[] }
+    ) {
+        const svg = d3.select('svg');
+        svg.selectAll('*').remove();
+        console.log('CALLING DRAW STREAM');
+        const test = keyMap['activate:028723b4-0578-4aa6-9654-6333e3291fcf'];
+        var xscale = d3
+            .scaleTime() // Use linear scale for x
+            .range([0, this.width]) // Adjust the range for horizontal orientation
+            .domain([test[0].x[0], test[0].x[test[0].x.length - 1]]); // Time never < 0
+        // .domain(d3.extent(windowed, (w) => w.end))
+
+        // const x = d3
+        //     .scaleUtc()
+        //     .domain(
+        //         d3.extent(data, (d) => {
+        //             console.log('D!!!', d);
+        //             return d.time;
+        //         })
+        //     )
+        //     .range([0, this.width]);
+        // const x = d3
+        //     .scaleUtc()
+        //     // .domain(data.map((d) => d.dbId))
+        //     .domain(d3.extent(windowed, (w) => w.end))
+        //     .range([0, this.width]);
+        const indexies = d3.range(test[0].y.length);
+
+        const area = d3
+            .area()
+            .curve(d3.curveCardinal)
+            .x0(function (d, i) {
+                console.log('d', d, 'i', i, 'wuhwoh', xscale(test[1].x[i]));
+                return xscale(test[1].x[i]);
+            })
+            .x1(function (d, i) {
+                return xscale(test[1].x[i]);
+            })
+            .y0(function (d, i) {
+                // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].start;
+                return test[1].y[i];
+            })
+            .y1(function (d, i) {
+                // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].end;
+                return test[0].y[i];
+            }); // .interpolate('cardinal');
+        svg.append('path')
+            .attr('class', 'area')
+            .attr('fill', 'lightsteelblue')
+            .attr('d', area(test[0].x));
+
+        const line = d3
+            .line()
+            .curve(d3.curveCardinal)
+            .x(function (d, i) {
+                // console.log('d!', d);
+                return xscale(d[0]);
+            })
+            .y(function (d, i) {
+                return d[1];
+            });
+
+        const lines = svg
+            .selectAll('.lines')
+            .data(
+                test.map(function (d) {
+                    return d3.zip(d.x, d.y);
+                })
+            )
+            .enter()
+            .append('g')
+            .attr('class', 'lines');
+        lines
+            .append('path')
+            .attr('class', 'pathline')
+            .attr('stroke', 'pink')
+            .attr('fill', 'none')
+            .attr('d', function (d) {
+                console.log('how about this d', d);
+                return line(d);
+            });
+        // svg.append('g')
+        //     .attr('transform', `translate(0,${this.height})`)
+        //     .call(d3.axisBottom(x).ticks(20).scale(x));
+        // const y = d3
+        //     .scaleLinear()
+        //     .domain([0, d3.max(windowed, (w) => w.windowMax)])
+        //     .range([this.height, 0]);
+        // svg.append('g').call(d3.axisLeft(y));
+        // // svg.append('g').call(d3.axisRight(y));
+
+        // const color = d3
+        //     .scaleOrdinal()
+        //     .domain(keys)
+        //     .range([
+        //         '#e41a1c',
+        //         '#377eb8',
+        //         '#4daf4a',
+        //         '#984ea3',
+        //         '#ff7f00',
+        //         '#ffff33',
+        //         '#a65628',
+        //         '#f781bf',
+        //     ]);
+
+        // const stackedData = d3
+        //     .stack()
+        //     // .offset(d3.stackOffsetNone)
+        //     .order(d3.stackOrderInsideOut)
+        //     .offset(d3.stackOffsetWiggle)
+        //     .keys(keys)
+        //     .value((d, key) => {
+        //         console.log('D!!!!!!!!!!!!!!!!!!!', d, 'key!', key);
+        //         return d[key].end - d[key].start;
+        //     })(windowed); //
+        // console.log('what is this', stackedData);
+        // svg.selectAll('mylayers')
+        //     .data(stackedData)
+        //     .join('path')
+        //     .style('fill', function (d) {
+        //         return color(d.key);
+        //     })
+        //     .attr(
+        //         'd',
+        //         d3
+        //             .area()
+        //             .x(function (d, i) {
+        //                 // console.log(
+        //                 //     'x: i never understand how data is formatted in d3',
+        //                 //     d
+        //                 // );
+        //                 return x(d.data.start);
+        //             })
+        //             .y0(function (d) {
+        //                 console.log(
+        //                     'i never understand how data is formatted in d3',
+        //                     d,
+        //                     'y',
+        //                     y.data
+        //                 );
+        //                 return y(d[0]);
+        //             })
+        //             .y1(function (d) {
+        //                 return y(d[1]);
+        //             })
+        //             .curve(d3.curveMonotoneX)
+        //     );
     }
 
     pointerentered(e: any, k: any) {
