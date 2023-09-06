@@ -11,7 +11,13 @@ import {
     commands,
 } from 'vscode';
 import { Container } from '../container';
-import { getProjectName, getVisiblePath, makeReadableNode } from './lib';
+import {
+    filterOutliers,
+    getProjectName,
+    getVisiblePath,
+    makeReadableNode,
+    quantile,
+} from './lib';
 import {
     SimplifiedTree,
     SummaryStatus,
@@ -124,16 +130,20 @@ class DocumentWatcher extends Disposable {
                 ?.toArray()
                 .filter((d) => d.humanReadableKind !== 'file');
             let keyMap: { [k: string]: any[] } = {};
+            let key2Map: { [k: string]: any } = {};
             const keys = nodesArray!.map((i) => {
                 keyMap = { ...keyMap, [i.id]: [] };
+                key2Map = { ...key2Map, [i.id]: [] };
                 return i.id;
             });
-
+            console.log('hewwo?', key2Map);
             const windowed = [];
-            const lol = nodesArray!
+            const past = nodesArray!
                 .map((n) => n.dataController?._pastVersionsTest)
-                .flat()
-                .map((n) => {
+                .flat();
+            const lol = past
+                .sort((a, b) => (a?.time || -1) - (b?.time || -1))
+                .map((n, i) => {
                     const key = keys?.find((k) => n?.id.includes(k)) || '';
                     return {
                         ...n,
@@ -142,12 +152,100 @@ class DocumentWatcher extends Disposable {
                             n?.location.range.end.line,
                         ],
                         parentId: key,
+                        editTimeDiff: Math.abs(
+                            n!.time - (past[i - 1]?.time || n!.time)
+                        ),
                     };
-                })
-                .sort((a, b) => (a?.time || -1) - (b?.time || -1));
+                });
+            const timeDiffs = lol.map((n) => n.editTimeDiff);
+            const q25 = quantile(timeDiffs, 0.25);
+
+            const q50 = quantile(timeDiffs, 0.5);
+
+            const q75 = quantile(timeDiffs, 0.75);
+
+            // const median = (arr) => q50(arr);
+            console.log(
+                'jesus christ',
+                timeDiffs,
+                'lewl',
+                lol,
+                'upper',
+                timeDiffs.filter((f) => f > q75),
+                'lower',
+                timeDiffs.filter((f) => f < q25),
+                'outlier?',
+                filterOutliers(timeDiffs)
+            );
+            const chunks = filterOutliers(timeDiffs);
+            const chunkyChunk: any[] = [];
             lol.forEach((n) => {
+                // combine chunking approach with clustering approach
+                // on each new chunk, copy over last known values for each key
+                // each key starts with default value of 0 start 0 end, and time of current n
+
+                // I guess we can have every chunk get updated, even if it isn't appearing in n
+                // such that the lists stay in sync -- hence copying over last known n value
+
+                // update key as it appears in chunk
+                // then switch to new chunk when enough time has passed
+
+                if (n.editTimeDiff >= 28800000 || !chunkyChunk.length) {
+                    // chunkyChunk.push([
+                    //     {
+                    //         x: [n.time],
+                    //         y: [n.location?.range.end.line],
+                    //         data: [n],
+                    //     },
+                    //     {
+                    //         x: [n.time],
+                    //         y: [n.location?.range.start.line],
+                    //         data: [n],
+                    //     },
+                    // ]);
+                } else {
+                    const startLinesByTime =
+                        chunkyChunk[chunkyChunk.length - 1][1];
+                    const endLinesByTime =
+                        chunkyChunk[chunkyChunk.length - 1][0];
+
+                    startLinesByTime.x.push(n.time);
+                    startLinesByTime.y.push(n.location?.range.start.line);
+                    startLinesByTime.data.push(n);
+                    endLinesByTime.x.push(n.time);
+                    endLinesByTime.y.push(n.location?.range.end.line);
+                    // chunkyChunk[chunkyChunk.length - 1][2].push(n);
+                }
                 if (n.parentId) {
                     const entry = keyMap[n.parentId];
+                    const entry2 = key2Map[n.parentId];
+                    // console.log('wuhwoh', entry2, 'chunks', chunks, 'n', n);
+                    if (n.editTimeDiff >= 28800000 || !entry2.length) {
+                        entry2.push([
+                            {
+                                x: [n.time],
+                                y: [n.location?.range.end.line],
+                            },
+                            {
+                                x: [n.time],
+                                y: [n.location?.range.start.line],
+                            },
+                        ]);
+                    } else {
+                        const startLinesByTime = entry2[entry2.length - 1][1];
+                        // console.log('2d array skull', startLinesByTime);
+                        const endLinesByTime = entry2[entry2.length - 1][0];
+                        // console.log('2d array skull', endLinesByTime);
+                        startLinesByTime.x.push(n.time);
+                        startLinesByTime.y.push(n.location?.range.start.line);
+                        endLinesByTime.x.push(n.time);
+                        endLinesByTime.y.push(n.location?.range.end.line);
+                        // console.log(
+                        //     'start end',
+                        //     startLinesByTime,
+                        //     endLinesByTime
+                        // );
+                    }
                     if (entry.length) {
                         const startLinesByTime = entry[1];
                         const endLinesByTime = entry[0];
@@ -167,6 +265,12 @@ class DocumentWatcher extends Disposable {
                     }
                 }
             });
+            console.log(
+                'what is she cooking',
+                key2Map,
+                'im going insane',
+                chunkyChunk
+            );
             const windowLength = 20;
             for (let i = 0; i < (lol.length || 0); i += windowLength) {
                 const currWindow = lol.slice(i, i + windowLength);

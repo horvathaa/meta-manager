@@ -91,13 +91,63 @@ class GraphController {
     ) {
         const svg = d3.select('svg');
         svg.selectAll('*').remove();
+
+        const margin = { top: 20, right: 20, bottom: 40, left: 40 };
+        const chartWidth = this.width - margin.left - margin.right;
+        const chartHeight = this.height - margin.top - margin.bottom;
+
+        const g = svg
+            .append('g')
+            .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
         console.log('CALLING DRAW STREAM');
         const test = keyMap['activate:028723b4-0578-4aa6-9654-6333e3291fcf'];
+        console.log('test', test);
         var xscale = d3
             .scaleTime() // Use linear scale for x
-            .range([0, this.width]) // Adjust the range for horizontal orientation
+            .range([0, chartWidth]) // Adjust the range for horizontal orientation
             .domain([test[0].x[0], test[0].x[test[0].x.length - 1]]); // Time never < 0
         // .domain(d3.extent(windowed, (w) => w.end))
+
+        const yscale = d3
+            .scaleLinear()
+            .range([0, chartHeight])
+            .domain([d3.max(test[0].y), 0]);
+        const xvalues = test[0].x; // .map((e) => xscale(e));
+
+        // Create X and Y Axes
+        const xAxis = d3
+            .axisBottom(xscale)
+            .tickFormat(d3.timeFormat('%b %d'))
+            // .ticks(d3.timeDay.every(interval))
+            .tickValues(test[0].x);
+        const yAxis = d3.axisLeft(yscale);
+
+        // Append X Axis
+        g.append('g')
+            .attr('class', 'x-axis')
+            .attr('transform', `translate(0, ${chartHeight})`)
+            .call(xAxis);
+
+        // Append Y Axis
+        g.append('g').attr('class', 'y-axis').call(yAxis);
+
+        // Label X Axis
+        g.append('text')
+            .attr('class', 'x-label')
+            .attr('x', chartWidth / 2)
+            .attr('y', chartHeight + margin.bottom)
+            .style('text-anchor', 'middle')
+            .text('X Axis Label');
+
+        // Label Y Axis
+        g.append('text')
+            .attr('class', 'y-label')
+            .attr('x', -chartHeight / 2)
+            .attr('y', -margin.left)
+            .attr('transform', 'rotate(-90)')
+            .style('text-anchor', 'middle')
+            .text('Y Axis Label');
 
         // const x = d3
         //     .scaleUtc()
@@ -119,7 +169,28 @@ class GraphController {
             .area()
             .curve(d3.curveCardinal)
             .x0(function (d, i) {
-                console.log('d', d, 'i', i, 'wuhwoh', xscale(test[1].x[i]));
+                console.log(
+                    'd',
+                    d,
+                    'i',
+                    i,
+                    'x0',
+                    xscale(test[1].x[i]),
+                    'original x0',
+                    test[1].x[i],
+                    'y0',
+                    yscale(test[1].y[i]),
+                    'original y0',
+                    test[1].y[i],
+                    'x1',
+                    xscale(test[1].x[i]),
+                    'original x1',
+                    test[1].x[i],
+                    'y1',
+                    yscale(test[0].y[i]),
+                    'original y1',
+                    test[0].y[i]
+                );
                 return xscale(test[1].x[i]);
             })
             .x1(function (d, i) {
@@ -127,15 +198,16 @@ class GraphController {
             })
             .y0(function (d, i) {
                 // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].start;
-                return test[1].y[i];
+                return yscale(test[1].y[i]);
             })
             .y1(function (d, i) {
                 // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].end;
-                return test[0].y[i];
+                return yscale(test[0].y[i]);
             }); // .interpolate('cardinal');
         svg.append('path')
             .attr('class', 'area')
             .attr('fill', 'lightsteelblue')
+            // .attr('transform', `translate(0, ${chartHeight})`)
             .attr('d', area(test[0].x));
 
         const line = d3
@@ -146,14 +218,32 @@ class GraphController {
                 return xscale(d[0]);
             })
             .y(function (d, i) {
-                return d[1];
+                return yscale(d[1]);
             });
 
         const lines = svg
             .selectAll('.lines')
             .data(
                 test.map(function (d) {
-                    return d3.zip(d.x, d.y);
+                    console.log(
+                        'd',
+                        d,
+                        'xscale',
+                        xscale(d.x),
+                        'mpa',
+                        d3.zip(
+                            d.x.map((e) => xscale(e)),
+                            d.y.map((e) => yscale(e))
+                        )
+                    );
+                    return d3.zip(
+                        d.x.map((e) => xscale(e)),
+                        d.y.map((e) => yscale(e))
+                    );
+                    // return d.x.map((e, i) => {
+                    //     return d3.zip(xscale(e), yscale(d.y[i]));
+                    // });
+                    // return d3.zip(xscale(d.x), yscale(d.y));
                 })
             )
             .enter()
@@ -162,6 +252,7 @@ class GraphController {
         lines
             .append('path')
             .attr('class', 'pathline')
+            // .attr('transform', `translate(0, ${chartHeight})`)
             .attr('stroke', 'pink')
             .attr('fill', 'none')
             .attr('d', function (d) {

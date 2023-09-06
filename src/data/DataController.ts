@@ -86,7 +86,10 @@ export interface FirestoreControllerInterface {
     resetTimes?: (
         commit: string,
         range: number[]
-    ) => Promise<SerializedChangeBuffer[]>;
+    ) => Promise<{
+        pastVersions: SerializedChangeBuffer[];
+        pastVersionsTest: SerializedChangeBuffer[];
+    }>;
 }
 
 export class DataController {
@@ -204,12 +207,16 @@ export class DataController {
                 //     this.readableNode.id ===
                 //     'activate:028723b4-0578-4aa6-9654-6333e3291fcf'
                 // ) {
-                this.firestoreControllerInterface?.resetTimes &&
-                    (this._pastVersionsTest =
+                if (this.firestoreControllerInterface?.resetTimes) {
+                    const { pastVersions, pastVersionsTest } =
                         await this.firestoreControllerInterface?.resetTimes(
                             obj.commit,
                             obj.range
-                        ));
+                        );
+                    this._pastVersionsTest = pastVersionsTest;
+                    this._pastVersions = pastVersions;
+                }
+
                 // }
             }),
             this.readableNode.location.onChanged.event(

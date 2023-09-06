@@ -707,9 +707,12 @@ class FirestoreController extends Disposable {
                 //     'for id',
                 //     id
                 // );
-                return getListFromSnapshots(hewwo).map((m) => {
-                    return { ...m, dbId: m.id };
-                });
+                return {
+                    pastVersionsTest: getListFromSnapshots(hewwo).map((m) => {
+                        return { ...m, dbId: m.id };
+                    }),
+                    pastVersions: list,
+                };
                 // if (id === 'activate:028723b4-0578-4aa6-9654-6333e3291fcf') {
                 //     // const vers = getListFromSnapshots(hewwo);
                 // }
