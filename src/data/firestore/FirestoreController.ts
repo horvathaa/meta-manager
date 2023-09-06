@@ -45,8 +45,80 @@ import GitController from '../git/GitController';
 import { FirestoreControllerInterface } from '../DataController';
 import DocumentWatcher from '../../document/documentWatcher';
 import { isBoolean, isNumber } from 'lodash';
-import { getRandomArbitrary } from '../../document/lib';
+import { getRandomArbitrary, partition } from '../../document/lib';
 import { v4 as uuidv4 } from 'uuid';
+
+const window2d7 = {
+    real: [1693773969386, 1693774608062], // 1693773969386 , 1693774608062
+    fake: [1625029620000, 1625031304117], // 1626316708941 L ?
+};
+const windowDbc = {
+    real: [1693775956750, 1693777850626],
+    fake: [1625030244006, 1625031078354], // u 1625033459623.5 ?
+};
+const windowsB4f = {
+    real: [1693778080294, 1693780429685], // 1693780275298 last in activate
+    fake: [1625033730908, 1625036087173],
+};
+const window620 = {
+    real: [1693780429685, 1693781124795],
+    fake: [1625036107795, 1625036775971.5], // 1625036775971.5, orig. lower 1625029664991
+};
+
+const window263 = {
+    real: [1693781615559, 1693783261775],
+    fake: [1625152150764, 1625153797980],
+};
+
+const window9e2 = {
+    real: [1693783624798, 1693784533135], // activate first 1693784382358
+    fake: [1626296254993, 1626297163930],
+};
+
+const windowCc9 = {
+    real: [1693842461785, 1693845298102],
+    fake: [1626531509972, 1626534347289],
+};
+
+const window1ee = {
+    real: [1693845659039, 1693846600460],
+    fake: [1626534707226, 1626535649068],
+};
+
+const windowB3b = {
+    real: [1693847027170, 1693847362241], // 1693846938063 activate s,
+    fake: [1627178551196, 1627178887267], // 1627178887267 upper?
+};
+
+const windowC38 = {
+    real: [1693848274870, 1693848493893],
+    fake: [1626804375730, 1627609681000],
+};
+
+const windowAa7 = {
+    real: [1693848505269, 1693848505269],
+    fake: [1627609691376, 1627609692376],
+};
+
+const window2a9 = {
+    real: [1693848558380, 1693850500125], // activate first 1693849514280
+    fake: [1627725953801, 1627727896546],
+};
+
+const window7c8 = {
+    real: [1693851369919, 1693853719787], // activate first 1693851929615
+    fake: [1627728765340, 1627731115208],
+};
+
+const windowF2f = {
+    real: [1693853149793, 1693854670893],
+    fake: [1627748605929, 1647863761030], // u 1647863761030 ?
+};
+
+const window4aa = {
+    real: [1693856347017, 1693856387143],
+    fake: [1648085986432, 1648528865911],
+};
 
 export type DB_REFS =
     | 'users'
@@ -707,12 +779,143 @@ class FirestoreController extends Disposable {
                 //     'for id',
                 //     id
                 // );
-                return {
-                    pastVersionsTest: getListFromSnapshots(hewwo).map((m) => {
+                console.log('backend...', [
+                    ...getListFromSnapshots(hewwo)
+                        .map((m) => {
+                            return { ...m, dbId: m.id };
+                        })
+                        .sort((a, b) => {
+                            // if (a.commit === b.commit) {
+                            //     return (
+                            //         parseInt(a?.id.split(':')[2]) -
+                            //         parseInt(b?.id.split(':')[2])
+                            //     );
+                            // } else {
+                            return a?.commit.localeCompare(b?.commit, {
+                                numeric: true,
+                                sensitivity: 'base',
+                            });
+                            // }
+                        })
+                        .sort((a, b) => {
+                            return (
+                                parseInt(a?.id.split(':')[2]) -
+                                parseInt(b?.id.split(':')[2])
+                            );
+                        }),
+                ]);
+
+                const [cleanData, outcasts] = partition(
+                    getListFromSnapshots(hewwo).map((m) => {
                         return { ...m, dbId: m.id };
                     }),
+                    (f) => {
+                        const realTime = parseInt(f.id.split(':')[2]);
+                        switch (f.commit) {
+                            case '2d7475859ca85091a376eeef87943a2f31e8a94d': {
+                                return (
+                                    f.time >= window2d7.fake[0] &&
+                                    f.time <= window2d7.fake[1]
+                                );
+                            }
+                            case 'dbc3a37fe362b10ae4edc9df1979c43280c8fe7c': {
+                                return (
+                                    f.time >= windowDbc.fake[0] &&
+                                    f.time <= windowDbc.fake[1]
+                                );
+                            }
+                            case 'b4f81f836613a593a6d7f2dc251e87b6a24de6fd': {
+                                return (
+                                    f.time >= windowsB4f.fake[0] &&
+                                    f.time <= windowsB4f.fake[1]
+                                );
+                            }
+                            case '62097c12397f4a641bec0ad7840433080c72b0a4': {
+                                return (
+                                    f.time >= window620.fake[0] &&
+                                    f.time <= window620.fake[1]
+                                );
+                            }
+                            case '263fd9ca62d7a6f2b635788ec00dc3f66cbbfcf0': {
+                                return (
+                                    f.time >= window263.fake[0] &&
+                                    f.time <= window263.fake[1]
+                                );
+                            }
+                            case '9e2355506e98edb6cfce4f5d446be6ab5635e4c9': {
+                                return (
+                                    f.time >= window9e2.fake[0] &&
+                                    f.time <= window9e2.fake[1]
+                                );
+                            }
+                            case 'cc9ff5469e9223948520e632e85f69881434ed42': {
+                                return (
+                                    f.time >= windowCc9.fake[0] &&
+                                    f.time <= windowCc9.fake[1]
+                                );
+                            }
+                            case '1ee023f442fcb0d882d0c37d8c3e32ea7fa7f864': {
+                                return (
+                                    f.time >= window1ee.fake[0] &&
+                                    f.time <= window1ee.fake[1]
+                                );
+                            }
+                            case 'b3b4af56ca9eb4c34fe6197281a4491d0d49b2d8': {
+                                return (
+                                    f.time >= windowB3b.fake[0] &&
+                                    f.time <= windowB3b.fake[1]
+                                );
+                            }
+                            case 'c3868f8fa713d90d71145fa9a1409cba46980c26': {
+                                return (
+                                    f.time >= windowC38.fake[0] &&
+                                    f.time <= windowC38.fake[1]
+                                );
+                            }
+                            case 'aa7d13bf680602e766e46777456eb85862837218': {
+                                return (
+                                    f.time >= windowAa7.fake[0] &&
+                                    f.time <= windowAa7.fake[1]
+                                );
+                            }
+                            case '2a984cb7c9372294d881fd7f41eb8b2b6607e12a': {
+                                return (
+                                    f.time >= window2a9.fake[0] &&
+                                    f.time <= window2a9.fake[1]
+                                );
+                            }
+                            case '7c83d7b306b1836014f34e82f37022ae01103205': {
+                                return (
+                                    f.time >= window7c8.fake[0] &&
+                                    f.time <= window7c8.fake[1]
+                                );
+                            }
+                            case 'f2f3c3134301c9488b402b103c32cd7ef34a7779': {
+                                return (
+                                    f.time >= windowF2f.fake[0] &&
+                                    f.time <= windowF2f.fake[1]
+                                );
+                            }
+                            case '4aa2bebbf66ed1c6a6e908dc4c3f16701f63b1c2': {
+                                return (
+                                    f.time >= window4aa.fake[0] &&
+                                    f.time <= window4aa.fake[1]
+                                );
+                            }
+                            default:
+                                return false;
+                        }
+                    }
+                );
+                console.log('clean data', cleanData, 'outcasts', outcasts);
+                // TODO: take "outcasts" and filter for ones that are interesting (i.e., have eventData)
+                // then find their "partners" (i.e., other elements with same original ID)
+                // and choose a new time that is in the range of the partners
+                return {
+                    pastVersionsTest: cleanData,
                     pastVersions: list,
                 };
+
                 // if (id === 'activate:028723b4-0578-4aa6-9654-6333e3291fcf') {
                 //     // const vers = getListFromSnapshots(hewwo);
                 // }

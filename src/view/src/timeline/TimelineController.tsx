@@ -1003,7 +1003,7 @@ class TimelineController {
         switch (message.command) {
             case 'updateTimeline': {
                 const { data } = message;
-                const { id, metadata, keys, windowed, keyMap } = data;
+                const { id, metadata, keys, windowed, chunkyChunk } = data;
                 // // console.log('stuff', data, id, metadata);
                 // this._node = {
                 //     ...(metadata as Payload),
@@ -1013,7 +1013,13 @@ class TimelineController {
                 //     ),
                 // };
                 console.log('HANDLING MESSAGE', metadata);
-                context.updateTimeline(id, metadata, keys, windowed, keyMap);
+                context.updateTimeline(
+                    id,
+                    metadata,
+                    keys,
+                    windowed,
+                    chunkyChunk
+                );
                 break;
             }
             default: {

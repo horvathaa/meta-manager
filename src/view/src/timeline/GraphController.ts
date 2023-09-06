@@ -87,7 +87,7 @@ class GraphController {
         data: SerializedChangeBuffer[],
         keys: string[],
         windowed: any[],
-        keyMap: { [k: string]: any[] }
+        keyMap: { [k: string]: any }[]
     ) {
         const svg = d3.select('svg');
         svg.selectAll('*').remove();
@@ -101,26 +101,24 @@ class GraphController {
             .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
         console.log('CALLING DRAW STREAM');
-        const test = keyMap['activate:028723b4-0578-4aa6-9654-6333e3291fcf'];
-        console.log('test', test);
+        const scale = keyMap[0]['scale'];
         var xscale = d3
             .scaleTime() // Use linear scale for x
             .range([0, chartWidth]) // Adjust the range for horizontal orientation
-            .domain([test[0].x[0], test[0].x[test[0].x.length - 1]]); // Time never < 0
+            .domain([scale.xMin, scale.xMax]); // Time never < 0
         // .domain(d3.extent(windowed, (w) => w.end))
 
         const yscale = d3
             .scaleLinear()
             .range([0, chartHeight])
-            .domain([d3.max(test[0].y), 0]);
-        const xvalues = test[0].x; // .map((e) => xscale(e));
+            .domain([scale.yMax, 0])
+            .nice();
+        // const xvalues = test[0].x; // .map((e) => xscale(e));
 
         // Create X and Y Axes
-        const xAxis = d3
-            .axisBottom(xscale)
-            .tickFormat(d3.timeFormat('%b %d'))
-            // .ticks(d3.timeDay.every(interval))
-            .tickValues(test[0].x);
+        const xAxis = d3.axisBottom(xscale).tickFormat(d3.timeFormat('%b %d'));
+        // .ticks(d3.timeDay.every(interval))
+        // .tickValues(test[0].x);
         const yAxis = d3.axisLeft(yscale);
 
         // Append X Axis
@@ -148,117 +146,178 @@ class GraphController {
             .attr('transform', 'rotate(-90)')
             .style('text-anchor', 'middle')
             .text('Y Axis Label');
+        Object.keys(keyMap[0])
+            .filter((k) => k !== 'scale')
+            .forEach((k, ix) => {
+                const test = keyMap[0][k];
+                console.log('test', test);
 
-        // const x = d3
-        //     .scaleUtc()
-        //     .domain(
-        //         d3.extent(data, (d) => {
-        //             console.log('D!!!', d);
-        //             return d.time;
-        //         })
-        //     )
-        //     .range([0, this.width]);
-        // const x = d3
-        //     .scaleUtc()
-        //     // .domain(data.map((d) => d.dbId))
-        //     .domain(d3.extent(windowed, (w) => w.end))
-        //     .range([0, this.width]);
-        const indexies = d3.range(test[0].y.length);
+                // const x = d3
+                //     .scaleUtc()
+                //     .domain(
+                //         d3.extent(data, (d) => {
+                //             console.log('D!!!', d);
+                //             return d.time;
+                //         })
+                //     )
+                //     .range([0, this.width]);
+                // const x = d3
+                //     .scaleUtc()
+                //     // .domain(data.map((d) => d.dbId))
+                //     .domain(d3.extent(windowed, (w) => w.end))
+                //     .range([0, this.width]);
+                const indexies = d3.range(test[0].y.length);
+                const area = d3
+                    .area()
+                    .curve(d3.curveMonotoneX)
+                    .x((d, i) => {
+                        console.log(
+                            'i hate d3 so much',
+                            d,
+                            i,
+                            'x0',
+                            xscale(test[1].x[i]),
+                            'y0',
+                            yscale(test[1].y[i]),
+                            'y1',
+                            yscale(test[0].y[i])
+                        );
+                        return xscale(test[1].x[i]);
+                    })
+                    .y0((d, i) => {
+                        return yscale(test[1].y[i]);
+                    })
+                    .y1((d, i) => {
+                        return yscale(test[0].y[i]);
+                    });
+                const colorArr = [
+                    'lightsteelblue',
+                    'pink',
+                    'steelblue',
+                    'white',
+                ];
+                svg.append('path')
+                    .datum(indexies)
+                    .attr('class', 'area')
+                    .attr('fill', colorArr[ix])
+                    // .attr('transform', `translate(0, ${chartHeight})`)
+                    .attr('d', area);
+                // const area = d3
+                //     .area()
+                //     .curve(d3.curveCardinal)
+                //     .x0(function (d, i) {
+                //         // console.log(
+                //         //     'd',
+                //         //     d,
+                //         //     'i',
+                //         //     i,
+                //         //     'x0',
+                //         //     xscale(test[1].x[i]),
+                //         //     'original x0',
+                //         //     test[1].x[i],
+                //         //     'y0',
+                //         //     yscale(test[1].y[i]),
+                //         //     'original y0',
+                //         //     test[1].y[i],
+                //         //     'x1',
+                //         //     xscale(test[1].x[i]),
+                //         //     'original x1',
+                //         //     test[1].x[i],
+                //         //     'y1',
+                //         //     yscale(test[0].y[i]),
+                //         //     'original y1',
+                //         //     test[0].y[i]
+                //         // );
+                //         return xscale(test[1].x[i]);
+                //     })
+                //     .x1(function (d, i) {
+                //         return xscale(test[1].x[i]);
+                //     })
+                //     .y0(function (d, i) {
+                //         // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].start;
+                //         return yscale(test[1].y[i]);
+                //     })
+                //     .y1(function (d, i) {
+                //         // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].end;
+                //         return yscale(test[0].y[i]);
+                //     }); // .interpolate('cardinal');
+                // const colorArr = [
+                //     'lightsteelblue',
+                //     'pink',
+                //     'steelblue',
+                //     'white',
+                // ];
+                // console.log(
+                //     'color',
+                //     colorArr[ix],
+                //     'area',
+                //     area(test[0].x),
+                //     'obj',
+                //     test
+                // );
+                // svg.append('path')
+                //     .attr('class', 'area')
+                //     .attr('fill', colorArr[ix])
+                //     // .attr('transform', `translate(0, ${chartHeight})`)
+                //     .attr('d', area(test[0].x));
 
-        const area = d3
-            .area()
-            .curve(d3.curveCardinal)
-            .x0(function (d, i) {
-                console.log(
-                    'd',
-                    d,
-                    'i',
-                    i,
-                    'x0',
-                    xscale(test[1].x[i]),
-                    'original x0',
-                    test[1].x[i],
-                    'y0',
-                    yscale(test[1].y[i]),
-                    'original y0',
-                    test[1].y[i],
-                    'x1',
-                    xscale(test[1].x[i]),
-                    'original x1',
-                    test[1].x[i],
-                    'y1',
-                    yscale(test[0].y[i]),
-                    'original y1',
-                    test[0].y[i]
-                );
-                return xscale(test[1].x[i]);
-            })
-            .x1(function (d, i) {
-                return xscale(test[1].x[i]);
-            })
-            .y0(function (d, i) {
-                // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].start;
-                return yscale(test[1].y[i]);
-            })
-            .y1(function (d, i) {
-                // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].end;
-                return yscale(test[0].y[i]);
-            }); // .interpolate('cardinal');
-        svg.append('path')
-            .attr('class', 'area')
-            .attr('fill', 'lightsteelblue')
-            // .attr('transform', `translate(0, ${chartHeight})`)
-            .attr('d', area(test[0].x));
+                // const line = d3
+                //     .line()
+                //     .curve(d3.curveCardinal)
+                //     .attr('stroke', 'pink')
+                //     .attr('x1', (d) => test[1].x[d])
+                //     .attr('y1', (d) => test[1].y[d])
+                //     .attr('x2', (d) => test[0].x[d])
+                //     .attr('y2', (d) => test[0].y[d]);
+                // .x(function (d, i) {
+                //     // console.log('d!', d);
+                //     return xscale(d[0]);
+                // })
+                // .y(function (d, i) {
+                //     return yscale(d[1]);
+                // });
 
-        const line = d3
-            .line()
-            .curve(d3.curveCardinal)
-            .x(function (d, i) {
-                // console.log('d!', d);
-                return xscale(d[0]);
-            })
-            .y(function (d, i) {
-                return yscale(d[1]);
+                const lines = svg
+                    .selectAll('.lines')
+                    .data(
+                        test
+                        // .map(function (d) {
+                        //     // console.log(
+                        //     //     'd',
+                        //     //     d,
+                        //     //     'xscale',
+                        //     //     xscale(d.x),
+                        //     //     'mpa',
+                        //     //     d3.zip(
+                        //     //         d.x.map((e) => xscale(e)),
+                        //     //         d.y.map((e) => yscale(e))
+                        //     //     )
+                        //     // );
+                        //     return d3.zip(
+                        //         d.x.map((e) => xscale(e)),
+                        //         d.y.map((e) => yscale(e))
+                        //     );
+                        //     // return d.x.map((e, i) => {
+                        //     //     return d3.zip(xscale(e), yscale(d.y[i]));
+                        //     // });
+                        //     // return d3.zip(xscale(d.x), yscale(d.y));
+                        // })
+                    )
+                    .enter()
+                    .append('g')
+                    .attr('class', 'lines');
+                lines
+                    .append('path')
+                    .attr('class', 'pathline')
+                    // .attr('transform', `translate(0, ${chartHeight})`)
+                    .attr('stroke', 'pink')
+                    .attr('fill', 'none')
+                    .attr('d', function (d) {
+                        console.log('how about this d', d);
+                        return line(d);
+                    });
             });
 
-        const lines = svg
-            .selectAll('.lines')
-            .data(
-                test.map(function (d) {
-                    console.log(
-                        'd',
-                        d,
-                        'xscale',
-                        xscale(d.x),
-                        'mpa',
-                        d3.zip(
-                            d.x.map((e) => xscale(e)),
-                            d.y.map((e) => yscale(e))
-                        )
-                    );
-                    return d3.zip(
-                        d.x.map((e) => xscale(e)),
-                        d.y.map((e) => yscale(e))
-                    );
-                    // return d.x.map((e, i) => {
-                    //     return d3.zip(xscale(e), yscale(d.y[i]));
-                    // });
-                    // return d3.zip(xscale(d.x), yscale(d.y));
-                })
-            )
-            .enter()
-            .append('g')
-            .attr('class', 'lines');
-        lines
-            .append('path')
-            .attr('class', 'pathline')
-            // .attr('transform', `translate(0, ${chartHeight})`)
-            .attr('stroke', 'pink')
-            .attr('fill', 'none')
-            .attr('d', function (d) {
-                console.log('how about this d', d);
-                return line(d);
-            });
         // svg.append('g')
         //     .attr('transform', `translate(0,${this.height})`)
         //     .call(d3.axisBottom(x).ticks(20).scale(x));

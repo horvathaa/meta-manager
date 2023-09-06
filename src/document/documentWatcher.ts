@@ -141,6 +141,28 @@ class DocumentWatcher extends Disposable {
             const past = nodesArray!
                 .map((n) => n.dataController?._pastVersionsTest)
                 .flat();
+            console.log('???', [
+                ...past
+                    .sort((a, b) => {
+                        // if (a.commit === b.commit) {
+                        //     return (
+                        //         parseInt(a?.id.split(':')[2]) -
+                        //         parseInt(b?.id.split(':')[2])
+                        //     );
+                        // } else {
+                        return a?.commit.localeCompare(b?.commit, {
+                            numeric: true,
+                            sensitivity: 'base',
+                        });
+                        // }
+                    })
+                    .sort((a, b) => {
+                        return (
+                            parseInt(a?.id.split(':')[2]) -
+                            parseInt(b?.id.split(':')[2])
+                        );
+                    }),
+            ]);
             const lol = past
                 .sort((a, b) => (a?.time || -1) - (b?.time || -1))
                 .map((n, i) => {
@@ -178,7 +200,14 @@ class DocumentWatcher extends Disposable {
                 filterOutliers(timeDiffs)
             );
             const chunks = filterOutliers(timeDiffs);
-            const chunkyChunk: any[] = [];
+            let km1 = {};
+            keys.forEach((k) => {
+                km1 = { ...km1, [k]: [] };
+            });
+            const chunkyChunk: any[] = [km1];
+            console.log('km1!', km1);
+            let newThing = true;
+            let scale = { xMin: 0, xMax: 0, yMin: 0, yMax: 0 };
             lol.forEach((n) => {
                 // combine chunking approach with clustering approach
                 // on each new chunk, copy over last known values for each key
@@ -189,8 +218,96 @@ class DocumentWatcher extends Disposable {
 
                 // update key as it appears in chunk
                 // then switch to new chunk when enough time has passed
+                const lastEntry = chunkyChunk[chunkyChunk.length - 1];
+                if (n.editTimeDiff >= 28800000 || newThing) {
+                    newThing = false;
+                    console.log(
+                        'huh?',
+                        lastEntry[n.parentId][0]?.x[
+                            lastEntry[n.parentId][0]?.length - 1
+                        ],
+                        'last',
+                        lastEntry
+                    );
+                    // scale.xMax =
+                    //     lastEntry[n.parentId][0]?.x[
+                    //         lastEntry[n.parentId][0]?.length - 1
+                    //     ] || 0;
+                    lastEntry['scale'] = { ...scale };
+                    let newEntry = lastEntry;
+                    scale.xMin = n.time || 0;
+                    // lastEntry.scale.xMax =
+                    //     lastEntry[n.parentId][0]?.x[
+                    //         lastEntry[n.parentId][0]?.length - 1
+                    //     ] || 0;
+                    Object.keys(lastEntry)
+                        .filter((k) => k !== 'scale')
+                        .forEach((k) => {
+                            console.log('k', k);
+                            if (k === n.parentId) {
+                                scale.yMax =
+                                    (n.location!.range.end.line || 0) >
+                                    scale.yMax
+                                        ? n.location!.range.end.line
+                                        : scale.yMax;
+                                scale.yMin =
+                                    (n.location!.range.start.line || 0) <
+                                    scale.yMin
+                                        ? n.location!.range.start.line
+                                        : scale.yMin;
+                                newEntry = {
+                                    ...newEntry,
+                                    [k]: [
+                                        {
+                                            x: [n.time],
+                                            y: [n.location?.range.end.line],
+                                            data: [n],
+                                        },
+                                        {
+                                            x: [n.time],
+                                            y: [n.location?.range.start.line],
+                                            data: [n],
+                                        },
+                                    ],
+                                };
+                                console.log('new entry after', newEntry);
+                            } else {
+                                console.log('in else');
 
-                if (n.editTimeDiff >= 28800000 || !chunkyChunk.length) {
+                                newEntry = {
+                                    ...newEntry,
+                                    [k]: [
+                                        {
+                                            x: [n.time],
+                                            y: [
+                                                lastEntry[k][0]?.y[
+                                                    lastEntry[k][0]?.y.length -
+                                                        1
+                                                ] || 0,
+                                            ],
+                                            data: [],
+                                        },
+                                        {
+                                            x: [n.time],
+                                            y: [
+                                                lastEntry[k][1]?.y[
+                                                    lastEntry[k][1]?.y.length -
+                                                        1
+                                                ] || 0,
+                                            ],
+                                            data: [],
+                                        },
+                                    ],
+                                };
+                                console.log('else new entry', newEntry);
+                            }
+                            console.log('huh?', newEntry);
+                            // return { ...newEntry, [k]: lastEntry[k] };
+                        });
+                    chunkyChunk.push(newEntry);
+                    // chunkyChunk.push({
+
+                    // })
                     // chunkyChunk.push([
                     //     {
                     //         x: [n.time],
@@ -204,18 +321,54 @@ class DocumentWatcher extends Disposable {
                     //     },
                     // ]);
                 } else {
-                    const startLinesByTime =
-                        chunkyChunk[chunkyChunk.length - 1][1];
-                    const endLinesByTime =
-                        chunkyChunk[chunkyChunk.length - 1][0];
+                    Object.keys(lastEntry)
+                        .filter((k) => k !== 'scale')
+                        .forEach((k) => {
+                            const startLinesByTime = lastEntry[k][1];
+                            const endLinesByTime = lastEntry[k][0];
 
-                    startLinesByTime.x.push(n.time);
-                    startLinesByTime.y.push(n.location?.range.start.line);
-                    startLinesByTime.data.push(n);
-                    endLinesByTime.x.push(n.time);
-                    endLinesByTime.y.push(n.location?.range.end.line);
+                            startLinesByTime.x.push(n.time);
+                            scale.yMax =
+                                (n.location!.range.end.line || 0) > scale.yMax
+                                    ? n.location!.range.end.line
+                                    : scale.yMax;
+                            scale.yMin =
+                                (n.location!.range.start.line || 0) < scale.yMin
+                                    ? n.location!.range.start.line
+                                    : scale.yMin;
+                            startLinesByTime.y.push(
+                                k === n.parentId
+                                    ? n.location?.range.start.line
+                                    : lastEntry[k][1].y[
+                                          lastEntry[k][1].y.length - 1
+                                      ]
+                            );
+                            k === n.parentId && startLinesByTime.data.push(n);
+                            endLinesByTime.x.push(n.time);
+                            endLinesByTime.y.push(
+                                k === n.parentId
+                                    ? n.location?.range.end.line
+                                    : lastEntry[k][0].y[
+                                          lastEntry[k][0].y.length - 1
+                                      ]
+                            );
+
+                            // return { ...newEntry, [k]: lastEntry[k] };
+                        });
+
+                    // const startLinesByTime =
+                    //     chunkyChunk[chunkyChunk.length - 1][1];
+                    // const endLinesByTime =
+                    //     chunkyChunk[chunkyChunk.length - 1][0];
+
+                    // startLinesByTime.x.push(n.time);
+                    // startLinesByTime.y.push(n.location?.range.start.line);
+                    // startLinesByTime.data.push(n);
+                    // endLinesByTime.x.push(n.time);
+                    // endLinesByTime.y.push(n.location?.range.end.line);
                     // chunkyChunk[chunkyChunk.length - 1][2].push(n);
                 }
+                scale.xMax = n.time || 0;
                 if (n.parentId) {
                     const entry = keyMap[n.parentId];
                     const entry2 = key2Map[n.parentId];
@@ -265,6 +418,8 @@ class DocumentWatcher extends Disposable {
                     }
                 }
             });
+            chunkyChunk[chunkyChunk.length - 1]['scale'] = scale;
+            chunkyChunk.shift();
             console.log(
                 'what is she cooking',
                 key2Map,
@@ -322,7 +477,7 @@ class DocumentWatcher extends Disposable {
                         metadata: lol,
                         keys,
                         windowed,
-                        keyMap,
+                        chunkyChunk,
                     },
                 });
         });
