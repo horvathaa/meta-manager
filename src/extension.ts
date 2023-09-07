@@ -32,6 +32,7 @@ export async function activate(context: ExtensionContext) {
     const container = await Container.create(context);
     container.initNodes();
     view.onDidCreateView(() => {
+        console.log('hewwo....?? VIEW MADE');
         if (view.view) {
             container.setWebviewController(view.view.webview);
             container.webviewController?.onDidReceiveMessage((e) => {

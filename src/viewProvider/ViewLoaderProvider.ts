@@ -41,7 +41,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
         context: WebviewViewResolveContext,
         _token: CancellationToken
     ) {
-        // console.log('WHUIHADI');
+        console.log('WHUIHADI');
         // console.log('is this being called', webviewView, context, _token);
         this._view = webviewView;
         webviewView.webview.options = {
@@ -89,7 +89,10 @@ class ViewLoaderProvider implements WebviewViewProvider {
         <div>
             <div id="header"></div>
             <div style="display: flex">
-            <svg style="width: 1200px;position: sticky;top: 10px" height="530"></svg>
+            <div style="display: flex; flex-direction: column; width: 60%">
+                <svg style="width: 1000px;position: sticky;top: 10px" height="530"></svg>
+                <div id="scrubberRoot"></div>
+            </div>
             </div>
         </div>
         <script nonce="${nonce}" src="${reactAppPathOnDisk}"></script>
@@ -101,6 +104,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
 }
 
 export default ViewLoaderProvider;
+//
 
 // <svg style="width: 640px;position: sticky;top: 10px" height="500"></svg>
 // <div style="width: 50%" id="root"></div>

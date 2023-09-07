@@ -154,7 +154,7 @@ export function getListFromSnapshots(
     let out: any = [];
     snapshots.forEach((snapshot) => {
         out.push({
-            id: snapshot.id,
+            fsId: snapshot.id,
             ...snapshot.data(),
         });
     });
@@ -765,6 +765,7 @@ class FirestoreController extends Disposable {
                 //     return;
                 // }
                 const hewwo = await getDocs(pastVersionsCollectionTest);
+                console.log('hewwo????', hewwo);
                 // const count = await getCountFromServer(
                 //     pastVersionsCollectionTest
                 // );
@@ -907,10 +908,29 @@ class FirestoreController extends Disposable {
                         }
                     }
                 );
+                const set = new Set();
                 console.log('clean data', cleanData, 'outcasts', outcasts);
+                outcasts.forEach((o) => {
+                    if (o['eventData']) {
+                        console.log('event data', o['eventData']);
+                        let match = cleanData.find((c) => c.id === o.id);
+                        if (match) {
+                            console.log('swapping', match, 'wtih', o);
+                            match['eventData'] = o['eventData'];
+                            set.add(match.id);
+                            console.log('swapping', o, 'wtih', match);
+                            // write to backend and delete unnecessary entries
+                            // not doin rn cuz i don't trust myself lmao
+                        }
+                    }
+                });
                 // TODO: take "outcasts" and filter for ones that are interesting (i.e., have eventData)
                 // then find their "partners" (i.e., other elements with same original ID)
                 // and choose a new time that is in the range of the partners
+                console.log(
+                    'updated cleanData lol',
+                    cleanData.filter((c) => set.has(c.id))
+                );
                 return {
                     pastVersionsTest: cleanData,
                     pastVersions: list,

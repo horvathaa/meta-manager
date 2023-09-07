@@ -285,7 +285,11 @@ class DocumentWatcher extends Disposable {
                                                         1
                                                 ] || 0,
                                             ],
-                                            data: [],
+                                            data: [
+                                                lastEntry[k][0]?.data[
+                                                    lastEntry[k][0]?.length - 1
+                                                ] || null,
+                                            ],
                                         },
                                         {
                                             x: [n.time],
@@ -295,7 +299,11 @@ class DocumentWatcher extends Disposable {
                                                         1
                                                 ] || 0,
                                             ],
-                                            data: [],
+                                            data: [
+                                                lastEntry[k][0]?.data[
+                                                    lastEntry[k][0]?.length - 1
+                                                ] || null,
+                                            ],
                                         },
                                     ],
                                 };
@@ -343,7 +351,15 @@ class DocumentWatcher extends Disposable {
                                           lastEntry[k][1].y.length - 1
                                       ]
                             );
-                            k === n.parentId && startLinesByTime.data.push(n);
+                            if (k === n.parentId) {
+                                startLinesByTime.data.push(n);
+                            } else {
+                                startLinesByTime.data.push(
+                                    lastEntry[k][0].data[
+                                        lastEntry[k][0].data.length - 1
+                                    ]
+                                );
+                            }
                             endLinesByTime.x.push(n.time);
                             endLinesByTime.y.push(
                                 k === n.parentId
@@ -469,7 +485,7 @@ class DocumentWatcher extends Disposable {
                 };
                 windowed.push(window);
             }
-            console.log('lol!', windowed);
+            console.log('lol!', windowed, this.container.webviewController);
             lol?.length &&
                 this.container.webviewController?.postMessage({
                     command: 'updateTimeline',

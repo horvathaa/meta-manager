@@ -2,6 +2,9 @@ import * as d3 from 'd3';
 import TimelineController, { Payload } from './TimelineController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
 import { SerializedChangeBuffer, Event, DataSourceType } from '../types/types';
+import * as React from 'react';
+import { Root, createRoot } from 'react-dom/client';
+import TimelineScrubber from './Scrubber';
 import {
     META_MANAGER_COLOR,
     META_MANAGER_COLOR_LIGHT,
@@ -44,10 +47,19 @@ class GraphController {
     private readonly marginBottom = 30;
     private readonly marginLeft = 60;
     private readonly totalWidth = window.innerWidth;
+    _keyMap: { [k: string]: any }[] = [];
+    _currIndex: number = 0;
+    _currKey: string = '';
+    _scrubberRef: Root;
     chart: any;
 
     constructor(private readonly timelineController: TimelineController) {
         // this.constructGraph(data);
+        console.log('WHAT IS HAPPENING');
+        this._scrubberRef = createRoot(
+            document.getElementById('scrubberRoot') ||
+                document.createElement('div')
+        );
     }
 
     getColor(d: TimelineEvent, lighten?: boolean) {
@@ -95,7 +107,7 @@ class GraphController {
         const margin = { top: 20, right: 20, bottom: 40, left: 40 };
         const chartWidth = this.width - margin.left - margin.right;
         const chartHeight = this.height - margin.top - margin.bottom;
-
+        this._keyMap = keyMap;
         const g = svg
             .append('g')
             .attr('transform', `translate(${margin.left}, ${margin.top})`);
@@ -146,42 +158,42 @@ class GraphController {
             .attr('transform', 'rotate(-90)')
             .style('text-anchor', 'middle')
             .text('Y Axis Label');
-        Object.keys(keyMap[0])
+
+        console.log(
+            'props',
+            this._scrubberRef,
+            'this',
+            this,
+            'keyMap',
+            keyMap[0]['activate:028723b4-0578-4aa6-9654-6333e3291fcf'][0].x
+                .length
+        );
+        // this._scrubberRef.render(
+        //     <TimelineScrubber
+        //         range={[
+        //             0,
+        //             keyMap[0][
+        //                 'activate:028723b4-0578-4aa6-9654-6333e3291fcf'
+        //             ][0].x.length,
+        //         ]}
+        //         value={0}
+        //         parent={this}
+        //     />
+        // );
+        Object.keys(keyMap[keyMap.length - 1])
             .filter((k) => k !== 'scale')
             .forEach((k, ix) => {
-                const test = keyMap[0][k];
-                console.log('test', test);
+                const test = keyMap[this._currIndex][k];
+                if (!this._currKey.length) {
+                    this._currKey = k;
+                }
 
-                // const x = d3
-                //     .scaleUtc()
-                //     .domain(
-                //         d3.extent(data, (d) => {
-                //             console.log('D!!!', d);
-                //             return d.time;
-                //         })
-                //     )
-                //     .range([0, this.width]);
-                // const x = d3
-                //     .scaleUtc()
-                //     // .domain(data.map((d) => d.dbId))
-                //     .domain(d3.extent(windowed, (w) => w.end))
-                //     .range([0, this.width]);
                 const indexies = d3.range(test[0].y.length);
+
                 const area = d3
                     .area()
-                    .curve(d3.curveMonotoneX)
+                    .curve(d3.curveCardinal)
                     .x((d, i) => {
-                        console.log(
-                            'i hate d3 so much',
-                            d,
-                            i,
-                            'x0',
-                            xscale(test[1].x[i]),
-                            'y0',
-                            yscale(test[1].y[i]),
-                            'y1',
-                            yscale(test[0].y[i])
-                        );
                         return xscale(test[1].x[i]);
                     })
                     .y0((d, i) => {
@@ -196,112 +208,89 @@ class GraphController {
                     'steelblue',
                     'white',
                 ];
+                const xs = test[0].x.map((e) => xscale(e));
+                var div = d3
+                    .select('body')
+                    .append('div')
+                    .attr('class', 'tooltip-donut')
+                    .style('opacity', 0);
                 svg.append('path')
+                    .data(test)
                     .datum(indexies)
                     .attr('class', 'area')
                     .attr('fill', colorArr[ix])
-                    // .attr('transform', `translate(0, ${chartHeight})`)
-                    .attr('d', area);
-                // const area = d3
-                //     .area()
-                //     .curve(d3.curveCardinal)
-                //     .x0(function (d, i) {
-                //         // console.log(
-                //         //     'd',
-                //         //     d,
-                //         //     'i',
-                //         //     i,
-                //         //     'x0',
-                //         //     xscale(test[1].x[i]),
-                //         //     'original x0',
-                //         //     test[1].x[i],
-                //         //     'y0',
-                //         //     yscale(test[1].y[i]),
-                //         //     'original y0',
-                //         //     test[1].y[i],
-                //         //     'x1',
-                //         //     xscale(test[1].x[i]),
-                //         //     'original x1',
-                //         //     test[1].x[i],
-                //         //     'y1',
-                //         //     yscale(test[0].y[i]),
-                //         //     'original y1',
-                //         //     test[0].y[i]
-                //         // );
-                //         return xscale(test[1].x[i]);
-                //     })
-                //     .x1(function (d, i) {
-                //         return xscale(test[1].x[i]);
-                //     })
-                //     .y0(function (d, i) {
-                //         // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].start;
-                //         return yscale(test[1].y[i]);
-                //     })
-                //     .y1(function (d, i) {
-                //         // return d['activate:028723b4-0578-4aa6-9654-6333e3291fcf'].end;
-                //         return yscale(test[0].y[i]);
-                //     }); // .interpolate('cardinal');
-                // const colorArr = [
-                //     'lightsteelblue',
-                //     'pink',
-                //     'steelblue',
-                //     'white',
-                // ];
-                // console.log(
-                //     'color',
-                //     colorArr[ix],
-                //     'area',
-                //     area(test[0].x),
-                //     'obj',
-                //     test
-                // );
-                // svg.append('path')
-                //     .attr('class', 'area')
-                //     .attr('fill', colorArr[ix])
-                //     // .attr('transform', `translate(0, ${chartHeight})`)
-                //     .attr('d', area(test[0].x));
+                    .attr(
+                        'transform',
+                        `translate(${margin.left}, ${margin.top})`
+                    )
+                    .attr('d', area)
+                    .on('mousemove', function (d, i) {
+                        const [xm, ym] = d3.pointer(d);
+                        console.log('ahhhhh - xm', xm, 'xy', ym);
+                        const closestInstance = xs.findIndex((x: number) => {
+                            // console.log('x', x);
+                            return x > xm;
+                        });
+                        const instance = test[1].data[closestInstance];
+                        console.log('instance', instance);
+                        // console.log('hewwo?', closestInstance, test[1].data[closestInstance]);
+                        d3.select(this)
+                            .transition()
+                            .duration(50)
+                            .attr('opacity', '.85');
+                        div.transition().duration(50).style('opacity', 1);
+                        // console.log('d', d, 'i?', i, 'area??', area);
+                        let num = d;
+                        // div.html(num)
+                        //     .style('left', d3.event.pageX + 10 + 'px')
+                        //     .style('top', d3.event.pageY - 15 + 'px');
+                    })
+                    .on('mouseout', function (d, i) {
+                        d3.select(this)
+                            .transition()
+                            .duration(50)
+                            .attr('opacity', '1');
+                        div.transition().duration(50).style('opacity', 0);
+                    });
 
-                // const line = d3
-                //     .line()
-                //     .curve(d3.curveCardinal)
-                //     .attr('stroke', 'pink')
-                //     .attr('x1', (d) => test[1].x[d])
-                //     .attr('y1', (d) => test[1].y[d])
-                //     .attr('x2', (d) => test[0].x[d])
-                //     .attr('y2', (d) => test[0].y[d]);
-                // .x(function (d, i) {
-                //     // console.log('d!', d);
-                //     return xscale(d[0]);
-                // })
-                // .y(function (d, i) {
-                //     return yscale(d[1]);
-                // });
+                const line = d3
+                    .line()
+                    .curve(d3.curveCardinal)
+                    .x(function (d, i) {
+                        // console.log('d!', d);
+                        return xscale(d[0]);
+                    })
+                    .y(function (d, i) {
+                        return yscale(d[1]);
+                    });
 
                 const lines = svg
                     .selectAll('.lines')
                     .data(
-                        test
-                        // .map(function (d) {
-                        //     // console.log(
-                        //     //     'd',
-                        //     //     d,
-                        //     //     'xscale',
-                        //     //     xscale(d.x),
-                        //     //     'mpa',
-                        //     //     d3.zip(
-                        //     //         d.x.map((e) => xscale(e)),
-                        //     //         d.y.map((e) => yscale(e))
-                        //     //     )
-                        //     // );
-                        //     return d3.zip(
-                        //         d.x.map((e) => xscale(e)),
-                        //         d.y.map((e) => yscale(e))
-                        //     );
-                        //     // return d.x.map((e, i) => {
-                        //     //     return d3.zip(xscale(e), yscale(d.y[i]));
-                        //     // });
-                        //     // return d3.zip(xscale(d.x), yscale(d.y));
-                        // })
+                        test.map(
+                            function (d) {
+                                console.log(
+                                    'd',
+                                    d,
+                                    'xscale',
+                                    xscale(d.x),
+                                    'mpa',
+                                    d3.zip(
+                                        d.x.map((e) => xscale(e)),
+                                        d.y.map((e) => yscale(e))
+                                    )
+                                );
+                                return d3.zip(
+                                    d.x.map((e) => xscale(e)),
+                                    d.y.map((e) => yscale(e))
+                                );
+                            }
+                            //     // return d.x.map((e, i) => {
+                            //     //     return d3.zip(xscale(e), yscale(d.y[i]));
+                            //     // });
+                            //     // return d3.zip(xscale(d.x), yscale(d.y));
+                            // })
+                        )
                     )
                     .enter()
                     .append('g')
@@ -317,73 +306,25 @@ class GraphController {
                         return line(d);
                     });
             });
-
-        // svg.append('g')
-        //     .attr('transform', `translate(0,${this.height})`)
-        //     .call(d3.axisBottom(x).ticks(20).scale(x));
-        // const y = d3
-        //     .scaleLinear()
-        //     .domain([0, d3.max(windowed, (w) => w.windowMax)])
-        //     .range([this.height, 0]);
-        // svg.append('g').call(d3.axisLeft(y));
-        // // svg.append('g').call(d3.axisRight(y));
-
-        // const color = d3
-        //     .scaleOrdinal()
-        //     .domain(keys)
-        //     .range([
-        //         '#e41a1c',
-        //         '#377eb8',
-        //         '#4daf4a',
-        //         '#984ea3',
-        //         '#ff7f00',
-        //         '#ffff33',
-        //         '#a65628',
-        //         '#f781bf',
-        //     ]);
-
-        // const stackedData = d3
-        //     .stack()
-        //     // .offset(d3.stackOffsetNone)
-        //     .order(d3.stackOrderInsideOut)
-        //     .offset(d3.stackOffsetWiggle)
-        //     .keys(keys)
-        //     .value((d, key) => {
-        //         console.log('D!!!!!!!!!!!!!!!!!!!', d, 'key!', key);
-        //         return d[key].end - d[key].start;
-        //     })(windowed); //
-        // console.log('what is this', stackedData);
-        // svg.selectAll('mylayers')
-        //     .data(stackedData)
-        //     .join('path')
-        //     .style('fill', function (d) {
-        //         return color(d.key);
-        //     })
-        //     .attr(
-        //         'd',
-        //         d3
-        //             .area()
-        //             .x(function (d, i) {
-        //                 // console.log(
-        //                 //     'x: i never understand how data is formatted in d3',
-        //                 //     d
-        //                 // );
-        //                 return x(d.data.start);
-        //             })
-        //             .y0(function (d) {
-        //                 console.log(
-        //                     'i never understand how data is formatted in d3',
-        //                     d,
-        //                     'y',
-        //                     y.data
-        //                 );
-        //                 return y(d[0]);
-        //             })
-        //             .y1(function (d) {
-        //                 return y(d[1]);
-        //             })
-        //             .curve(d3.curveMonotoneX)
-        //     );
+        console.log(
+            'im losin it',
+            keyMap[0],
+            keyMap[0]['activate:028723b4-0578-4aa6-9654-6333e3291fcf'],
+            keyMap[0]['activate:028723b4-0578-4aa6-9654-6333e3291fcf']
+        );
+        this._scrubberRef.render(
+            // <div>just a regular div</div>
+            <TimelineScrubber
+                range={[
+                    0,
+                    keyMap[0][
+                        'activate:028723b4-0578-4aa6-9654-6333e3291fcf'
+                    ][0].x.length,
+                ]}
+                value={0}
+                parent={this}
+            />
+        );
     }
 
     pointerentered(e: any, k: any) {
@@ -391,6 +332,26 @@ class GraphController {
         // path.style('mix-blend-mode', null).style('stroke', '#ddd');
         // dot.attr('display', null);
         this.timelineController.renderMetadata(k);
+    }
+
+    updateTimeline(value: number) {
+        const instances = Object.keys(this._keyMap[this._currIndex])
+            .filter((k) => {
+                return k !== 'scale';
+            })
+            .filter((k) => {
+                console.log(
+                    'value',
+                    value,
+                    'k',
+                    k,
+                    'entry',
+                    this._keyMap[this._currIndex][k][1]
+                );
+                return this._keyMap[this._currIndex][k][1].data[value];
+                // const instance = test[1].data[closestInstance];
+            });
+        console.log('instances!!!!!!!!!!!', instances);
     }
 
     pointerleft(e: any, k: any) {
