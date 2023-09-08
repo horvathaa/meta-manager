@@ -1,7 +1,20 @@
 import * as d3 from 'd3';
-import TimelineController, { Payload } from './TimelineController';
+import TimelineController, { Payload, theme } from './TimelineController';
 import TimelineEvent from '../../../data/timeline/TimelineEvent';
-import { SerializedChangeBuffer, Event, DataSourceType } from '../types/types';
+import styles from '../styles/timeline.module.css';
+import {
+    VSCodeButton,
+    VSCodeCheckbox,
+    VSCodeRadio,
+    VSCodeRadioGroup,
+    VSCodeTextField,
+} from '@vscode/webview-ui-toolkit/react';
+import {
+    SerializedChangeBuffer,
+    Event,
+    DataSourceType,
+    CopyBuffer,
+} from '../types/types';
 import * as React from 'react';
 import { Root, createRoot } from 'react-dom/client';
 import TimelineScrubber from './Scrubber';
@@ -10,6 +23,11 @@ import {
     META_MANAGER_COLOR_LIGHT,
     lightenDarkenColor,
 } from '../styles/globals';
+import CodeBlock from '../components/CodeBlock';
+import Version from './Version';
+import { Button, IconButton } from '@mui/material';
+import { CancelOutlined } from '@mui/icons-material';
+import Search from './Search';
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
 //     ['#4e79a7', '#e15759']
@@ -49,17 +67,86 @@ class GraphController {
     private readonly totalWidth = window.innerWidth;
     _keyMap: { [k: string]: any }[] = [];
     _currIndex: number = 0;
+    _focusedIndex: number = 0;
     _currKey: string = '';
     _scrubberRef: Root;
+    _infoRef: Root;
+    _headerRef: Root;
+    _filtered: boolean = false;
+    _filterRange: [number, number] = [0, 0];
+    _searchTerm: string = '';
+    _canonicalEvents: SerializedChangeBuffer[] = [];
     chart: any;
 
     constructor(private readonly timelineController: TimelineController) {
-        // this.constructGraph(data);
-        console.log('WHAT IS HAPPENING');
         this._scrubberRef = createRoot(
             document.getElementById('scrubberRoot') ||
                 document.createElement('div')
         );
+        this._infoRef = createRoot(
+            document.getElementById('infoRoot') || document.createElement('div')
+        );
+        const header =
+            document.getElementById('header') || document.createElement('div');
+        this._headerRef = createRoot(header);
+    }
+
+    renderHeader() {
+        return (
+            <div className={styles['flex']}>
+                <div className={styles['center']} style={{ margin: 'auto' }}>
+                    <h1>
+                        {this._keyMap[this._currIndex]?.scale.otherInfo.global
+                            .filename || ''}
+                    </h1>
+                </div>
+                <Search context={this} />
+                <div style={{ marginLeft: 'auto' }}>
+                    {this._keyMap.length ? (
+                        <>{this.getHighLevelSummary()}</>
+                    ) : null}
+                    {/* <VSCodeButton
+                    className={styles['m2']}
+                    onClick={() => {
+                        // this._queue.push(undefined);
+                        this._ref.render(
+                            <ThemeProvider theme={theme}>
+                                <Card style={cardStyle}>
+                                    {this.renderNode()}
+                                </Card>
+                            </ThemeProvider>
+                        );
+                    }}
+                >
+                    Home
+                </VSCodeButton>
+                <VSCodeButton
+                    className={styles['m2']}
+                    appearance="secondary"
+                    disabled={!this._queue.length}
+                    onClick={() => this.renderMetadata(this._queue.pop())}
+                >
+                    Back
+                </VSCodeButton> */}
+                </div>
+            </div>
+        );
+    }
+
+    getHighLevelSummary() {
+        const { scale } = this._keyMap[this._currIndex];
+        const { otherInfo } = scale;
+        const time = `From ${new Date(
+            scale.xMin
+        ).toLocaleString()} to ${new Date(scale.xMax).toLocaleString()}, ${
+            otherInfo.global.user
+        } made ${scale.length} edits.`;
+        const summaries = [];
+        Object.keys(otherInfo).forEach((k) => {
+            if (k !== 'global') {
+            }
+        });
+        return <div></div>;
     }
 
     getColor(d: TimelineEvent, lighten?: boolean) {
@@ -95,11 +182,29 @@ class GraphController {
         return val;
     }
 
+    filterToTime(idx: number) {
+        console.log('lol', this._keyMap[this._currIndex]);
+        const filteredRange: [number, number] =
+            idx > this._focusedIndex
+                ? [this._focusedIndex, idx]
+                : [idx, this._focusedIndex];
+        this.drawStream(
+            [], // nightmare
+            [],
+            [],
+            this._keyMap,
+            filteredRange
+        );
+        this._filterRange = filteredRange;
+        this._filtered = true;
+    }
+
     drawStream(
         data: SerializedChangeBuffer[],
         keys: string[],
         windowed: any[],
-        keyMap: { [k: string]: any }[]
+        keyMap: { [k: string]: any }[],
+        range?: [number, number]
     ) {
         const svg = d3.select('svg');
         svg.selectAll('*').remove();
@@ -113,11 +218,19 @@ class GraphController {
             .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
         console.log('CALLING DRAW STREAM');
+
         const scale = keyMap[0]['scale'];
-        var xscale = d3
-            .scaleTime() // Use linear scale for x
-            .range([0, chartWidth]) // Adjust the range for horizontal orientation
-            .domain([scale.xMin, scale.xMax]); // Time never < 0
+
+        range && console.log('range!!!!', range);
+        var xscale = range
+            ? d3
+                  .scaleLinear() // Use linear scale for x
+                  .range([0, chartWidth]) // Adjust the range for horizontal orientation
+                  .domain([0, range[1] - range[0]]) // ????
+            : d3
+                  .scaleLinear() // Use linear scale for x
+                  .range([0, chartWidth]) // Adjust the range for horizontal orientation
+                  .domain([0, scale.length]); // Time never < 0
         // .domain(d3.extent(windowed, (w) => w.end))
 
         const yscale = d3
@@ -128,15 +241,27 @@ class GraphController {
         // const xvalues = test[0].x; // .map((e) => xscale(e));
 
         // Create X and Y Axes
-        const xAxis = d3.axisBottom(xscale).tickFormat(d3.timeFormat('%b %d'));
-        // .ticks(d3.timeDay.every(interval))
-        // .tickValues(test[0].x);
+        // if (scale.xMax - scale.xMin < 2880000) {
+        //     const xAxis = d3
+        //         .axisBottom(xscale)
+        //         .tickFormat(d3.timeFormat('%b %d'));
+        //     g.append('g')
+        //         .attr('class', 'x-axis')
+        //         .attr('transform', `translate(0, ${chartHeight})`)
+        //         .call(xAxis);
+        // }
+        // @ts-ignore
+        const xAxis = d3
+            .axisBottom(xscale)
+            .ticks(chartWidth / 80)
+            .tickSizeOuter(0);
         const yAxis = d3.axisLeft(yscale);
 
         // Append X Axis
         g.append('g')
             .attr('class', 'x-axis')
             .attr('transform', `translate(0, ${chartHeight})`)
+            // @ts-ignore
             .call(xAxis);
 
         // Append Y Axis
@@ -147,8 +272,8 @@ class GraphController {
             .attr('class', 'x-label')
             .attr('x', chartWidth / 2)
             .attr('y', chartHeight + margin.bottom)
-            .style('text-anchor', 'middle')
-            .text('X Axis Label');
+            .style('text-anchor', 'middle');
+        // .text('X Axis Label');
 
         // Label Y Axis
         g.append('text')
@@ -156,51 +281,58 @@ class GraphController {
             .attr('x', -chartHeight / 2)
             .attr('y', -margin.left)
             .attr('transform', 'rotate(-90)')
-            .style('text-anchor', 'middle')
-            .text('Y Axis Label');
+            .style('text-anchor', 'middle');
+        // .text('Y Axis Label');
 
-        console.log(
-            'props',
-            this._scrubberRef,
-            'this',
-            this,
-            'keyMap',
-            keyMap[0]['activate:028723b4-0578-4aa6-9654-6333e3291fcf'][0].x
-                .length
-        );
-        // this._scrubberRef.render(
-        //     <TimelineScrubber
-        //         range={[
-        //             0,
-        //             keyMap[0][
-        //                 'activate:028723b4-0578-4aa6-9654-6333e3291fcf'
-        //             ][0].x.length,
-        //         ]}
-        //         value={0}
-        //         parent={this}
-        //     />
-        // );
-        Object.keys(keyMap[keyMap.length - 1])
+        const events: any[] = [];
+        Object.keys(keyMap[this._currIndex])
             .filter((k) => k !== 'scale')
             .forEach((k, ix) => {
                 const test = keyMap[this._currIndex][k];
                 if (!this._currKey.length) {
                     this._currKey = k;
                 }
+                events.push(...test[1].events);
 
-                const indexies = d3.range(test[0].y.length);
-
+                let upperYScale = test[0].y;
+                let lowerYScale = test[1].y;
+                if (range) {
+                    upperYScale = test[0].y.slice(range[0], range[1]);
+                    lowerYScale = test[1].y.slice(range[0], range[1]);
+                }
+                const indexies = d3.range(lowerYScale.length);
+                // range &&
+                //     console.log(
+                //         'indexies',
+                //         indexies,
+                //         'upper',
+                //         upperYScale,
+                //         'lower',
+                //         lowerYScale,
+                //         'real data',
+                //         test[1].data.slice(
+                //             range ? range[0] : 0,
+                //             range ? range[1] : test[1].data.length
+                //         )
+                //     );
                 const area = d3
                     .area()
-                    .curve(d3.curveCardinal)
+                    .curve(d3.curveMonotoneX)
                     .x((d, i) => {
-                        return xscale(test[1].x[i]);
+                        // return xscale(test[1].x[i]);
+                        // if (range) {
+                        //     if (i < range[0] || i > range[1]) {
+                        //         return 0;
+                        //     }
+                        // }
+                        return xscale(i);
                     })
                     .y0((d, i) => {
-                        return yscale(test[1].y[i]);
+                        // range && console.log('lowerYScale', lowerYScale[i]);
+                        return yscale(lowerYScale[i]);
                     })
                     .y1((d, i) => {
-                        return yscale(test[0].y[i]);
+                        return yscale(upperYScale[i]);
                     });
                 const colorArr = [
                     'lightsteelblue',
@@ -208,14 +340,15 @@ class GraphController {
                     'steelblue',
                     'white',
                 ];
-                const xs = test[0].x.map((e) => xscale(e));
-                var div = d3
-                    .select('body')
-                    .append('div')
-                    .attr('class', 'tooltip-donut')
-                    .style('opacity', 0);
+                // const xs = test[0].x.map((e: any) => xscale(e));
+                // console.log('huh?', xs);
+                // var div = d3
+                //     .select('body')
+                //     .append('div')
+                //     .attr('class', 'tooltip-donut')
+                //     .style('opacity', 0);
                 svg.append('path')
-                    .data(test)
+                    // .data(test)
                     .datum(indexies)
                     .attr('class', 'area')
                     .attr('fill', colorArr[ix])
@@ -223,35 +356,36 @@ class GraphController {
                         'transform',
                         `translate(${margin.left}, ${margin.top})`
                     )
-                    .attr('d', area)
-                    .on('mousemove', function (d, i) {
-                        const [xm, ym] = d3.pointer(d);
-                        console.log('ahhhhh - xm', xm, 'xy', ym);
-                        const closestInstance = xs.findIndex((x: number) => {
-                            // console.log('x', x);
-                            return x > xm;
-                        });
-                        const instance = test[1].data[closestInstance];
-                        console.log('instance', instance);
-                        // console.log('hewwo?', closestInstance, test[1].data[closestInstance]);
-                        d3.select(this)
-                            .transition()
-                            .duration(50)
-                            .attr('opacity', '.85');
-                        div.transition().duration(50).style('opacity', 1);
-                        // console.log('d', d, 'i?', i, 'area??', area);
-                        let num = d;
-                        // div.html(num)
-                        //     .style('left', d3.event.pageX + 10 + 'px')
-                        //     .style('top', d3.event.pageY - 15 + 'px');
-                    })
-                    .on('mouseout', function (d, i) {
-                        d3.select(this)
-                            .transition()
-                            .duration(50)
-                            .attr('opacity', '1');
-                        div.transition().duration(50).style('opacity', 0);
-                    });
+                    // @ts-ignore
+                    .attr('d', area);
+                // .on('mousemove', function (d, i) {
+                //     const [xm, ym] = d3.pointer(d);
+                //     console.log('ahhhhh - xm', xm, 'xy', ym, 'xs', xs);
+                //     const closestInstance = xs.findIndex((x: number) => {
+                //         // console.log('x', x);
+                //         return x > xm;
+                //     });
+                //     const instance = test[1].data[closestInstance];
+                //     // console.log('instance', instance);
+                //     // console.log('hewwo?', closestInstance, test[1].data[closestInstance]);
+                //     d3.select(this)
+                //         .transition()
+                //         .duration(50)
+                //         .attr('opacity', '.85');
+                //     div.transition().duration(50).style('opacity', 1);
+                //     // console.log('d', d, 'i?', i, 'area??', area);
+                //     let num = d;
+                //     // div.html(num)
+                //     //     .style('left', d3.event.pageX + 10 + 'px')
+                //     //     .style('top', d3.event.pageY - 15 + 'px');
+                // })
+                // .on('mouseout', function (d, i) {
+                //     d3.select(this)
+                //         .transition()
+                //         .duration(50)
+                //         .attr('opacity', '1');
+                //     div.transition().duration(50).style('opacity', 0);
+                // });
 
                 const line = d3
                     .line()
@@ -263,68 +397,17 @@ class GraphController {
                     .y(function (d, i) {
                         return yscale(d[1]);
                     });
-
-                const lines = svg
-                    .selectAll('.lines')
-                    .data(
-                        test.map(
-                            function (d) {
-                                console.log(
-                                    'd',
-                                    d,
-                                    'xscale',
-                                    xscale(d.x),
-                                    'mpa',
-                                    d3.zip(
-                                        d.x.map((e) => xscale(e)),
-                                        d.y.map((e) => yscale(e))
-                                    )
-                                );
-                                return d3.zip(
-                                    d.x.map((e) => xscale(e)),
-                                    d.y.map((e) => yscale(e))
-                                );
-                            }
-                            //     // return d.x.map((e, i) => {
-                            //     //     return d3.zip(xscale(e), yscale(d.y[i]));
-                            //     // });
-                            //     // return d3.zip(xscale(d.x), yscale(d.y));
-                            // })
-                        )
-                    )
-                    .enter()
-                    .append('g')
-                    .attr('class', 'lines');
-                lines
-                    .append('path')
-                    .attr('class', 'pathline')
-                    // .attr('transform', `translate(0, ${chartHeight})`)
-                    .attr('stroke', 'pink')
-                    .attr('fill', 'none')
-                    .attr('d', function (d) {
-                        console.log('how about this d', d);
-                        return line(d);
-                    });
             });
-        console.log(
-            'im losin it',
-            keyMap[0],
-            keyMap[0]['activate:028723b4-0578-4aa6-9654-6333e3291fcf'],
-            keyMap[0]['activate:028723b4-0578-4aa6-9654-6333e3291fcf']
-        );
+        this._canonicalEvents = events;
         this._scrubberRef.render(
-            // <div>just a regular div</div>
             <TimelineScrubber
-                range={[
-                    0,
-                    keyMap[0][
-                        'activate:028723b4-0578-4aa6-9654-6333e3291fcf'
-                    ][0].x.length,
-                ]}
-                value={0}
+                range={range ? range : [0, scale.length]}
+                valueProp={0}
                 parent={this}
+                events={events}
             />
         );
+        this._headerRef.render(this.renderHeader());
     }
 
     pointerentered(e: any, k: any) {
@@ -334,12 +417,114 @@ class GraphController {
         this.timelineController.renderMetadata(k);
     }
 
-    updateTimeline(value: number) {
-        const instances = Object.keys(this._keyMap[this._currIndex])
+    search(searchTerm: string) {
+        const dataRange: [number, number] = this._filtered
+            ? this._filterRange
+            : [0, this._keyMap[this._currIndex].scale.length];
+        if (!searchTerm.length) {
+            // this._filtered = false;
+            // this._filterRange = [0, 0];
+            this._searchTerm = '';
+            this.drawStream(
+                [], // nightmare
+                [],
+                [],
+                this._keyMap,
+                this._filtered ? this._filterRange : undefined
+            );
+            this._scrubberRef.render(
+                <TimelineScrubber
+                    range={dataRange}
+                    valueProp={0}
+                    parent={this}
+                    events={this._canonicalEvents}
+                />
+            );
+            return;
+        }
+        const data: SerializedChangeBuffer[] = [];
+        const arr: any[] = [];
+        const idx: number[] = [];
+
+        Object.keys(this._keyMap[this._currIndex])
             .filter((k) => {
                 return k !== 'scale';
             })
+            .forEach((k) => {
+                const arrayToFilter = this._filtered
+                    ? this._keyMap[this._currIndex][k][1].data.slice(
+                          this._filterRange[0],
+                          this._filterRange[1]
+                      )
+                    : this._keyMap[this._currIndex][k][1].data;
+                arr.push(
+                    ...arrayToFilter.filter(
+                        (d: SerializedChangeBuffer, i: number) => {
+                            console.log('d', d);
+                            if (d && d.location.content.includes(searchTerm)) {
+                                this._filtered
+                                    ? idx.push(i + this._filterRange[0])
+                                    : idx.push(i);
+                                return true;
+                            }
+                            // return (
+                            //      // &&
+                            //     // d.changeContent.includes(searchTerm) &&
+                            //     // d.changeContent.trim() !== d.location.content.trim()
+                            // );
+                        }
+                    )
+                );
+                // const events = k[1].events;
+                // events.forEach((e) => {
+                //     if (
+                //         e.eventData &&
+                //         e.eventData[Event.WEB] &&
+                //         e.eventData[Event.WEB].copyBuffer
+                //     ) {
+                //         const copyBuffer =
+                //             e.eventData[Event.WEB].copyBuffer;
+                //         if (
+                //             copyBuffer.code.includes(searchTerm) ||
+                //             copyBuffer.pasteContent.includes(searchTerm)
+                //         ) {
+                //             data.push(e);
+                //         }
+                //     }
+                // });
+            });
+        console.log('arr?', arr, idx);
+        this._scrubberRef.render(
+            <TimelineScrubber
+                range={dataRange}
+                valueProp={0}
+                parent={this}
+                events={arr.map((d) => {
+                    return {
+                        ...d,
+                        idx: idx.shift(),
+                        eventData: `${searchTerm}`,
+                    };
+                })}
+            />
+        );
+        this._searchTerm = searchTerm;
+        // this.drawStream(
+        //     data, // nightmare
+        //     [],
+        //     [],
+        //     this._keyMap
+        // );
+    }
+
+    updateTimeline(value: number) {
+        const data: SerializedChangeBuffer[] = [];
+        this._focusedIndex = value;
+        Object.keys(this._keyMap[this._currIndex])
             .filter((k) => {
+                return k !== 'scale';
+            })
+            .forEach((k) => {
                 console.log(
                     'value',
                     value,
@@ -348,10 +533,42 @@ class GraphController {
                     'entry',
                     this._keyMap[this._currIndex][k][1]
                 );
-                return this._keyMap[this._currIndex][k][1].data[value];
+                if (this._keyMap[this._currIndex][k][1].data[value]) {
+                    data.push(this._keyMap[this._currIndex][k][1].data[value]);
+                }
                 // const instance = test[1].data[closestInstance];
             });
-        console.log('instances!!!!!!!!!!!', instances);
+        console.log('instances!!!!!!!!!!!', data, 'value', value);
+        this._infoRef.render(
+            <>
+                {this._filtered ? (
+                    <IconButton
+                        onClick={() => {
+                            this._filtered = false;
+                            this._filterRange = [0, 0];
+                            this.drawStream(
+                                [], // nightmare
+                                [],
+                                [],
+                                this._keyMap
+                            );
+                        }}
+                        sx={{
+                            color: 'whitesmoke',
+                            position: 'absolute',
+                            right: '50px',
+                        }}
+                    >
+                        <CancelOutlined />
+                    </IconButton>
+                ) : null}
+                <div>
+                    {data.map((d, i) => (
+                        <Version version={d} key={d.id + i} context={this} />
+                    ))}
+                </div>
+            </>
+        );
     }
 
     pointerleft(e: any, k: any) {
@@ -468,7 +685,7 @@ class GraphController {
             .enter()
             .append('g')
             .attr('class', function (d: any) {
-                console.log('excuse ME!', d);
+                // console.log('excuse ME!', d);
                 const c = { key: Object.keys(d)[0].slice(0, 5) };
                 return 'defect defect-' + c.key;
             })

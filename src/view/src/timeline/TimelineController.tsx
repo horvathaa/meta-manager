@@ -53,7 +53,7 @@ import {
 
 const setOfColors = ['#519aba', '#ba51ab', '#abba51', '#ab5151'];
 
-const theme = createTheme({
+export const theme = createTheme({
     palette: {
         primary: {
             main: `${editorBackground}`,
@@ -233,12 +233,12 @@ const Search: React.FC<{ context: TimelineController }> = ({ context }) => {
                 >
                     Search
                 </VSCodeButton>
-                <VSCodeButton
+                {/* <VSCodeButton
                     appearance="secondary"
                     onClick={(e: any) => setShowOpts(!showOpts)}
                 >
                     Options
-                </VSCodeButton>
+                </VSCodeButton> */}
             </div>
 
             {showOpts ? (
@@ -372,7 +372,7 @@ const Search: React.FC<{ context: TimelineController }> = ({ context }) => {
 
 class TimelineController {
     private readonly _ref: Root;
-    private readonly _headerRef: Root;
+    private readonly _headerRef: Root | undefined;
     private readonly _colorGuideRef: Root;
     _graphController: GraphController;
     _gitInformationController: GitInformationController;
@@ -382,9 +382,9 @@ class TimelineController {
     _queue: (TimelineEvent | undefined)[] = [];
     constructor() {
         // console.log('constructing');
-        const header =
-            document.getElementById('header') || document.createElement('div');
-        this._headerRef = createRoot(header);
+        // const header =
+        //     document.getElementById('header') || document.createElement('div');
+        // this._headerRef = createRoot(header);
         const container =
             document.getElementById('root') || document.createElement('div');
         this._ref = createRoot(container);
@@ -949,7 +949,7 @@ class TimelineController {
 
     renderMetadata(k?: TimelineEvent) {
         // console.log('k', k);
-        this._headerRef.render(
+        this._headerRef?.render(
             <div className={styles['flex']}>
                 <div className={styles['center']} style={{ margin: 'auto' }}>
                     <h1>{this._node?.displayName}</h1>
