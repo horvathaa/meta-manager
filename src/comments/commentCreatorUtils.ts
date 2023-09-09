@@ -51,6 +51,7 @@ export interface CodeLine {
     code: CodeToken[];
     line: number;
     isEmptyLine: boolean;
+    isOnlySymbols: boolean;
 }
 
 export interface CodeToken {
@@ -63,6 +64,19 @@ interface StartPosition {
     startLine: number;
     startOffset: number;
 }
+
+export const codeLineToString = (c: CodeLine) => {
+    return `${' '.repeat(c.code[0].offset)}${c.code
+        .map((c) => c.token)
+        .join(' ')}`;
+};
+
+export const compareLines = (a: CodeLine, b: CodeLine) => {
+    return similarity(
+        a.code.map((c) => c.token).join(''),
+        b.code.map((c) => c.token).join('')
+    );
+};
 
 export const getCodeLine = (
     text: string,
@@ -97,6 +111,7 @@ export const getCodeLine = (
             line: start ? start.startLine + i : i,
             isEmptyLine:
                 (code.length === 1 && code[0].token === '') || !code.length,
+            isOnlySymbols: !code.some((c) => c.token.match(/[a-z]/i)),
         };
     });
 };
@@ -152,3 +167,47 @@ export const lineToPosition = (l: CodeLine) => {
     // return new Location(document.uri, lineToRange(l));
     return lineToRange(l);
 };
+
+function editDistance(s1: string, s2: string) {
+    s1 = s1.toLowerCase();
+    s2 = s2.toLowerCase();
+
+    var costs = new Array();
+    for (var i = 0; i <= s1.length; i++) {
+        var lastValue = i;
+        for (var j = 0; j <= s2.length; j++) {
+            if (i == 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    var newValue = costs[j - 1];
+                    if (s1.charAt(i - 1) != s2.charAt(j - 1))
+                        newValue =
+                            Math.min(Math.min(newValue, lastValue), costs[j]) +
+                            1;
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+}
+
+export function similarity(s1: string, s2: string) {
+    var longer = s1;
+    var shorter = s2;
+    if (s1.length < s2.length) {
+        longer = s2;
+        shorter = s1;
+    }
+    var longerLength = longer.length;
+    if (longerLength == 0) {
+        return 1.0;
+    }
+    return (
+        (longerLength - editDistance(longer, shorter)) /
+        // @ts-ignore
+        parseFloat(longerLength)
+    );
+}

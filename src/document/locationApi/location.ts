@@ -222,6 +222,60 @@ export default class LocationPlus extends Location {
         return RangePlus.fromPositions(start, end);
     }
 
+    positionToOffset(position: Position) {
+        if (!this.range.contains(position)) {
+            return null;
+        }
+        const code = this.content.split('\n');
+        const line = position.line - this.range.start.line;
+        const char = position.character;
+        let offset = 0;
+        for (let i = 0; i < line; i++) {
+            offset += code[i].length + 1;
+        }
+        offset += char;
+        return offset;
+    }
+
+    getStringFromRange(range: Range) {
+        if (!this.range.contains(range)) {
+            console.log('DONT OWN IT - mine theirs', this.range, range);
+            return null;
+        }
+        const start = this.range.start.isBefore(range.start)
+            ? range.start
+            : this.range.start;
+        const end = this.range.end.isAfter(range.end)
+            ? range.end
+            : this.range.end;
+        const startOffset = this.positionToOffset(start);
+        const endOffset = this.positionToOffset(end);
+        if (!startOffset || !endOffset) {
+            console.log('NO START OR END OFFSET', startOffset, endOffset);
+            return null;
+        }
+        return this.content.slice(startOffset, endOffset);
+    }
+
+    deriveRangeFromSearchString(searchString: string) {
+        // console.log('in here', searchString);
+        // var invalid = /[°"§%()\[\]{}=\\?´`'#<>|,;.:+_-]+/g; // since a lot of code has special characters, have to clean first
+        // var repl = searchString.replace(invalid, '');
+        // const regex = new RegExp(repl, 'g');
+        // console.log('regex', regex);
+        // const match = regex.exec(this.content);
+        // console.log('match?', match);
+        const idx = this.content.indexOf(searchString);
+        if (idx) {
+            const start = this.posToLine(idx);
+            console.log('start', start);
+            const end = this.posToLine(idx + searchString.length);
+            console.log('end', end);
+            return RangePlus.fromPositions(start, end);
+        }
+        return null;
+    }
+
     private cleanRange(range: RangePlus, document: TextDocument) {
         const updated = RangePlus.fromRange(document.validateRange(range));
         const furtherNormalizedStart =

@@ -7,6 +7,7 @@ import {
 } from 'vscode';
 import { SerializedRangePlus } from '../../constants/types';
 import { getUpdatedRanges } from 'vscode-position-tracking';
+import { CodeLine, CodeToken } from '../../comments/commentCreatorUtils';
 
 enum RangeIntersectionType {
     STARTS_BEFORE_ENDS_BEFORE_NO_LINES_SAME,
@@ -166,6 +167,28 @@ class RangePlus extends Range {
             new Position(startLine, startChar),
             new Position(endLine, endChar)
         );
+    }
+
+    public static fromCodeLine(
+        codeLineStart: CodeLine,
+        codeLineEnd: CodeLine,
+        specificStartToken?: CodeToken,
+        specificEndToken?: CodeToken
+    ): RangePlus {
+        const startPosition = new Position(
+            codeLineStart.line,
+            specificStartToken
+                ? specificStartToken.offset
+                : codeLineStart.code[0].offset
+        );
+        const endPosition = new Position(
+            codeLineEnd.line,
+            specificEndToken
+                ? specificEndToken.offset
+                : codeLineEnd.code[codeLineEnd.code.length - 1].offset +
+                  codeLineEnd.code[codeLineEnd.code.length - 1].token.length
+        );
+        return new RangePlus(startPosition, endPosition);
     }
 
     public startsBefore(range: Range): boolean {

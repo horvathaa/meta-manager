@@ -57,6 +57,15 @@ const lightenOrd = d3.scaleOrdinal(
     ]
 );
 
+const colorArr = [
+    '#4e79a761',
+    META_MANAGER_COLOR,
+    '#CCCCFF61',
+    '#7575CF61',
+    '#5453A661',
+    '#9EA9ED61',
+];
+
 class GraphController {
     private readonly width = 1000;
     private readonly height = 500;
@@ -78,7 +87,7 @@ class GraphController {
     _canonicalEvents: SerializedChangeBuffer[] = [];
     chart: any;
 
-    constructor(private readonly timelineController: TimelineController) {
+    constructor(readonly timelineController: TimelineController) {
         this._scrubberRef = createRoot(
             document.getElementById('scrubberRoot') ||
                 document.createElement('div')
@@ -102,9 +111,9 @@ class GraphController {
                 </div>
                 <Search context={this} />
                 <div style={{ marginLeft: 'auto' }}>
-                    {this._keyMap.length ? (
+                    {/* {this._keyMap.length ? (
                         <>{this.getHighLevelSummary()}</>
-                    ) : null}
+                    ) : null} */}
                     {/* <VSCodeButton
                     className={styles['m2']}
                     onClick={() => {
@@ -136,17 +145,57 @@ class GraphController {
     getHighLevelSummary() {
         const { scale } = this._keyMap[this._currIndex];
         const { otherInfo } = scale;
-        const time = `From ${new Date(
-            scale.xMin
-        ).toLocaleString()} to ${new Date(scale.xMax).toLocaleString()}, ${
-            otherInfo.global.user
-        } made ${scale.length} edits.`;
-        const summaries = [];
+        const { global } = otherInfo;
+        console.log('scale', scale, 'otherInfo', otherInfo);
+        const time = this._filtered
+            ? `Between edits ${this._filterRange[0]} and ${
+                  this._filterRange[1]
+              }, ${global.user} made ${
+                  this._filterRange[1] - this._filterRange[0]
+              } edits.`
+            : `From ${new Date(scale.xMin).toLocaleString()} to ${new Date(
+                  scale.xMax
+              ).toLocaleString()}, ${otherInfo.global.user} made ${
+                  scale.length
+              } edits and contributed
+        ${global.commits.length} commit(s)`;
+        const summaries: JSX.Element[] = [];
         Object.keys(otherInfo).forEach((k) => {
             if (k !== 'global') {
+                summaries.push(
+                    <div>
+                        <code>{k.split(':')[0]}</code>:{' '}
+                        {this.parseOtherInfo(otherInfo[k], k)}
+                    </div>
+                );
             }
         });
-        return <div></div>;
+        return (
+            <div>
+                {time}
+                {...summaries}
+            </div>
+        );
+    }
+
+    parseOtherInfo(otherInfo: any, k: string) {
+        if (this._filtered) {
+            console.log('hewwo?', this._keyMap[this._currIndex][k]);
+            const arr = this._keyMap[this._currIndex][k][1].data?.slice(
+                this._filterRange[0],
+                this._filterRange[1]
+            );
+            if (!arr || !arr.length) return 'Not in this range.';
+            const editCount = arr.filter((d) => d).length;
+            const eventCount = arr.filter((d) => d?.eventData).length;
+            return `Was edited ${editCount} times and had ${eventCount} events.`;
+        } else {
+            const arr = this._keyMap[this._currIndex][k].data;
+            const editCount = otherInfo.count;
+            const eventCount = otherInfo.events?.length || 0;
+            return `Was edited ${editCount} times and had ${eventCount} events.`;
+        }
+        // const editCount = `Was edited ${}`
     }
 
     getColor(d: TimelineEvent, lighten?: boolean) {
@@ -289,10 +338,11 @@ class GraphController {
             .filter((k) => k !== 'scale')
             .forEach((k, ix) => {
                 const test = keyMap[this._currIndex][k];
+                console.log('test!!!!!', test);
                 if (!this._currKey.length) {
                     this._currKey = k;
                 }
-                events.push(...test[1].events);
+                events.push(...test[1].data.filter((d) => d?.eventData));
 
                 let upperYScale = test[0].y;
                 let lowerYScale = test[1].y;
@@ -334,12 +384,7 @@ class GraphController {
                     .y1((d, i) => {
                         return yscale(upperYScale[i]);
                     });
-                const colorArr = [
-                    'lightsteelblue',
-                    'pink',
-                    'steelblue',
-                    'white',
-                ];
+
                 // const xs = test[0].x.map((e: any) => xscale(e));
                 // console.log('huh?', xs);
                 // var div = d3
@@ -475,39 +520,44 @@ class GraphController {
                         }
                     )
                 );
-                // const events = k[1].events;
-                // events.forEach((e) => {
-                //     if (
-                //         e.eventData &&
-                //         e.eventData[Event.WEB] &&
-                //         e.eventData[Event.WEB].copyBuffer
-                //     ) {
-                //         const copyBuffer =
-                //             e.eventData[Event.WEB].copyBuffer;
-                //         if (
-                //             copyBuffer.code.includes(searchTerm) ||
-                //             copyBuffer.pasteContent.includes(searchTerm)
-                //         ) {
-                //             data.push(e);
-                //         }
-                //     }
-                // });
             });
         console.log('arr?', arr, idx);
+        // search appears a lot
+        const arrCopy = [...arr];
+        let searchArr = [];
+        let highlightTrack = false;
+        if (arr.length > 100) {
+            // just show first and last
+            searchArr = [
+                { ...arrCopy[0], idx: idx[0], eventData: searchTerm },
+                {
+                    ...arrCopy[arrCopy.length - 1],
+                    idx: idx[arrCopy.length - 1],
+                    eventData: searchTerm,
+                },
+            ];
+
+            highlightTrack = true;
+        } else {
+            searchArr = arr.map((d, i) => {
+                return {
+                    ...d,
+                    idx: idx.shift(),
+                    eventData: searchTerm,
+                };
+            });
+            highlightTrack = false;
+        }
         this._scrubberRef.render(
             <TimelineScrubber
                 range={dataRange}
                 valueProp={0}
                 parent={this}
-                events={arr.map((d) => {
-                    return {
-                        ...d,
-                        idx: idx.shift(),
-                        eventData: `${searchTerm}`,
-                    };
-                })}
+                events={searchArr}
+                highlightTrack={highlightTrack}
             />
         );
+        this._infoRef.render(<div>{this.getHighLevelSummary()}</div>);
         this._searchTerm = searchTerm;
         // this.drawStream(
         //     data, // nightmare
@@ -556,15 +606,21 @@ class GraphController {
                         sx={{
                             color: 'whitesmoke',
                             position: 'absolute',
-                            right: '50px',
+                            right: '709px',
                         }}
                     >
                         <CancelOutlined />
                     </IconButton>
                 ) : null}
                 <div>
+                    {this.getHighLevelSummary()}
                     {data.map((d, i) => (
-                        <Version version={d} key={d.id + i} context={this} />
+                        <Version
+                            version={d}
+                            color={colorArr[i]}
+                            key={d.id + i}
+                            context={this}
+                        />
                     ))}
                 </div>
             </>

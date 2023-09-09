@@ -37,6 +37,7 @@ import { v4 as uuidv4 } from 'uuid';
 import RangePlus from './locationApi/range';
 import { isEmpty } from 'lodash';
 import { SerializedReadableNode } from '../constants/types';
+import TimelineEvent from '../data/timeline/TimelineEvent';
 // import { debounce } from '../lib';
 const tstraverse = require('tstraverse');
 
@@ -138,8 +139,23 @@ class DocumentWatcher extends Disposable {
             });
             console.log('hewwo?', key2Map);
             const windowed = [];
-            const past = nodesArray!
-                .map((n) => n.dataController?._pastVersionsTest)
+            const past: any[] = nodesArray!
+                .map((n) =>
+                    n.dataController?._pastVersionsTest.flatMap((p) => {
+                        return {
+                            ...p,
+                            currNode: n.serialize(),
+                            ...(n.dataController?._pasteLocations.some(
+                                (pa) => pa.id === p.id
+                            ) && {
+                                paste: n.dataController?._pasteLocations.find(
+                                    (pa) => pa.id === p.id
+                                ),
+                            }),
+                            timelineEvent: new TimelineEvent(p),
+                        };
+                    })
+                )
                 .flat();
 
             const lol = past
@@ -222,8 +238,8 @@ class DocumentWatcher extends Disposable {
 
                 // update key as it appears in chunk
                 // then switch to new chunk when enough time has passed
-                const lastEntry = chunkyChunk[chunkyChunk.length - 1];
-                if (n.editTimeDiff >= 28800000 || newThing) {
+                const lastEntry = chunkyChunk[chunkyChunk.length - 1]; // n.editTimeDiff >= 28800000 ||
+                if (newThing) {
                     newThing = false;
                     // console.log(
                     //     'huh?',
@@ -308,6 +324,12 @@ class DocumentWatcher extends Disposable {
                                                       lastEntry.scale.length,
                                               },
                                           ]);
+                                }
+                                if (n['eventData']) {
+                                    n = {
+                                        ...n,
+                                        idx: i - lastEntry.scale.length,
+                                    };
                                 }
                                 newEntry = {
                                     ...newEntry,
@@ -445,8 +467,20 @@ class DocumentWatcher extends Disposable {
                                       ]
                             );
                             if (k === n.parentId) {
-                                startLinesByTime.data.push(n);
+                                !n['eventData'] &&
+                                    startLinesByTime.data.push(n);
                                 if (n['eventData']) {
+                                    // if (n['eventData']) {
+                                    n = {
+                                        ...n,
+                                        idx: i - lastEntry.scale.length,
+                                        // eventData: {
+                                        //     ...n.eventData,
+
+                                        // },
+                                    };
+                                    startLinesByTime.data.push(n);
+                                    // }
                                     startLinesByTime.events.push({
                                         ...n,
                                         time: n.time,

@@ -60,8 +60,11 @@ export class Container {
         new EventEmitter<ClipboardMetadata>();
     _resetTimes: EventEmitter<any> = new EventEmitter<any>();
     _resetTimesDisposable: Disposable;
+    _searchAcrossTimeDisposable: Disposable;
     _indexBlockEmitter: EventEmitter<any> = new EventEmitter<any>();
     _reindexFileEmitter: EventEmitter<any> = new EventEmitter<any>();
+    _searchAcrossTimeEmitter: EventEmitter<Location> =
+        new EventEmitter<Location>();
     _onCommented: EventEmitter<any> = new EventEmitter<any>();
     _copyVscodeMetadata: VSCClipboardMetadata | null = null;
     // activeNode: DataController | null = null;
@@ -133,6 +136,18 @@ export class Container {
                 });
             }
         );
+        this._searchAcrossTimeDisposable = commands.registerCommand(
+            'meta-manager.search-across-time',
+            () => {
+                console.log('FIRING!!!!!!!');
+                this._searchAcrossTimeEmitter.fire(
+                    new Location(
+                        window.activeTextEditor!.document.uri,
+                        window.activeTextEditor!.selection
+                    )
+                );
+            }
+        );
         this._loggedInUserMap = {
             firestoreEmail: '',
             firestoreUid: '',
@@ -149,7 +164,9 @@ export class Container {
             this._clipboardPasteDisposable,
             this._commentDisposable,
             this._indexProjectDisposable,
-            this._indexBlockDisposable
+            this._indexBlockDisposable,
+            this._reindexFileDisposable,
+            this._resetTimesDisposable
         );
         // this._context = context;
     }
@@ -282,6 +299,10 @@ export class Container {
 
     public get resetTimesEmitter() {
         return this._resetTimes.event;
+    }
+
+    public get searchAcrossTimeEmitter() {
+        return this._searchAcrossTimeEmitter.event;
     }
 
     static async create(context: ExtensionContext) {

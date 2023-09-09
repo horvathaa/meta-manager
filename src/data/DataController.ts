@@ -23,6 +23,7 @@ import {
 import ReadableNode, {
     NodeState,
     TypeOfChangeToNodeState,
+    calculateBagOfWordsScore,
     nodeContentChange,
 } from '../tree/node';
 import LocationPlus, {
@@ -59,7 +60,13 @@ import {
 } from '../constants/types';
 import MetaInformationExtractor from '../comments/CommentCreator';
 import RangePlus from '../document/locationApi/range';
-import { CodeComment, META_STATE } from '../comments/commentCreatorUtils';
+import {
+    CodeComment,
+    META_STATE,
+    codeLineToString,
+    compareLines,
+    getCodeLine,
+} from '../comments/commentCreatorUtils';
 import { CurrentGitState } from './git/GitController';
 import * as ts from 'typescript';
 import { v4 as uuidv4 } from 'uuid';
@@ -157,7 +164,7 @@ export class DataController {
     }
 
     initListeners() {
-        this._disposable = Disposable.from(
+        (this._disposable = Disposable.from(
             // this._pasteDisposable,
             // tbd how much info to copy in the copy event -- probably would need
             // to transmit back to container? put in copy buffer
@@ -214,11 +221,23 @@ export class DataController {
                             obj.range
                         );
                     this._pastVersionsTest = pastVersionsTest;
+                    console.log('hewwo...', this);
                     this._pastVersions = pastVersions;
                 }
 
                 // }
             }),
+            this.container.searchAcrossTimeEmitter((location: Location) => {
+                console.log('LOCATION!!!!!!!!', location);
+                if (
+                    this.readableNode.location.range.contains(location.range) &&
+                    location.uri.fsPath ===
+                        this.readableNode.location.uri.fsPath
+                ) {
+                    this.handleSearchAcrossTime(location);
+                }
+            })
+        )),
             this.readableNode.location.onChanged.event(
                 // debounce(async (changeEvent: ChangeEvent) => {
                 (changeEvent: ChangeEvent) => this.handleOnChange(changeEvent)
@@ -243,9 +262,239 @@ export class DataController {
             window.onDidChangeActiveTextEditor((editor) => {
                 // console.log('is this getting called lol', document);
                 this.handleOnDidChangeActiveTextEditor(editor?.document);
-            })
-        );
+            });
+
         return () => this.dispose();
+    }
+
+    handleSearchAcrossTime(location: Location) {
+        const document = window.activeTextEditor?.document;
+        if (!document) {
+            return;
+        }
+        const originalCode = document.getText(location.range);
+        let codeToSearch = originalCode;
+        let events: { [k: string]: SerializedChangeBuffer[] } = {
+            UNCHANGED: [],
+            MODIFIED_CONTENT: [],
+            MOVED_NO_CHANGE: [],
+            COMMENTED_OUT: [],
+            COMMENTED_IN: [],
+            INIT_ADD: [],
+            INIT_REMOVE: [],
+        };
+        let currRange: Range | null = location.range;
+        console.log('IM HANDLING IT!!!!', this);
+        [...this._pastVersionsTest].reverse().forEach((v) => {
+            const pastLocation = LocationPlus.deserialize(
+                v.location as SerializedLocationPlus
+            );
+            console.log('CURR RANGE', currRange);
+            const strAtKnownLocation =
+                currRange && pastLocation.getStringFromRange(currRange);
+            console.log(
+                'strAtKnownLocation',
+                strAtKnownLocation,
+                'v',
+                v,
+                'codeToSearch',
+                codeToSearch
+            );
+            if (strAtKnownLocation) {
+                console.log('str is know', strAtKnownLocation);
+                if (strAtKnownLocation.trim() === codeToSearch.trim()) {
+                    // might be better to get more accurate range that includes proper whitespace but also who the Fuck cares about whitespace
+                    console.log('UNCHANGED!!!!!!');
+                    events['UNCHANGED'].push(v);
+                    return;
+                } else {
+                    console.log(
+                        'looking to see if content include code to search'
+                    );
+                    if (v.location.content.includes(codeToSearch.trim())) {
+                        console.log(
+                            'it does include it!',
+                            'past?',
+                            pastLocation,
+                            '?',
+                            codeToSearch.trim()
+                        );
+                        currRange = pastLocation.deriveRangeFromSearchString(
+                            codeToSearch.trim()
+                        );
+                        console.log(
+                            'MOVED!!!!!!! - new range',
+                            currRange,
+                            'TEXT AT RANGE',
+                            currRange &&
+                                pastLocation.getStringFromRange(currRange)
+                        );
+                        events['MOVED_NO_CHANGE'].push(v);
+
+                        if (!currRange) {
+                            console.log(
+                                'wuh woh',
+                                v,
+                                pastLocation,
+                                codeToSearch
+                            );
+                            // reset
+                            currRange = pastLocation.range;
+                        }
+                        return;
+                    } else {
+                        console.log('it does not include it!');
+                        const searchLines = getCodeLine(codeToSearch);
+                        console.log('search line ', searchLines);
+                        const sourceLines = getCodeLine(v.location.content, {
+                            startLine: v.location.range.start.line,
+                            startOffset: v.location.range.start.character,
+                        });
+                        console.log('source lines', sourceLines);
+                        console.log(
+                            'INCLUDES AINT GOOD ENOUGH',
+                            searchLines,
+                            sourceLines,
+                            compareLines(sourceLines[0], searchLines[0])
+                        );
+                        const startLineIdx = sourceLines
+                            .filter((l) => !l.isEmptyLine && !l.isOnlySymbols) // crappy heuristic to get rid of lines that contain only a bracket
+                            .findIndex((s) => {
+                                console.log(
+                                    'compare for ',
+                                    s,
+                                    'amd',
+                                    searchLines[0],
+                                    compareLines(s, searchLines[0])
+                                );
+                                return compareLines(s, searchLines[0]) > 0.9; // consider making const and bumping down to like .8 for more significant edits
+                            });
+                        const whitespaceBeforeIdx = sourceLines
+                            .slice(0, startLineIdx)
+                            .filter(
+                                (m) => m.isEmptyLine || m.isOnlySymbols
+                            ).length;
+                        console.log('START LINE IDX', startLineIdx);
+                        const lineToSearch =
+                            !searchLines[searchLines.length - 1].isEmptyLine &&
+                            !searchLines[searchLines.length - 1].isOnlySymbols
+                                ? searchLines[searchLines.length - 1]
+                                : searchLines[searchLines.length - 2];
+                        console.log('LINE TO SEARCH', lineToSearch);
+                        const endLineIdx = sourceLines.findIndex(
+                            (s) => compareLines(s, lineToSearch) > 0.9
+                        );
+                        console.log('END LINE IDX', endLineIdx);
+                        if (startLineIdx !== -1 && endLineIdx !== -1) {
+                            const startLine =
+                                sourceLines[startLineIdx + whitespaceBeforeIdx];
+                            const endLine = sourceLines[endLineIdx];
+                            console.log('FOUND IT', startLine, endLine);
+                            // make code line into new range here
+                            currRange = RangePlus.fromCodeLine(
+                                startLine,
+                                endLine
+                            );
+                            const lines = sourceLines.slice(
+                                startLineIdx + whitespaceBeforeIdx,
+                                endLineIdx + 1
+                            );
+                            console.log('linessss', lines);
+                            const text = lines.map((c) => codeLineToString(c));
+                            console.log('texttttt', text);
+                            codeToSearch = text.join('\n');
+                            events['MODIFIED_CONTENT'].push(v);
+                            return;
+                        } else {
+                            console.log('NOT FOUND', v);
+                            const anyLine = sourceLines.findIndex((s) => {
+                                return searchLines.find(
+                                    (sl) => compareLines(s, sl) > 0.9
+                                );
+                            });
+                            if (anyLine !== -1) {
+                                const startLine = sourceLines[anyLine];
+
+                                console.log(
+                                    'FOUND ANY LINE',
+                                    anyLine,
+                                    startLine
+                                ); // this is our new start line
+                                if (searchLines.length > 1) {
+                                    const endLineIdx = sourceLines.findIndex(
+                                        (s) =>
+                                            compareLines(s, lineToSearch) > 0.9
+                                    );
+                                    if (endLineIdx === -1) {
+                                        console.log('NOT FOUND AGAIN', v);
+                                        currRange = RangePlus.fromCodeLine(
+                                            startLine,
+                                            startLine
+                                        );
+
+                                        const text =
+                                            codeLineToString(startLine);
+                                        console.log('texttttt', text);
+                                        codeToSearch = text;
+                                        events['MODIFIED_CONTENT'].push(v);
+                                        return;
+                                    }
+                                    const endLine = sourceLines[endLineIdx];
+                                    console.log(
+                                        'FOUND END LINE',
+                                        endLine,
+                                        'start idx',
+                                        startLineIdx,
+                                        'end idx',
+                                        endLineIdx
+                                    );
+
+                                    currRange = RangePlus.fromCodeLine(
+                                        startLine,
+                                        endLine
+                                    );
+                                    const lines = sourceLines.slice(
+                                        anyLine,
+                                        endLineIdx + 1
+                                    );
+                                    console.log('linessss', lines);
+                                    const text = lines.map((c) =>
+                                        codeLineToString(c)
+                                    );
+                                    console.log('texttttt', text);
+                                    codeToSearch = text.join('\n');
+
+                                    // codeToSearch = sourceLines
+                                    //     .slice(startLineIdx, endLineIdx)
+                                    //     .map((c) => codeLineToString(c))
+                                    //     .join('\n');
+                                    console.log(
+                                        'wtf',
+                                        currRange,
+                                        'code',
+                                        codeToSearch
+                                    );
+                                }
+                                events['MODIFIED_CONTENT'].push(v);
+                                return;
+                            }
+                        }
+                    }
+                    const similarityScore = calculateBagOfWordsScore(
+                        strAtKnownLocation,
+                        codeToSearch
+                    );
+                    if (similarityScore > 0.9) {
+                        console.log('SIMILAR!!!!!!!!!!!!');
+                        events['MODIFIED_CONTENT'].push(v);
+                        return;
+                    }
+                }
+            } else {
+                console.log('does this ever happen???????');
+            }
+        });
+        console.log('events lol', events);
     }
 
     parseDiff(diff: Diff) {

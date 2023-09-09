@@ -34,6 +34,7 @@ import { VS_CODE_API } from '../VSCodeApi';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import { Accordion, AccordionDetails, AccordionSummary } from '@mui/material';
 import { getRangeOfNumbers } from '../lib/utils';
+import { META_MANAGER_COLOR } from '../styles/globals';
 
 const prettyPrintType: { [k in WEB_INFO_SOURCE]: string } = {
     [WEB_INFO_SOURCE.CHAT_GPT]: 'Chat GPT',
@@ -86,7 +87,7 @@ class MetaInformationController {
                                 </div>
                                 .
                             </div>
-                            {this.renderOriginalCopiedCode()}
+                            {/* {this.renderOriginalCopiedCode()} */}
                         </div>
                     );
                 }
@@ -116,7 +117,7 @@ class MetaInformationController {
                             </a>
                             .
                         </div>
-                        {this.renderOriginalCopiedCode()}
+                        {/* {this.renderOriginalCopiedCode()} */}
                     </div>
                 );
             }
@@ -165,7 +166,8 @@ class MetaInformationController {
             let className = styles['cursor-default'];
 
             if (range.includes(lineNumber)) {
-                style.backgroundColor = match.style;
+                // style.backgroundColor = match.style;
+                style.backgroundColor = META_MANAGER_COLOR;
                 // style.cursor = 'pointer';
                 className = styles['cursor-pointer'];
                 style.cursor = 'pointer';
@@ -177,20 +179,20 @@ class MetaInformationController {
             return {
                 style,
                 className: className,
-                onMouseEnter: () => {
-                    tl &&
-                        this.timelineController._graphController.highlight(
-                            match.id,
-                            tl
-                        );
-                },
-                onMouseOut: () => {
-                    tl &&
-                        this.timelineController._graphController.unhighlight(
-                            match.id,
-                            tl
-                        );
-                },
+                // onMouseEnter: () => {
+                //     tl &&
+                //         this.timelineController._graphController.highlight(
+                //             match.id,
+                //             tl
+                //         );
+                // },
+                // onMouseOut: () => {
+                //     tl &&
+                //         this.timelineController._graphController.unhighlight(
+                //             match.id,
+                //             tl
+                //         );
+                // },
             };
         };
     }
@@ -245,7 +247,7 @@ class MetaInformationController {
                             {line}.
                         </div>
                         {/* <CodeBlock codeString={codeMetadata.code} /> */}
-                        {this.renderOriginalCopiedCode()}
+                        {/* {this.renderOriginalCopiedCode()} */}
                         {this.seeMore(copyBuffer, type)}
                     </div>
                 );
@@ -267,7 +269,7 @@ class MetaInformationController {
                             {question.programmingLanguage}" ({question.views}{' '}
                             views, {question.votes} votes), originally posted on{' '}
                             {new Date(question.postDate).toLocaleString()}.
-                            {this.renderOriginalCopiedCode()}
+                            {/* {this.renderOriginalCopiedCode()} */}
                             {this.seeMore(copyBuffer, type)}
                         </div>
                     </div>
@@ -281,7 +283,7 @@ class MetaInformationController {
                     <div>
                         Copied from a Chat GPT thread titled "{thread.title}" on{' '}
                         {new Date(messageCopied.time).toLocaleString()}.
-                        {this.renderOriginalCopiedCode()}
+                        {/* {this.renderOriginalCopiedCode()} */}
                         {this.seeMore(copyBuffer, type)}
                     </div>
                 );

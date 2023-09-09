@@ -8,9 +8,10 @@ interface Props {
     valueProp: number;
     parent: GraphController;
     events: any[];
+    highlightTrack?: boolean;
 }
 
-const prettyPrintType: { [k in WEB_INFO_SOURCE]: string } = {
+export const prettyPrintType: { [k in WEB_INFO_SOURCE]: string } = {
     [WEB_INFO_SOURCE.CHAT_GPT]: 'Chat GPT',
     [WEB_INFO_SOURCE.VSCODE]: 'VS Code',
     [WEB_INFO_SOURCE.GITHUB]: 'GitHub',
@@ -23,11 +24,13 @@ const TimelineScrubber: React.FC<Props> = ({
     valueProp,
     parent,
     events,
+    highlightTrack = false,
 }: Props) => {
     // const [value, setValue] = React.useState<number>(valueProp);
     const [value, setValue] = React.useState(valueProp);
 
     const getMarks = (events: any[]) => {
+        console.log('EVENTS!!!!!', events);
         const marks = events.map((event) => {
             let name = event.eventData;
             if (event.eventData[Event.WEB]) {
@@ -72,33 +75,42 @@ const TimelineScrubber: React.FC<Props> = ({
         parent.updateTimeline(valToSend);
     };
 
+    const sx = {
+        ...{
+            '& .MuiSlider-markLabel': {
+                color: 'white',
+                /* Rotate from top left corner (not default) */
+                transformOrigin: [0, 0],
+                transform: 'rotate(90deg)',
+                fontSize: 'x-small',
+                // display: 'none',
+                opacity: '50%',
+                '&:focus, &:hover, &.Mui-active': {
+                    display: 'block',
+                    opacity: '100%',
+                },
+            },
+            '& .MuiSlider-mark': {
+                height: '8px',
+            },
+        },
+        ...(highlightTrack && {
+            '& .MuiSlider-rail': {
+                backgroundColor: '#d69756a8',
+            },
+        }),
+    };
+
     return (
         <Slider
             min={min}
-            max={max - 1}
+            max={max - 2}
             defaultValue={0}
             step={1}
             marks={getMarks(events)}
             value={value}
             onChange={handleScrubChange}
-            sx={{
-                '& .MuiSlider-markLabel': {
-                    color: 'white',
-                    /* Rotate from top left corner (not default) */
-                    transformOrigin: [0, 0],
-                    transform: 'rotate(23deg)',
-                    fontSize: 'x-small',
-                    // display: 'none',
-                    opacity: '50%',
-                    '&:focus, &:hover, &.Mui-active': {
-                        display: 'block',
-                        opacity: '100%',
-                    },
-                },
-                '& .MuiSlider-mark': {
-                    height: '8px',
-                },
-            }}
+            sx={sx}
             // onChangeCommitted={handleScrubChange}
             // onBlur={handleBlur}
         />

@@ -38,6 +38,10 @@
             {
                 "command": "meta-manager.reset-time",
                 "title": "Meta Manager: Reset Time"
+            },
+            {
+                "command": "meta-manager.search-across-time",
+                "title": "Meta Manager: Search for Code Across Time"
             }
         ],
         "viewsContainers": {
@@ -55,6 +59,15 @@
                     "id": "meta-manager.webview",
                     "type": "webview",
                     "name": "Meta Manager"
+                }
+            ]
+        },
+        "menus": {
+            "editor/context": [
+                {
+                    "when": "editorHasSelection",
+                    "command": "meta-manager.search-across-time",
+                    "group": "2_meta-manager"
                 }
             ]
         }

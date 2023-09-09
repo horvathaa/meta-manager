@@ -281,7 +281,7 @@ class ReadableNode extends AbstractTreeReadableNode<ReadableNode> {
 
 // similar approach to this paper
 // https://dl.acm.org/doi/abs/10.1145/2858036.2858442?casa_token=m_c4cxv1br8AAAAA:JSXZo8OMn9CV3YaYBawsRvZhZFhOsLJurX5qXfckEL_cO1dgBMS1hhbudI9P7JpM0F015wEzrJMf
-function calculateBagOfWordsScore(str1: string, str2: string): number {
+export function calculateBagOfWordsScore(str1: string, str2: string): number {
     const words1 = str1.toLowerCase().split(/\s+/);
     const words2 = str2.toLowerCase().split(/\s+/);
 

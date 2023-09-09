@@ -1,11 +1,31 @@
 import CodeBlock from '../components/CodeBlock';
-import { SerializedChangeBuffer, Event, CopyBuffer } from '../types/types';
+import {
+    SerializedChangeBuffer,
+    Event,
+    CopyBuffer,
+    WEB_INFO_SOURCE,
+} from '../types/types';
 import * as React from 'react';
 import GraphController from './GraphController';
+import {
+    Accordion,
+    AccordionDetails,
+    AccordionSummary,
+    Card,
+    ThemeProvider,
+} from '@mui/material';
+import styles from '../styles/timeline.module.css';
+import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
+import { prettyPrintType } from './Scrubber';
+import * as Diff from 'diff';
+import { cardStyle } from '../styles/globals';
+import { theme } from './TimelineController';
+import MetaInformationController from './MetaInformationController';
 
 interface Props {
     version: SerializedChangeBuffer;
     context: GraphController;
+    color: string;
     priorVersion?: SerializedChangeBuffer;
 }
 
@@ -19,7 +39,14 @@ const getHighlightLogic = (
     const copiedCodeArr = copyBuffer.code.split('\n').map((c) => c.trim());
     const checkTokenLevel = copiedCodeArr.length === 1;
     const lines = code.split('\n').map((c) => c.trim());
-    console.log('copiedCodeArr', copiedCodeArr, 'lines', lines);
+    console.log(
+        'copiedCodeArr',
+        copiedCodeArr,
+        'lines',
+        lines,
+        'copyBuffer',
+        copyBuffer
+    );
     const set = new Set();
     const maybeSet = new Set();
     lines.forEach((l, i) => {
@@ -49,6 +76,7 @@ const Version: React.FC<Props> = ({
     version,
     priorVersion,
     context,
+    color,
 }: Props) => {
     const getCodeBlock = () => {
         if (version.eventData) {
@@ -113,14 +141,97 @@ const Version: React.FC<Props> = ({
         );
     };
 
-    return (
-        <div>
-            <h2 style={{ textAlign: 'center' }}>{version.id.split(':')[0]}</h2>
+    const getSummary = () => {
+        const jsx = [];
+        const meta = new MetaInformationController(context.timelineController);
+        if (version.eventData) {
+            switch (Object.keys(version.eventData)[0]) {
+                case Event.WEB: {
+                    const webEvent = version.eventData[Event.WEB]!;
+                    const { copyBuffer } = webEvent;
+                    // if (webEvent?.copyBuffer.searchData) {
+                    //     jsx.push(
+                    //         <div>
+                    //             At {new Date(version.time).toLocaleString()},{' '}
+                    //             {version.userString} searched for
+                    //             {webEvent.copyBuffer.searchData.query} and
+                    //             visited {webEvent.copyBuffer.searchData.url}
+                    //         </div>
+                    //     );
+                    // }
+
+                    jsx.push(
+                        <>
+                            {meta.renderAdditionalMetadata(
+                                copyBuffer,
+                                copyBuffer.type
+                            )}
+                        </>
+                    );
+                    break;
+                }
+                case Event.PASTE: {
+                    const pasteEvent = version.eventData[Event.PASTE]!;
+                    jsx.push(<div>{meta.render(version.timelineEvent)}</div>);
+                    break;
+                }
+                case Event.COPY: {
+                    const copyEvent = version.eventData[Event.COPY]!;
+                    jsx.push(
+                        <div>
+                            At {new Date(version.time).toLocaleString()},{' '}
+                            {version.userString} copied{' '}
+                            <code>{copyEvent?.copyContent}</code> from{' '}
+                            {copyEvent?.nodeId
+                                ? copyEvent.nodeId.split(':')[0]
+                                : 'VS Code'}{' '}
+                        </div>
+                    );
+                    break;
+                }
+            }
+            // jsx.push(
+            //     <Accordion style={{ color: 'white' }}>
+            //         <AccordionSummary>See More</AccordionSummary>
+            //         <AccordionDetails>
+            //             {new MetaInformationController(
+            //                 context.timelineController
+            //             ).render(version.timelineEvent)}
+            //         </AccordionDetails>
+            //     </Accordion>
+            // );
+        }
+        jsx.push(
             <div>
                 Edited by {version.userString} at{' '}
                 {new Date(version.time).toLocaleString()}
             </div>
-            {getCodeBlock()}
+        );
+        return jsx;
+    };
+
+    return (
+        <div>
+            <ThemeProvider theme={theme}>
+                <Card style={cardStyle}>
+                    <Accordion style={{ color: 'white' }}>
+                        <AccordionSummary>
+                            <div>
+                                <h3
+                                    style={{
+                                        textAlign: 'left',
+                                        backgroundColor: color,
+                                    }}
+                                >
+                                    {version.id.split(':')[0]}
+                                </h3>
+                                {...getSummary()}
+                            </div>
+                        </AccordionSummary>
+                        <AccordionDetails>{getCodeBlock()}</AccordionDetails>
+                    </Accordion>
+                </Card>
+            </ThemeProvider>
         </div>
     );
 };
