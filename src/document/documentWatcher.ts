@@ -155,6 +155,7 @@ class DocumentWatcher extends Disposable {
                             timelineEvent: new TimelineEvent(p),
                             treeParent:
                                 n.dataController?.tree?.parent?.name || '',
+                            depth: n.dataController?.tree?.depth || 0,
                         };
                     })
                 )

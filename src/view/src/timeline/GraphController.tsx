@@ -30,6 +30,7 @@ import { Button, IconButton } from '@mui/material';
 import { CancelOutlined } from '@mui/icons-material';
 import Search from './Search';
 import Carousel from 'react-material-ui-carousel';
+import InfoWidget from './InfoWidget';
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
 //     ['#4e79a7', '#e15759']
@@ -69,7 +70,15 @@ const colorArr = [
 ];
 
 const seenColors = new Set();
+export const context = React.createContext<{
+    graphController: null | GraphController;
+}>({ graphController: null });
 
+export interface SearchResult {
+    node: string;
+    results: SearchResultSerializedChangeBuffer[];
+    query: string;
+}
 class GraphController {
     private readonly width = 1000;
     private readonly height = 500;
@@ -89,6 +98,9 @@ class GraphController {
     _filtered: boolean = false;
     _filterRange: [number, number] = [0, 0];
     _searchTerm: string = '';
+    _searchResults: SearchResult | null = null;
+    _currScrubberEvents: SerializedChangeBuffer[] = [];
+    _nodesAtEdit: SerializedChangeBuffer[] = [];
     _canonicalEvents: SerializedChangeBuffer[] = [];
     chart: any;
 
@@ -115,7 +127,13 @@ class GraphController {
                     if (!events['INIT_ADD'][0] === null) {
                         return;
                     }
-                    this._infoRef.render(<>{this.getSearchResult(payload)}</>);
+                    this.getSearchResult(payload);
+                    // this._infoRef.render(<>{this.getSearchResult(payload)}</>);
+                    this._infoRef.render(
+                        <context.Provider value={{ graphController: this }}>
+                            <InfoWidget parentProp={this} />
+                        </context.Provider>
+                    );
                     this._scrubberRef.render(
                         <TimelineScrubber
                             range={
@@ -129,19 +147,56 @@ class GraphController {
                             }
                             valueProp={0}
                             parent={this}
-                            events={[
-                                ...events['INIT_ADD'],
-                                ...events['MODIFIED_CONTENT'].reverse(),
-                            ]}
+                            events={this._searchResults?.results || []}
                         />
                     );
                     // this.render(payload);
                 }
             }
         );
+
+        return this;
         // return () => {
         //     window.removeEventListener('message', unsubscribe);
         // };
+    }
+
+    setFocusedIndex(idx: number) {
+        this._focusedIndex = idx;
+    }
+
+    // maybe make static or smth idek
+    // but then we cant use the properties... so that won't work
+    setScrubberToIdx(idx: number) {
+        console.log('is this being called???', idx);
+        this._scrubberRef.render(
+            <TimelineScrubber
+                range={
+                    this._filtered
+                        ? this._filterRange
+                        : [0, this._keyMap[this._currIndex].scale.length]
+                }
+                valueProp={idx}
+                parent={this}
+                events={this._canonicalEvents}
+            />
+        );
+    }
+
+    setScrubberEvents(events: SerializedChangeBuffer[], valueProp?: number) {
+        // this._canonicalEvents = events;
+        this._scrubberRef.render(
+            <TimelineScrubber
+                range={
+                    this._filtered
+                        ? this._filterRange
+                        : [0, this._keyMap[this._currIndex].scale.length]
+                }
+                valueProp={valueProp || 0}
+                parent={this}
+                events={events}
+            />
+        );
     }
 
     getSearchResult(payload: any) {
@@ -172,64 +227,89 @@ class GraphController {
                 }
             });
         console.log('res', res, 'arr', arr, 'codePart', codePart);
-        return (
-            <>
-                <CodeBlock codeString={query} />
-                <Carousel
-                    autoPlay={false}
-                    onChange={(
-                        now: number | undefined,
-                        previous: number | undefined
-                    ) => {
-                        const idx = now ? res[now as number].idx : res[0].idx;
-                        console.log('idx!', idx, 'now', now, 'res', res);
-                        this._scrubberRef.render(
-                            <TimelineScrubber
-                                range={
-                                    this._filtered
-                                        ? this._filterRange
-                                        : [
-                                              0,
-                                              this._keyMap[this._currIndex]
-                                                  .scale.length,
-                                          ]
-                                }
-                                valueProp={idx}
-                                parent={this}
-                                events={res}
-                            />
-                        );
-                    }}
-                >
-                    {res.map(
-                        (e: SearchResultSerializedChangeBuffer, i: number) => {
-                            return (
-                                <>
-                                    <Version
-                                        version={e}
-                                        // codeString={e.location.content}
-                                        highlightLogicProp={getHighlightLogic(
-                                            e.location.content,
-                                            {
-                                                code: e.searchContent,
-                                            } as unknown as CopyBuffer
-                                        )}
-                                        context={this}
-                                        color={this._colorKey[this._currKey]}
-                                        expanded={true}
-                                    />
-                                    {/* <Version
-                                version={e}
-                                context={this}
-                                color={colorArr[i]}
-                            /> */}
-                                </>
-                            );
-                        }
-                    )}
-                </Carousel>
-            </>
-        );
+        // this._scrubberRef.render(
+        //     <TimelineScrubber
+        //         range={
+        //             this._filtered
+        //                 ? this._filterRange
+        //                 : [0, this._keyMap[this._currIndex].scale.length]
+        //         }
+        //         valueProp={res[0].idx}
+        //         parent={this}
+        //         events={res}
+        //     />
+        // );
+        this._searchResults = {
+            node: id,
+            results: res,
+            query,
+        };
+
+        // this._infoRef.render(
+        //     <context.Provider value={{ graphController: this }}>
+        //         <InfoWidget parentProp={this} />
+        //     </context.Provider>
+        // );
+        // }}
+
+        // return (
+        //     <>
+        //         <CodeBlock codeString={query} />
+        //         <Carousel
+        //             autoPlay={false}
+        //             onChange={(
+        //                 now: number | undefined,
+        //                 previous: number | undefined
+        //             ) => {
+        //                 const idx = now ? res[now as number].idx : res[0].idx;
+        //                 console.log('idx!', idx, 'now', now, 'res', res);
+        //                 this._scrubberRef.render(
+        //                     <TimelineScrubber
+        //                         range={
+        //                             this._filtered
+        //                                 ? this._filterRange
+        //                                 : [
+        //                                       0,
+        //                                       this._keyMap[this._currIndex]
+        //                                           .scale.length,
+        //                                   ]
+        //                         }
+        //                         valueProp={idx}
+        //                         parent={this}
+        //                         events={res}
+        //                     />
+        //                 );
+        //             }}
+        //         >
+        //             {res.map(
+        //                 (e: SearchResultSerializedChangeBuffer, i: number) => {
+        //                     return (
+        //                         <>
+        //                             <Version
+        //                                 version={e}
+        //                                 // codeString={e.location.content}
+        //                                 highlightLogicProp={getHighlightLogic(
+        //                                     e.location.content,
+        //                                     {
+        //                                         code: e.searchContent,
+        //                                     } as unknown as CopyBuffer
+        //                                 )}
+        //                                 context={this}
+        //                                 color={this._colorKey[this._currKey]}
+        //                                 expanded={true}
+        //                             />
+        //                             {/* <Version
+        //                         version={e}
+        //                         context={this}
+        //                         color={colorArr[i]}
+        //                     /> */}
+        //                         </>
+        //                     );
+        //                 }
+        //             )}
+        //         </Carousel>
+        //     </>
+        // );
         // if(codePart) {
         //     const { data } = codePart[1];
         //     const arr = data.filter((d: SerializedChangeBuffer, i: number) => {
@@ -375,6 +455,20 @@ class GraphController {
         //     : this.drawTimeline(data);
         const val = this.drawStream(data, keys, windowed, keyMap);
         // const val = this.makeDynamicXAxis(data.prMap, data.items);
+        // const useGraphController = () => {
+        //     const [state, setState] = React.useState(this);
+        //     React.useEffect(() => {
+        //         const subscribeFun = (newState) => setState(newState);
+        //     })
+        // }
+        // React.useEffect(() => {
+        this._infoRef.render(
+            <context.Provider value={{ graphController: this }}>
+                <InfoWidget parentProp={this} />
+            </context.Provider>
+        );
+        // }, [this]);
+
         return val;
     }
 
@@ -409,6 +503,8 @@ class GraphController {
         const chartWidth = this.width - margin.left - margin.right;
         const chartHeight = this.height - margin.top - margin.bottom;
         this._keyMap = keyMap;
+        this._currIndex = 0;
+        this._focusedIndex = 0;
         const g = svg
             .append('g')
             .attr('transform', `translate(${margin.left}, ${margin.top})`);
@@ -601,7 +697,12 @@ class GraphController {
                 events={events}
             />
         );
-        this._infoRef.render(<div>{this.getHighLevelSummary()}</div>);
+        // this._infoRef.render(<div>{this.getHighLevelSummary()}</div>);
+        this._infoRef.render(
+            <context.Provider value={{ graphController: this }}>
+                <InfoWidget parentProp={this} />
+            </context.Provider>
+        );
         this._headerRef.render(this.renderHeader());
     }
 
@@ -711,8 +812,14 @@ class GraphController {
                 highlightTrack={highlightTrack}
             />
         );
-        this._infoRef.render(<div>{this.getHighLevelSummary()}</div>);
         this._searchTerm = searchTerm;
+        // this._infoRef.render(<div>{this.getHighLevelSummary()}</div>);
+        this._infoRef.render(
+            <context.Provider value={{ graphController: this }}>
+                <InfoWidget parentProp={this} />
+            </context.Provider>
+        );
+
         // this.drawStream(
         //     data, // nightmare
         //     [],
@@ -748,42 +855,49 @@ class GraphController {
                 // const instance = test[1].data[closestInstance];
             });
         console.log('instances!!!!!!!!!!!', data, 'value', value);
+        this._nodesAtEdit = data;
         this._infoRef.render(
-            <>
-                {this._filtered ? (
-                    <IconButton
-                        onClick={() => {
-                            this._filtered = false;
-                            this._filterRange = [0, 0];
-                            this.drawStream(
-                                [], // nightmare
-                                [],
-                                [],
-                                this._keyMap
-                            );
-                        }}
-                        sx={{
-                            color: 'whitesmoke',
-                            position: 'absolute',
-                            right: '709px',
-                        }}
-                    >
-                        <CancelOutlined />
-                    </IconButton>
-                ) : null}
-                <div>
-                    {this.getHighLevelSummary()}
-                    {data.map((d, i) => (
-                        <Version
-                            version={d}
-                            color={this._colorKey[d.id]}
-                            key={d.id + i}
-                            context={this}
-                        />
-                    ))}
-                </div>
-            </>
+            // bad bad bad
+            <context.Provider value={{ graphController: this }}>
+                <InfoWidget parentProp={this} />
+            </context.Provider>
         );
+        // this._infoRef.render(
+        //     <>
+        //         {this._filtered ? (
+        //             <IconButton
+        //                 onClick={() => {
+        //                     this._filtered = false;
+        //                     this._filterRange = [0, 0];
+        //                     this.drawStream(
+        //                         [], // nightmare
+        //                         [],
+        //                         [],
+        //                         this._keyMap
+        //                     );
+        //                 }}
+        //                 sx={{
+        //                     color: 'whitesmoke',
+        //                     position: 'absolute',
+        //                     right: '709px',
+        //                 }}
+        //             >
+        //                 <CancelOutlined />
+        //             </IconButton>
+        //         ) : null}
+        //         <div>
+        //             {this.getHighLevelSummary()}
+        //             {data.map((d, i) => (
+        //                 <Version
+        //                     version={d}
+        //                     color={this._colorKey[d.id]}
+        //                     key={d.id + i}
+        //                     context={this}
+        //                 />
+        //             ))}
+        //         </div>
+        //     </>
+        // );
     }
 
     pointerleft(e: any, k: any) {

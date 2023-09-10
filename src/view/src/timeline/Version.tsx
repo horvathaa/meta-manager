@@ -18,7 +18,7 @@ import styles from '../styles/timeline.module.css';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import { prettyPrintType } from './Scrubber';
 import * as Diff from 'diff';
-import { cardStyle } from '../styles/globals';
+import { META_MANAGER_SEARCH_COLOR, cardStyle } from '../styles/globals';
 import { theme } from './TimelineController';
 import MetaInformationController from './MetaInformationController';
 import { get } from 'lodash';
@@ -68,7 +68,9 @@ export const getHighlightLogic = (
             // for token level would be nice to get specific token only highlighted but idk how to do that
             // with this API
             style.backgroundColor =
-                type && type === 'search' ? '#d69756a8' : '#519aba80';
+                type && type === 'search'
+                    ? META_MANAGER_SEARCH_COLOR
+                    : '#519aba80';
         }
         // console.log('is this being called', lineNumber, lineNumbers);
         return { style };

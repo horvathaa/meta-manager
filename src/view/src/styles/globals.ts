@@ -6,6 +6,7 @@ export const THEME_COLORS = [
     '#CCCCFF61',
     '#9EA9ED61',
 ];
+export const META_MANAGER_SEARCH_COLOR = '#d69756a8';
 
 // plain text color
 export const vscodeTextColor: string = getComputedStyle(
