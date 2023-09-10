@@ -78,6 +78,37 @@ export const compareLines = (a: CodeLine, b: CodeLine) => {
     );
 };
 
+export const areContiguous = (codeLines: CodeLine[]) => {
+    return codeLines.some((c, i, arr) => {
+        if (i === 0 && arr.length === 1) {
+            return true;
+        }
+        return i === 0 ? false : c.line === arr[i - 1].line + 1;
+    });
+};
+
+export const getContiguousLines = (codeLines: CodeLine[]) => {
+    if (codeLines.length === 1) {
+        return codeLines;
+    }
+    const firstIdx = codeLines.findIndex((c, i, arr) => {
+        if (i === 0) {
+            return true;
+        }
+        return c.line !== arr[i - 1].line + 1;
+    });
+    const contig = [codeLines[firstIdx]];
+    for (let i = firstIdx + 1; i < codeLines.length; i++) {
+        if (codeLines[i].line === contig[contig.length - 1].line + 1) {
+            contig.push(codeLines[i]);
+        } else {
+            break;
+        }
+    }
+    console.log('returning this contig array', contig);
+    return contig;
+};
+
 export const getCodeLine = (
     text: string,
     start?: StartPosition

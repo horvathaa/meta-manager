@@ -93,7 +93,7 @@ class ViewLoaderProvider implements WebviewViewProvider {
                     <svg style="width: 1000px; top: 10px" height="530"></svg>
                     <div id="scrubberRoot" style="margin-left: 40px; position: absolute; top: 515px; width: 940px"></div>
                 </div>
-                <div id="infoRoot"></div>
+                <div id="infoRoot" style="width: 100%;"></div>
             </div>
         </div>
         <script nonce="${nonce}" src="${reactAppPathOnDisk}"></script>

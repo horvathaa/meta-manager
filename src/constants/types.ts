@@ -400,6 +400,14 @@ export interface SerializedChangeBuffer extends ChangeBuffer {
     branch: string;
 }
 
+export interface SearchResultSerializedChangeBuffer
+    extends SerializedChangeBuffer {
+    idx: number;
+    searchContent: string;
+    prevContent?: string;
+    range: SerializedRangePlus;
+}
+
 export interface UserMap {
     firestoreUid: string;
     firestoreEmail: string;

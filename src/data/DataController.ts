@@ -46,6 +46,7 @@ import {
     Diff,
     Event,
     PasteDetails,
+    SearchResultSerializedChangeBuffer,
     SerializedChangeBuffer,
     SerializedDataController,
     SerializedDataControllerEvent,
@@ -55,6 +56,7 @@ import {
     THEME_COLORS,
     TrackedPasteDetails,
     VscodeCopyBuffer,
+    WEB_INFO_SOURCE,
     WebviewData,
     getColorTheme,
 } from '../constants/types';
@@ -62,10 +64,14 @@ import MetaInformationExtractor from '../comments/CommentCreator';
 import RangePlus from '../document/locationApi/range';
 import {
     CodeComment,
+    CodeLine,
     META_STATE,
+    areContiguous,
     codeLineToString,
     compareLines,
     getCodeLine,
+    getContiguousLines,
+    similarity,
 } from '../comments/commentCreatorUtils';
 import { CurrentGitState } from './git/GitController';
 import * as ts from 'typescript';
@@ -274,7 +280,7 @@ export class DataController {
         }
         const originalCode = document.getText(location.range);
         let codeToSearch = originalCode;
-        let events: { [k: string]: SerializedChangeBuffer[] } = {
+        let events: { [k: string]: SearchResultSerializedChangeBuffer[] } = {
             UNCHANGED: [],
             MODIFIED_CONTENT: [],
             MOVED_NO_CHANGE: [],
@@ -284,52 +290,61 @@ export class DataController {
             INIT_REMOVE: [],
         };
         let currRange: Range | null = location.range;
-        console.log('IM HANDLING IT!!!!', this);
-        [...this._pastVersionsTest].reverse().forEach((v) => {
+        const len = this._pastVersionsTest.length;
+        // console.log('IM HANDLING IT!!!!', this);
+        [...this._pastVersionsTest].reverse().forEach((v, i) => {
             const pastLocation = LocationPlus.deserialize(
                 v.location as SerializedLocationPlus
             );
-            console.log('CURR RANGE', currRange);
+
+            // console.log('CURR RANGE', currRange);
             const strAtKnownLocation =
-                currRange && pastLocation.getStringFromRange(currRange);
-            console.log(
-                'strAtKnownLocation',
-                strAtKnownLocation,
-                'v',
-                v,
-                'codeToSearch',
-                codeToSearch
-            );
+                currRange && pastLocation.getStringFromRange(currRange)
+                    ? pastLocation.getStringFromRange(currRange)
+                    : v.location.content; // just serach whole thing
+            // console.log('events so far', events, 'str', strAtKnownLocation);
+            // console.log(
+            //     'strAtKnownLocation',
+            //     strAtKnownLocation,
+            //     'v',
+            //     v,
+            //     'codeToSearch',
+            //     codeToSearch
+            // );
             if (strAtKnownLocation) {
-                console.log('str is know', strAtKnownLocation);
+                // console.log('str is know', strAtKnownLocation);
                 if (strAtKnownLocation.trim() === codeToSearch.trim()) {
                     // might be better to get more accurate range that includes proper whitespace but also who the Fuck cares about whitespace
-                    console.log('UNCHANGED!!!!!!');
-                    events['UNCHANGED'].push(v);
+                    // console.log('UNCHANGED!!!!!!');
+                    events['UNCHANGED'].push({
+                        ...v,
+                        idx: len - i,
+                        searchContent: codeToSearch,
+                        range: RangePlus.fromRange(currRange!).serialize(),
+                    });
                     return;
                 } else {
-                    console.log(
-                        'looking to see if content include code to search'
-                    );
+                    // console.log(
+                    //     'looking to see if content include code to search'
+                    // );
                     if (v.location.content.includes(codeToSearch.trim())) {
-                        console.log(
-                            'it does include it!',
-                            'past?',
-                            pastLocation,
-                            '?',
-                            codeToSearch.trim()
-                        );
+                        // console.log(
+                        //     'it does include it!',
+                        //     'past?',
+                        //     pastLocation,
+                        //     '?',
+                        //     codeToSearch.trim()
+                        // );
                         currRange = pastLocation.deriveRangeFromSearchString(
                             codeToSearch.trim()
                         );
-                        console.log(
-                            'MOVED!!!!!!! - new range',
-                            currRange,
-                            'TEXT AT RANGE',
-                            currRange &&
-                                pastLocation.getStringFromRange(currRange)
-                        );
-                        events['MOVED_NO_CHANGE'].push(v);
+                        // console.log(
+                        //     'MOVED!!!!!!! - new range',
+                        //     currRange,
+                        //     'TEXT AT RANGE',
+                        //     currRange &&
+                        //         pastLocation.getStringFromRange(currRange)
+                        // );
 
                         if (!currRange) {
                             console.log(
@@ -340,154 +355,417 @@ export class DataController {
                             );
                             // reset
                             currRange = pastLocation.range;
+                            return;
                         }
+                        events['MOVED_NO_CHANGE'].push({
+                            ...v,
+                            idx: len - i,
+                            range: RangePlus.fromRange(currRange!).serialize(),
+                            searchContent: codeToSearch,
+                        });
+
                         return;
                     } else {
-                        console.log('it does not include it!');
+                        // console.log('it does not include it!');
                         const searchLines = getCodeLine(codeToSearch);
-                        console.log('search line ', searchLines);
+                        // console.log('search line ', searchLines);
                         const sourceLines = getCodeLine(v.location.content, {
                             startLine: v.location.range.start.line,
                             startOffset: v.location.range.start.character,
                         });
-                        console.log('source lines', sourceLines);
-                        console.log(
-                            'INCLUDES AINT GOOD ENOUGH',
-                            searchLines,
-                            sourceLines,
-                            compareLines(sourceLines[0], searchLines[0])
-                        );
+
+                        // console.log('source lines', sourceLines);
+                        // console.log(
+                        //     'INCLUDES AINT GOOD ENOUGH',
+                        //     searchLines,
+                        //     sourceLines,
+                        //     compareLines(sourceLines[0], searchLines[0])
+                        // );
                         const startLineIdx = sourceLines
-                            .filter((l) => !l.isEmptyLine && !l.isOnlySymbols) // crappy heuristic to get rid of lines that contain only a bracket
+                            // .filter((l) => !l.isEmptyLine || !l.isOnlySymbols) // crappy heuristic to get rid of lines that contain only a bracket
                             .findIndex((s) => {
-                                console.log(
-                                    'compare for ',
-                                    s,
-                                    'amd',
-                                    searchLines[0],
-                                    compareLines(s, searchLines[0])
-                                );
+                                // console.log(
+                                //     'compare for ',
+                                //     s,
+                                //     'amd',
+                                //     searchLines[0],
+                                //     compareLines(s, searchLines[0])
+                                // );
                                 return compareLines(s, searchLines[0]) > 0.9; // consider making const and bumping down to like .8 for more significant edits
                             });
-                        const whitespaceBeforeIdx = sourceLines
-                            .slice(0, startLineIdx)
-                            .filter(
-                                (m) => m.isEmptyLine || m.isOnlySymbols
-                            ).length;
-                        console.log('START LINE IDX', startLineIdx);
-                        const lineToSearch =
-                            !searchLines[searchLines.length - 1].isEmptyLine &&
-                            !searchLines[searchLines.length - 1].isOnlySymbols
-                                ? searchLines[searchLines.length - 1]
-                                : searchLines[searchLines.length - 2];
-                        console.log('LINE TO SEARCH', lineToSearch);
+                        // const whitespaceBeforeIdx = sourceLines
+                        //     .slice(0, startLineIdx)
+                        //     .filter(
+                        //         (m) => m.isEmptyLine || m.isOnlySymbols
+                        //     ).length;
+                        // console.log('START LINE IDX', startLineIdx, 'whites');
+                        const nonUselessLine =
+                            [...searchLines]
+                                .reverse()
+                                .find(
+                                    (s) => !s.isEmptyLine && !s.isOnlySymbols
+                                ) || searchLines[0]; // if there is nothing left to look for... idk
+
+                        // console.log(
+                        //     'search idx',
+                        //     nonUselessSearchIdx,
+                        //     'sl at index',
+                        //     searchLines[nonUselessSearchIdx],
+                        //     'w len',
+                        //     searchLines[
+                        //         searchLines.length - nonUselessSearchIdx
+                        //     ]
+                        // );
+                        // const lineToSearch =
+                        //     searchLines[
+                        //         searchLines.length - nonUselessSearchIdx
+                        //     ];
+                        // !searchLines[searchLines.length - 1].isEmptyLine ||
+                        // !searchLines[searchLines.length - 1].isOnlySymbols
+                        //     ? searchLines[searchLines.length - 1]
+                        //     : searchLines[searchLines.length - 2];
+                        // console.log(
+                        //     'LINE TO SEARCH',
+                        //     nonUselessLine,
+                        //     'rev arr?',
+                        //     [...searchLines].reverse()
+                        // );
                         const endLineIdx = sourceLines.findIndex(
-                            (s) => compareLines(s, lineToSearch) > 0.9
+                            (s) => compareLines(s, nonUselessLine) > 0.9 // maybe bump down to .8
                         );
-                        console.log('END LINE IDX', endLineIdx);
+                        // console.log('END LINE IDX', endLineIdx);
                         if (startLineIdx !== -1 && endLineIdx !== -1) {
-                            const startLine =
-                                sourceLines[startLineIdx + whitespaceBeforeIdx];
-                            const endLine = sourceLines[endLineIdx];
-                            console.log('FOUND IT', startLine, endLine);
+                            const startLine = sourceLines[startLineIdx]; // + whitespaceBeforeIdx
+                            let endLine = sourceLines[endLineIdx];
+                            let secondIdx = endLineIdx;
+                            // console.log('FOUND IT', startLine, endLine);
+                            if (endLine.line < startLine.line) {
+                                // console.log('invalid...');
+                                secondIdx = sourceLines
+                                    .slice(startLineIdx)
+                                    .findIndex(
+                                        (s) =>
+                                            compareLines(s, nonUselessLine) >
+                                            0.9
+                                    );
+                                // console.log('secondIdx??', secondIdx);
+                                if (
+                                    secondIdx !== -1 &&
+                                    startLineIdx + secondIdx <
+                                        sourceLines.length
+                                ) {
+                                    secondIdx = startLineIdx + secondIdx;
+                                    endLine = sourceLines[secondIdx];
+                                } else {
+                                    endLine = startLine; // shrink
+                                }
+                            }
                             // make code line into new range here
                             currRange = RangePlus.fromCodeLine(
                                 startLine,
                                 endLine
                             );
                             const lines = sourceLines.slice(
-                                startLineIdx + whitespaceBeforeIdx,
-                                endLineIdx + 1
+                                startLineIdx, // + whitespaceBeforeIdx
+                                secondIdx + 1
                             );
-                            console.log('linessss', lines);
+                            // console.log('linessss', lines);
+                            const prevContent = codeToSearch;
                             const text = lines.map((c) => codeLineToString(c));
-                            console.log('texttttt', text);
+                            // console.log('texttttt', text);
                             codeToSearch = text.join('\n');
-                            events['MODIFIED_CONTENT'].push(v);
+                            if (codeToSearch.length === 0) {
+                                // console.log(
+                                //     'COULDNT FIND',
+                                //     v.location.content,
+                                //     'codeToSearch',
+                                //     codeToSearch,
+                                //     'lines',
+                                //     lines
+                                // );
+                                events['INIT_REMOVE'].push({
+                                    ...v,
+                                    idx: len - i,
+                                    range: RangePlus.fromRange(
+                                        currRange!
+                                    ).serialize(),
+                                    searchContent: codeToSearch,
+                                    prevContent,
+                                });
+                                codeToSearch = originalCode;
+                                return;
+                            }
+                            events['MODIFIED_CONTENT'].push({
+                                ...v,
+                                prevContent,
+                                idx: len - i,
+                                range: RangePlus.fromRange(
+                                    currRange!
+                                ).serialize(),
+                                searchContent: codeToSearch,
+                            });
                             return;
                         } else {
-                            console.log('NOT FOUND', v);
-                            const anyLine = sourceLines.findIndex((s) => {
-                                return searchLines.find(
-                                    (sl) => compareLines(s, sl) > 0.9
-                                );
-                            });
-                            if (anyLine !== -1) {
-                                const startLine = sourceLines[anyLine];
+                            // console.log(
+                            //     'NOT FOUND',
+                            //     v.location.content,
+                            //     'sls',
+                            //     searchLines,
+                            //     'source',
+                            //     sourceLines
+                            // );
+                            // const sigh = searchLines.reduce((acc, curr) => {
+                            //     return Math.max(
+                            //         sourceLines
+                            //             .map((s) => compareLines(s, curr))
+                            //             .reduce((a, c) => Math.max(a, c), 0),
+                            //         acc
+                            //     );
+                            // }, []);
+                            const highestMatchingPairs = searchLines.map(
+                                (searchLine) => {
+                                    let highestScore = -Infinity;
+                                    let matchingLine: CodeLine | null = null;
 
-                                console.log(
-                                    'FOUND ANY LINE',
-                                    anyLine,
-                                    startLine
-                                ); // this is our new start line
-                                if (searchLines.length > 1) {
-                                    const endLineIdx = sourceLines.findIndex(
-                                        (s) =>
-                                            compareLines(s, lineToSearch) > 0.9
-                                    );
-                                    if (endLineIdx === -1) {
-                                        console.log('NOT FOUND AGAIN', v);
-                                        currRange = RangePlus.fromCodeLine(
-                                            startLine,
-                                            startLine
+                                    sourceLines.forEach((sourceLine) => {
+                                        const score = compareLines(
+                                            sourceLine,
+                                            searchLine
                                         );
+                                        if (score > highestScore) {
+                                            highestScore = score;
+                                            matchingLine = sourceLine;
+                                        }
+                                    });
 
-                                        const text =
-                                            codeLineToString(startLine);
-                                        console.log('texttttt', text);
-                                        codeToSearch = text;
-                                        events['MODIFIED_CONTENT'].push(v);
-                                        return;
-                                    }
-                                    const endLine = sourceLines[endLineIdx];
-                                    console.log(
-                                        'FOUND END LINE',
-                                        endLine,
-                                        'start idx',
-                                        startLineIdx,
-                                        'end idx',
-                                        endLineIdx
-                                    );
+                                    return {
+                                        searchLine,
+                                        matchingLine,
+                                        highestScore,
+                                    };
+                                }
+                            );
+                            console.log(
+                                'highest matching pairs',
+                                highestMatchingPairs
+                            );
+                            if (
+                                (areContiguous(
+                                    highestMatchingPairs.map(
+                                        (c) =>
+                                            c.matchingLine as unknown as CodeLine
+                                    )
+                                ) &&
+                                    highestMatchingPairs.length > 1) ||
+                                highestMatchingPairs.every(
+                                    (l) => l.highestScore > 0.5
+                                ) ||
+                                highestMatchingPairs.some(
+                                    (s) =>
+                                        s.highestScore === 1 &&
+                                        !(
+                                            (
+                                                s.matchingLine as unknown as CodeLine
+                                            ).isEmptyLine ||
+                                            (
+                                                s.matchingLine as unknown as CodeLine
+                                            ).isOnlySymbols
+                                        )
+                                )
+                            ) {
+                                const arrToUse = areContiguous(
+                                    highestMatchingPairs.map(
+                                        (c) =>
+                                            c.matchingLine as unknown as CodeLine
+                                    )
+                                )
+                                    ? getContiguousLines(
+                                          highestMatchingPairs.map(
+                                              (c) =>
+                                                  c.matchingLine as unknown as CodeLine
+                                          )
+                                      )
+                                    : highestMatchingPairs.some(
+                                          (s) => s.highestScore === 1
+                                      ) &&
+                                      !highestMatchingPairs.every(
+                                          (l) => l.highestScore > 0.5
+                                      )
+                                    ? highestMatchingPairs
+                                          .filter(
+                                              (s) =>
+                                                  s.highestScore === 1 &&
+                                                  !(
+                                                      (
+                                                          s.matchingLine as unknown as CodeLine
+                                                      ).isEmptyLine ||
+                                                      (
+                                                          s.matchingLine as unknown as CodeLine
+                                                      ).isOnlySymbols
+                                                  )
+                                          )
+                                          .map((s) => s.matchingLine)
+                                    : highestMatchingPairs.map(
+                                          (c) => c.matchingLine
+                                      );
+                                // let min = Infinity, max = -1
+                                const startOfMatch = arrToUse.reduce(
+                                    (min, obj) =>
+                                        obj!.line < min!.line ? obj : min,
+                                    arrToUse[0]
+                                );
+                                const endOfMatch = arrToUse.reduce(
+                                    (max, obj) =>
+                                        obj!.line > max!.line ? obj : max,
+                                    arrToUse[0]
+                                );
+                                const idxOfStartMatch = sourceLines.indexOf(
+                                    startOfMatch as unknown as CodeLine
+                                );
+                                const idxOfEndMatch = sourceLines.indexOf(
+                                    endOfMatch as unknown as CodeLine
+                                );
+                                // invalid range -- shrink range
+                                if (
+                                    idxOfEndMatch < idxOfStartMatch ||
+                                    idxOfStartMatch > idxOfEndMatch
+                                ) {
+                                    console.log('invalid range');
+                                    const placeToStart =
+                                        idxOfEndMatch < idxOfStartMatch
+                                            ? idxOfStartMatch
+                                            : idxOfEndMatch;
+                                    const startLine = sourceLines[placeToStart];
+                                    const endLine =
+                                        [...highestMatchingPairs]
+                                            .reverse()
+                                            .find((l) => l.highestScore > 0.7)
+                                            ?.matchingLine || startLine; // go until we find something decent
 
                                     currRange = RangePlus.fromCodeLine(
                                         startLine,
                                         endLine
                                     );
                                     const lines = sourceLines.slice(
-                                        anyLine,
-                                        endLineIdx + 1
+                                        idxOfStartMatch,
+                                        sourceLines.findIndex(
+                                            (l) => l === endLine
+                                        ) + 1
                                     );
-                                    console.log('linessss', lines);
+                                    const prevContent = codeToSearch;
                                     const text = lines.map((c) =>
                                         codeLineToString(c)
                                     );
-                                    console.log('texttttt', text);
                                     codeToSearch = text.join('\n');
-
-                                    // codeToSearch = sourceLines
-                                    //     .slice(startLineIdx, endLineIdx)
-                                    //     .map((c) => codeLineToString(c))
-                                    //     .join('\n');
-                                    console.log(
-                                        'wtf',
-                                        currRange,
-                                        'code',
-                                        codeToSearch
+                                    if (codeToSearch.length === 0) {
+                                        // console.log(
+                                        //     'COULDNT FIND',
+                                        //     v.location.content,
+                                        //     'codeToSearch',
+                                        //     codeToSearch,
+                                        //     'lines',
+                                        //     lines
+                                        // );
+                                        events['INIT_REMOVE'].push({
+                                            ...v,
+                                            idx: len - i,
+                                            range: RangePlus.fromRange(
+                                                currRange!
+                                            ).serialize(),
+                                            searchContent: codeToSearch,
+                                            prevContent,
+                                        });
+                                        codeToSearch = originalCode;
+                                        return;
+                                    }
+                                    events['MODIFIED_CONTENT'].push({
+                                        ...v,
+                                        prevContent,
+                                        idx: len - i,
+                                        range: RangePlus.fromRange(
+                                            currRange!
+                                        ).serialize(),
+                                        searchContent: codeToSearch,
+                                    });
+                                    return;
+                                } else {
+                                    // const highStartLine =
+                                    //     highestMatchingPairs[0].matchingLine;
+                                    // const highEndLine =
+                                    //     highestMatchingPairs[
+                                    //         highestMatchingPairs.length - 1
+                                    //     ].matchingLine;
+                                    currRange = RangePlus.fromCodeLine(
+                                        startOfMatch as unknown as CodeLine,
+                                        endOfMatch as unknown as CodeLine
+                                    ); // would be better to have an envelope of reasonable changes
+                                    // i.e., a range shouldn't go from like 10 lines to 100 lines
+                                    // in one edit
+                                    const lines = sourceLines.slice(
+                                        sourceLines.indexOf(
+                                            startOfMatch as unknown as CodeLine
+                                        ),
+                                        sourceLines.indexOf(
+                                            endOfMatch as unknown as CodeLine
+                                        ) + 1
                                     );
+
+                                    // console.log('linessss', lines);
+                                    const prevContent = codeToSearch;
+                                    const text = lines.map((c) =>
+                                        codeLineToString(c)
+                                    );
+                                    // console.log('texttttt', text);
+                                    codeToSearch = text.join('\n');
+                                    if (codeToSearch.length === 0) {
+                                        console.log(
+                                            'COULDNT FIND',
+                                            v.location.content,
+                                            'codeToSearch',
+                                            codeToSearch,
+                                            'prevContent',
+                                            prevContent,
+                                            'lines',
+                                            lines
+                                        );
+                                        events['INIT_REMOVE'].push({
+                                            ...v,
+                                            idx: len - i,
+                                            range: RangePlus.fromRange(
+                                                currRange!
+                                            ).serialize(),
+                                            searchContent: codeToSearch,
+                                            prevContent,
+                                        });
+                                        codeToSearch = originalCode;
+                                        return;
+                                    }
+                                    events['MODIFIED_CONTENT'].push({
+                                        ...v,
+                                        prevContent,
+                                        idx: len - i,
+                                        range: RangePlus.fromRange(
+                                            currRange!
+                                        ).serialize(),
+                                        searchContent: codeToSearch,
+                                    });
+                                    return;
                                 }
-                                events['MODIFIED_CONTENT'].push(v);
+                            } else {
+                                console.log('NOT HERE!');
+                                events['INIT_REMOVE'].push({
+                                    ...v,
+                                    idx: len - i,
+                                    range: RangePlus.fromRange(
+                                        currRange!
+                                    ).serialize(),
+                                    searchContent: codeToSearch,
+                                    prevContent: codeToSearch,
+                                });
+                                codeToSearch = originalCode;
                                 return;
                             }
                         }
-                    }
-                    const similarityScore = calculateBagOfWordsScore(
-                        strAtKnownLocation,
-                        codeToSearch
-                    );
-                    if (similarityScore > 0.9) {
-                        console.log('SIMILAR!!!!!!!!!!!!');
-                        events['MODIFIED_CONTENT'].push(v);
-                        return;
                     }
                 }
             } else {
@@ -495,6 +773,213 @@ export class DataController {
             }
         });
         console.log('events lol', events);
+        const cleanedEvents = this.cleanUpAndSendEvents(events);
+        console.log('cleeeeaaan', cleanedEvents);
+        this.container.webviewController?.postMessage({
+            command: 'searchAcrossTime',
+            payload: {
+                events: cleanedEvents,
+                query: originalCode,
+                location: LocationPlus.fromLocation(location).serialize(),
+                node: this.serialize(),
+            },
+        });
+    }
+
+    cleanUpAndSendEvents(events: {
+        [k: string]: SearchResultSerializedChangeBuffer[];
+    }) {
+        const cleanedEvents: {
+            [k: string]: SearchResultSerializedChangeBuffer[];
+        } = {};
+        let maxIdx = -1;
+        let minIdx = Infinity;
+        let firstSeen: null | SearchResultSerializedChangeBuffer = null;
+        let lastSeen: null | SearchResultSerializedChangeBuffer = null;
+        Object.keys(events).forEach((k) => {
+            if (k === 'MODIFIED_CONTENT') {
+                cleanedEvents[k] = events[k].filter((e, i) => {
+                    if (e.idx > maxIdx) {
+                        maxIdx = e.idx;
+                        lastSeen = e;
+                    }
+                    if (e.idx < minIdx) {
+                        minIdx = e.idx;
+                        firstSeen = e;
+                    }
+
+                    // if (i === 0) {
+                    //     return true;
+                    // } else {
+                    const { searchContent, prevContent } = e;
+                    const cleanedSearchContent = searchContent.replace(
+                        /\s/g,
+                        ''
+                    );
+                    const cleanedPrevContent = prevContent?.replace(/\s/g, '');
+                    if (e.eventData) {
+                        const type = Object.keys(e.eventData!)[0];
+                        switch (type) {
+                            case Event.COPY: {
+                                const copy = e.eventData[Event.COPY];
+                                if (copy) {
+                                    const { copyContent } = copy;
+                                    const cleanedCopyContent =
+                                        copyContent.replace(/\s/g, '');
+                                    if (
+                                        cleanedSearchContent.includes(
+                                            cleanedCopyContent
+                                        ) ||
+                                        cleanedPrevContent?.includes(
+                                            cleanedCopyContent
+                                        )
+                                    ) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            case Event.PASTE: {
+                                const paste = e.eventData[Event.PASTE];
+                                if (paste) {
+                                    const { pasteContent } = paste;
+                                    const cleanedPasteContent =
+                                        pasteContent.replace(/\s/g, '');
+                                    if (
+                                        cleanedSearchContent.includes(
+                                            cleanedPasteContent
+                                        ) ||
+                                        cleanedPrevContent?.includes(
+                                            cleanedPasteContent
+                                        )
+                                    ) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            case Event.WEB: {
+                                const web = e.eventData[Event.WEB];
+                                if (!web) {
+                                    break;
+                                }
+                                const { copyBuffer } = web;
+                                const cleanedCode = copyBuffer.code.replace(
+                                    /\s/g,
+                                    ''
+                                );
+                                if (
+                                    cleanedSearchContent.includes(
+                                        cleanedCode
+                                    ) ||
+                                    cleanedPrevContent?.includes(cleanedCode)
+                                ) {
+                                    return true;
+                                }
+                            }
+                        }
+                        // }
+                    }
+                    if (
+                        searchContent.replace(/\s/g, '') ===
+                        prevContent?.replace(/\s/g, '')
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        similarity(
+                            cleanedSearchContent,
+                            cleanedPrevContent || ''
+                        ) < 0.5 // drastic change....?
+                    ) {
+                        console.log(
+                            'IT HAPPENED!!!!!!',
+                            e,
+                            similarity(
+                                cleanedSearchContent,
+                                cleanedPrevContent || ''
+                            ),
+                            cleanedSearchContent,
+                            cleanedPrevContent
+                        );
+                        return false;
+                    }
+                    return true;
+                    // const { location, ...rest } = e;
+                    // return {
+                    //     ...rest,
+                    //     location: LocationPlus.deserialize(
+                    //         location as SerializedLocationPlus
+                    //     ),
+                    // };
+                });
+                cleanedEvents[k].forEach((e) => {
+                    if (
+                        (e.searchContent && e.searchContent.includes('//')) ||
+                        (e.prevContent && e.prevContent.includes('//'))
+                    ) {
+                        const searchContentWasCommentedOut = e.searchContent
+                            .split('\n')
+                            .every((s) => s.trim().indexOf('//') === 0);
+                        const prevContentWasCommentedOut = e.prevContent
+                            ?.split('\n')
+                            .every((s) => s.trim().indexOf('//') === 0);
+                        console.log(
+                            'splitByComment',
+                            searchContentWasCommentedOut,
+                            'splitByCommentPrev',
+                            prevContentWasCommentedOut
+                        );
+                        if (
+                            searchContentWasCommentedOut ===
+                            prevContentWasCommentedOut
+                        ) {
+                            // cleanedEvents['COMMENTED_OUT'].push(e);
+                            // same as last time
+                            return;
+                        } else if (searchContentWasCommentedOut) {
+                            !cleanedEvents['COMMENTED_OUT']
+                                ? (cleanedEvents['COMMENTED_OUT'] = [e])
+                                : cleanedEvents['COMMENTED_OUT'].push(e);
+                            return;
+                        } else {
+                            !cleanedEvents['COMMENTED_IN']
+                                ? (cleanedEvents['COMMENTED_IN'] = [e])
+                                : cleanedEvents['COMMENTED_IN'].push(e);
+                            return;
+                        }
+                    }
+                });
+            } else {
+                if (k === 'COMMENTED_IN' || k === 'COMMENTED_OUT') {
+                    return;
+                }
+                cleanedEvents[k] = events[k].map((e, i) => {
+                    const { location, ...rest } = e;
+                    if (e.idx > maxIdx) {
+                        maxIdx = e.idx;
+                        lastSeen = e;
+                    }
+                    if (e.idx < minIdx) {
+                        minIdx = e.idx;
+                        firstSeen = e;
+                    }
+                    return {
+                        ...rest,
+                        location: LocationPlus.isLocationPlus(location)
+                            ? LocationPlus.staticSerialize(location)
+                            : (location as SerializedLocationPlus),
+                    };
+                });
+            }
+        });
+        cleanedEvents['INIT_ADD'] = [
+            firstSeen as unknown as SearchResultSerializedChangeBuffer,
+        ];
+        cleanedEvents['INIT_REMOVE'] = [
+            lastSeen as unknown as SearchResultSerializedChangeBuffer,
+        ];
+        return cleanedEvents;
+        // this.container.searchAcrossTimeEmitter(cleanedEvents);
     }
 
     parseDiff(diff: Diff) {

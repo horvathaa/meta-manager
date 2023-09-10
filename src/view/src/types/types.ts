@@ -296,6 +296,15 @@ export interface SerializedNodeDataController {
     setOfEventIds: string[];
 }
 
+export interface SearchResultSerializedChangeBuffer
+    extends SerializedChangeBuffer {
+    idx: number;
+    searchContent: string;
+    prevContent?: string;
+    range: SerializedRangePlus;
+    fsId?: string;
+}
+
 type DiffLine = {
     aIndex: number;
     bIndex: number;

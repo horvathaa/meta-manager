@@ -153,6 +153,8 @@ class DocumentWatcher extends Disposable {
                                 ),
                             }),
                             timelineEvent: new TimelineEvent(p),
+                            treeParent:
+                                n.dataController?.tree?.parent?.name || '',
                         };
                     })
                 )
@@ -227,6 +229,7 @@ class DocumentWatcher extends Disposable {
             const seenCommits = new Set();
             lol.forEach((n, i) => {
                 // if (!knownKey.length) {
+
                 knownKey = n.parentId;
                 // }
                 // combine chunking approach with clustering approach
@@ -267,19 +270,18 @@ class DocumentWatcher extends Disposable {
                         .filter((k) => k !== 'scale')
                         .forEach((k) => {
                             // console.log('k', k);
+                            let idx = i - lastEntry?.scale.length || 0;
                             if (!seenCommits.has(n.commit)) {
                                 seenCommits.add(n.commit);
                                 scale.otherInfo.commits
                                     ? scale.otherInfo.global.commits.push({
                                           commit: n.commit,
-                                          idx: i - lastEntry?.scale.length || 0,
+                                          idx,
                                       })
                                     : (scale.otherInfo.global.commits = [
                                           {
                                               commit: n.commit,
-                                              idx:
-                                                  i - lastEntry?.scale.length ||
-                                                  0,
+                                              idx,
                                           },
                                       ]);
                             }
@@ -288,9 +290,7 @@ class DocumentWatcher extends Disposable {
                                     scale.otherInfo[k] = {
                                         firstSeen: {
                                             ...n,
-                                            idx:
-                                                i - lastEntry?.scale.length ||
-                                                0,
+                                            idx,
                                         },
                                         count: 0,
                                     };
@@ -313,22 +313,20 @@ class DocumentWatcher extends Disposable {
                                         ? scale.otherInfo[k].events.push({
                                               ...n,
                                               time: n.time,
-                                              idx: i - lastEntry.scale.length,
+                                              idx,
                                           })
                                         : (scale.otherInfo[k].events = [
                                               {
                                                   ...n,
                                                   time: n.time,
-                                                  idx:
-                                                      i -
-                                                      lastEntry.scale.length,
+                                                  idx,
                                               },
                                           ]);
                                 }
                                 if (n['eventData']) {
                                     n = {
                                         ...n,
-                                        idx: i - lastEntry.scale.length,
+                                        idx,
                                     };
                                 }
                                 newEntry = {
@@ -337,21 +335,18 @@ class DocumentWatcher extends Disposable {
                                         {
                                             x: [n.time],
                                             y: [n.location?.range.end.line],
-                                            data: [n],
+                                            data: [{ ...n, inEdit: true, idx }],
                                         },
                                         {
                                             x: [n.time],
                                             y: [n.location?.range.start.line],
-                                            data: [n],
+                                            data: [{ ...n, inEdit: true, idx }],
                                             events: n['eventData']
                                                 ? [
                                                       {
                                                           ...n,
                                                           time: n.time,
-                                                          idx:
-                                                              i -
-                                                              lastEntry.scale
-                                                                  .length,
+                                                          idx,
                                                       },
                                                   ]
                                                 : [],
@@ -374,9 +369,13 @@ class DocumentWatcher extends Disposable {
                                                 ] || 0,
                                             ],
                                             data: [
-                                                lastEntry[k][0]?.data[
-                                                    lastEntry[k][0]?.length - 1
-                                                ] || null,
+                                                {
+                                                    ...lastEntry[k][0]?.data[
+                                                        lastEntry[k][0]
+                                                            ?.length - 1
+                                                    ],
+                                                    idx,
+                                                } || null,
                                             ],
                                         },
                                         {
@@ -388,9 +387,13 @@ class DocumentWatcher extends Disposable {
                                                 ] || 0,
                                             ],
                                             data: [
-                                                lastEntry[k][0]?.data[
-                                                    lastEntry[k][0]?.length - 1
-                                                ] || null,
+                                                {
+                                                    ...lastEntry[k][0]?.data[
+                                                        lastEntry[k][0]
+                                                            ?.length - 1
+                                                    ],
+                                                    idx,
+                                                } || null,
                                             ],
                                             events: [],
                                         },
@@ -421,13 +424,14 @@ class DocumentWatcher extends Disposable {
                     Object.keys(lastEntry)
                         .filter((k) => k !== 'scale')
                         .forEach((k) => {
+                            let idx = i - lastEntry?.scale.length || 0;
                             const startLinesByTime = lastEntry[k][1];
                             const endLinesByTime = lastEntry[k][0];
                             if (!seenKeys.has(k)) {
                                 scale.otherInfo[k] = {
                                     firstSeen: {
                                         ...n,
-                                        idx: i - lastEntry?.scale.length || 0,
+                                        idx,
                                     },
                                     count: 0,
                                 };
@@ -443,9 +447,7 @@ class DocumentWatcher extends Disposable {
                                     : (scale.otherInfo.global.commits = [
                                           {
                                               commit: n.commit,
-                                              idx:
-                                                  i - lastEntry?.scale.length ||
-                                                  0,
+                                              idx,
                                           },
                                       ]);
                             }
@@ -467,19 +469,21 @@ class DocumentWatcher extends Disposable {
                                       ]
                             );
                             if (k === n.parentId) {
+                                n = {
+                                    ...n,
+                                    idx,
+                                    inEdit: true,
+                                    // eventData: {
+                                    //     ...n.eventData,
+
+                                    // },
+                                };
                                 !n['eventData'] &&
-                                    startLinesByTime.data.push(n);
+                                    startLinesByTime.data.push({ ...n, idx });
                                 if (n['eventData']) {
                                     // if (n['eventData']) {
-                                    n = {
-                                        ...n,
-                                        idx: i - lastEntry.scale.length,
-                                        // eventData: {
-                                        //     ...n.eventData,
 
-                                        // },
-                                    };
-                                    startLinesByTime.data.push(n);
+                                    startLinesByTime.data.push({ ...n, idx });
                                     // }
                                     startLinesByTime.events.push({
                                         ...n,
@@ -503,11 +507,12 @@ class DocumentWatcher extends Disposable {
                                           ]);
                                 }
                             } else {
-                                startLinesByTime.data.push(
-                                    lastEntry[k][1].data[
+                                startLinesByTime.data.push({
+                                    ...lastEntry[k][1].data[
                                         lastEntry[k][1].data.length - 1
-                                    ]
-                                );
+                                    ],
+                                    idx,
+                                });
                             }
                             endLinesByTime.x.push(n.time);
                             endLinesByTime.y.push(

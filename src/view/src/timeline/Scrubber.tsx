@@ -28,21 +28,31 @@ const TimelineScrubber: React.FC<Props> = ({
 }: Props) => {
     // const [value, setValue] = React.useState<number>(valueProp);
     const [value, setValue] = React.useState(valueProp);
+    console.log('value!!!!!!!!!!!', value, 'valueprop', valueProp);
+
+    React.useEffect(() => {
+        setValue(valueProp);
+    }, [valueProp]);
 
     const getMarks = (events: any[]) => {
         console.log('EVENTS!!!!!', events);
         const marks = events.map((event) => {
-            let name = event.eventData;
-            if (event.eventData[Event.WEB]) {
-                name =
-                    prettyPrintType[
-                        event.eventData[Event.WEB].copyBuffer
-                            .type as WEB_INFO_SOURCE
-                    ];
-            } else if (event.eventData[Event.PASTE]) {
-                name = 'Pasted code';
-            } else if (event.eventData[Event.COPY]) {
-                name = 'Copied code';
+            let name = '';
+            if (!event.eventData) {
+                name = 'Search Result';
+            } else {
+                name = event.eventData;
+                if (event.eventData[Event.WEB]) {
+                    name =
+                        prettyPrintType[
+                            event.eventData[Event.WEB].copyBuffer
+                                .type as WEB_INFO_SOURCE
+                        ];
+                } else if (event.eventData[Event.PASTE]) {
+                    name = 'Pasted code';
+                } else if (event.eventData[Event.COPY]) {
+                    name = 'Copied code';
+                }
             }
             return {
                 value: event.idx,
@@ -100,7 +110,7 @@ const TimelineScrubber: React.FC<Props> = ({
             },
         }),
     };
-
+    console.log('min', min, 'max', max);
     return (
         <Slider
             min={min}

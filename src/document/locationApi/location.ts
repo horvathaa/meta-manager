@@ -237,6 +237,10 @@ export default class LocationPlus extends Location {
         return offset;
     }
 
+    static isLocationPlus(location: any): location is LocationPlus {
+        return location instanceof LocationPlus;
+    }
+
     getStringFromRange(range: Range) {
         if (!this.range.contains(range)) {
             console.log('DONT OWN IT - mine theirs', this.range, range);
@@ -268,9 +272,9 @@ export default class LocationPlus extends Location {
         const idx = this.content.indexOf(searchString);
         if (idx) {
             const start = this.posToLine(idx);
-            console.log('start', start);
+            // console.log('start', start);
             const end = this.posToLine(idx + searchString.length);
-            console.log('end', end);
+            // console.log('end', end);
             return RangePlus.fromPositions(start, end);
         }
         return null;

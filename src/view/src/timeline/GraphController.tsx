@@ -14,6 +14,7 @@ import {
     Event,
     DataSourceType,
     CopyBuffer,
+    SearchResultSerializedChangeBuffer,
 } from '../types/types';
 import * as React from 'react';
 import { Root, createRoot } from 'react-dom/client';
@@ -24,10 +25,11 @@ import {
     lightenDarkenColor,
 } from '../styles/globals';
 import CodeBlock from '../components/CodeBlock';
-import Version from './Version';
+import Version, { getHighlightLogic } from './Version';
 import { Button, IconButton } from '@mui/material';
 import { CancelOutlined } from '@mui/icons-material';
 import Search from './Search';
+import Carousel from 'react-material-ui-carousel';
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
 //     ['#4e79a7', '#e15759']
@@ -66,6 +68,8 @@ const colorArr = [
     '#9EA9ED61',
 ];
 
+const seenColors = new Set();
+
 class GraphController {
     private readonly width = 1000;
     private readonly height = 500;
@@ -75,6 +79,7 @@ class GraphController {
     private readonly marginLeft = 60;
     private readonly totalWidth = window.innerWidth;
     _keyMap: { [k: string]: any }[] = [];
+    _colorKey: { [k: string]: string } = {};
     _currIndex: number = 0;
     _focusedIndex: number = 0;
     _currKey: string = '';
@@ -98,6 +103,144 @@ class GraphController {
         const header =
             document.getElementById('header') || document.createElement('div');
         this._headerRef = createRoot(header);
+
+        const unsubscribe = window.addEventListener(
+            'message',
+            (e: MessageEvent<any>) => {
+                const { command } = e.data;
+                if (command === 'searchAcrossTime') {
+                    const { payload } = e.data;
+                    console.log('payload', payload);
+                    const { events } = payload;
+                    if (!events['INIT_ADD'][0] === null) {
+                        return;
+                    }
+                    this._infoRef.render(<>{this.getSearchResult(payload)}</>);
+                    this._scrubberRef.render(
+                        <TimelineScrubber
+                            range={
+                                this._filtered
+                                    ? this._filterRange
+                                    : [
+                                          0,
+                                          this._keyMap[this._currIndex].scale
+                                              .length,
+                                      ]
+                            }
+                            valueProp={0}
+                            parent={this}
+                            events={[
+                                ...events['INIT_ADD'],
+                                ...events['MODIFIED_CONTENT'].reverse(),
+                            ]}
+                        />
+                    );
+                    // this.render(payload);
+                }
+            }
+        );
+        // return () => {
+        //     window.removeEventListener('message', unsubscribe);
+        // };
+    }
+
+    getSearchResult(payload: any) {
+        const { query, node, events } = payload;
+        const { id } = node.node;
+        const codePart = this._keyMap[this._currIndex][id];
+        console.log('codePart?', codePart, 'id', id, 'this key', this._keyMap);
+        const changed = [
+            ...events['INIT_ADD'],
+            ...events['MODIFIED_CONTENT'].reverse(),
+        ];
+        const arr = changed.map((d) => d.fsId);
+        let seenIds = new Set();
+        const res = codePart[1].data
+            .filter((c: SearchResultSerializedChangeBuffer) => {
+                if (arr.includes(c.fsId) && !seenIds.has(c.fsId)) {
+                    seenIds.add(c.fsId);
+                    return true;
+                }
+                return false;
+            })
+            .map((c: SearchResultSerializedChangeBuffer) => {
+                const match = changed.find((d) => d.fsId === c.fsId);
+                if (match) {
+                    return { ...c, searchContent: match.searchContent };
+                } else {
+                    return { ...c, searchContent: query };
+                }
+            });
+        console.log('res', res, 'arr', arr, 'codePart', codePart);
+        return (
+            <>
+                <CodeBlock codeString={query} />
+                <Carousel
+                    autoPlay={false}
+                    onChange={(
+                        now: number | undefined,
+                        previous: number | undefined
+                    ) => {
+                        const idx = now ? res[now as number].idx : res[0].idx;
+                        console.log('idx!', idx, 'now', now, 'res', res);
+                        this._scrubberRef.render(
+                            <TimelineScrubber
+                                range={
+                                    this._filtered
+                                        ? this._filterRange
+                                        : [
+                                              0,
+                                              this._keyMap[this._currIndex]
+                                                  .scale.length,
+                                          ]
+                                }
+                                valueProp={idx}
+                                parent={this}
+                                events={res}
+                            />
+                        );
+                    }}
+                >
+                    {res.map(
+                        (e: SearchResultSerializedChangeBuffer, i: number) => {
+                            return (
+                                <>
+                                    <Version
+                                        version={e}
+                                        // codeString={e.location.content}
+                                        highlightLogicProp={getHighlightLogic(
+                                            e.location.content,
+                                            {
+                                                code: e.searchContent,
+                                            } as unknown as CopyBuffer
+                                        )}
+                                        context={this}
+                                        color={this._colorKey[this._currKey]}
+                                        expanded={true}
+                                    />
+                                    {/* <Version
+                                version={e}
+                                context={this}
+                                color={colorArr[i]}
+                            /> */}
+                                </>
+                            );
+                        }
+                    )}
+                </Carousel>
+            </>
+        );
+        // if(codePart) {
+        //     const { data } = codePart[1];
+        //     const arr = data.filter((d: SerializedChangeBuffer, i: number) => {
+        //         return d.idx ;
+        //     });
+        //     return (
+        //         <div>
+        //             Found {arr.length} results for {query} in {id}
+        //         </div>
+        //     );
+        // }
     }
 
     renderHeader() {
@@ -186,8 +329,12 @@ class GraphController {
                 this._filterRange[1]
             );
             if (!arr || !arr.length) return 'Not in this range.';
-            const editCount = arr.filter((d) => d).length;
-            const eventCount = arr.filter((d) => d?.eventData).length;
+            const editCount = arr.filter(
+                (d: SerializedChangeBuffer) => d
+            ).length;
+            const eventCount = arr.filter(
+                (d: SerializedChangeBuffer) => d?.eventData
+            ).length;
             return `Was edited ${editCount} times and had ${eventCount} events.`;
         } else {
             const arr = this._keyMap[this._currIndex][k].data;
@@ -275,7 +422,8 @@ class GraphController {
             ? d3
                   .scaleLinear() // Use linear scale for x
                   .range([0, chartWidth]) // Adjust the range for horizontal orientation
-                  .domain([0, range[1] - range[0]]) // ????
+                  //   .domain([0, range[1] - range[0]]) // ????
+                  .domain([range[0], range[1]]) // ???? -- seems right lol
             : d3
                   .scaleLinear() // Use linear scale for x
                   .range([0, chartWidth]) // Adjust the range for horizontal orientation
@@ -338,11 +486,12 @@ class GraphController {
             .filter((k) => k !== 'scale')
             .forEach((k, ix) => {
                 const test = keyMap[this._currIndex][k];
+                this._colorKey[k] = colorArr[ix];
                 console.log('test!!!!!', test);
                 if (!this._currKey.length) {
                     this._currKey = k;
                 }
-                events.push(...test[1].data.filter((d) => d?.eventData));
+                events.push(...test[1].data.filter((d: any) => d?.eventData));
 
                 let upperYScale = test[0].y;
                 let lowerYScale = test[1].y;
@@ -375,7 +524,7 @@ class GraphController {
                         //         return 0;
                         //     }
                         // }
-                        return xscale(i);
+                        return range ? xscale(range[0] + i) : xscale(i);
                     })
                     .y0((d, i) => {
                         // range && console.log('lowerYScale', lowerYScale[i]);
@@ -432,16 +581,16 @@ class GraphController {
                 //     div.transition().duration(50).style('opacity', 0);
                 // });
 
-                const line = d3
-                    .line()
-                    .curve(d3.curveCardinal)
-                    .x(function (d, i) {
-                        // console.log('d!', d);
-                        return xscale(d[0]);
-                    })
-                    .y(function (d, i) {
-                        return yscale(d[1]);
-                    });
+                // const line = d3
+                //     .line()
+                //     .curve(d3.curveCardinal)
+                //     .x(function (d, i) {
+                //         // console.log('d!', d);
+                //         return xscale(d[0]);
+                //     })
+                //     .y(function (d, i) {
+                //         return yscale(d[1]);
+                //     });
             });
         this._canonicalEvents = events;
         this._scrubberRef.render(
@@ -452,6 +601,7 @@ class GraphController {
                 events={events}
             />
         );
+        this._infoRef.render(<div>{this.getHighLevelSummary()}</div>);
         this._headerRef.render(this.renderHeader());
     }
 
@@ -506,7 +656,11 @@ class GraphController {
                     ...arrayToFilter.filter(
                         (d: SerializedChangeBuffer, i: number) => {
                             console.log('d', d);
-                            if (d && d.location.content.includes(searchTerm)) {
+                            if (
+                                d &&
+                                d.location &&
+                                d.location.content.includes(searchTerm)
+                            ) {
                                 this._filtered
                                     ? idx.push(i + this._filterRange[0])
                                     : idx.push(i);
@@ -583,7 +737,12 @@ class GraphController {
                     'entry',
                     this._keyMap[this._currIndex][k][1]
                 );
-                if (this._keyMap[this._currIndex][k][1].data[value]) {
+                if (
+                    this._keyMap[this._currIndex][k][1].data[value] &&
+                    this._keyMap[this._currIndex][k][1].data[
+                        value
+                    ].hasOwnProperty('fsId')
+                ) {
                     data.push(this._keyMap[this._currIndex][k][1].data[value]);
                 }
                 // const instance = test[1].data[closestInstance];
@@ -617,7 +776,7 @@ class GraphController {
                     {data.map((d, i) => (
                         <Version
                             version={d}
-                            color={colorArr[i]}
+                            color={this._colorKey[d.id]}
                             key={d.id + i}
                             context={this}
                         />

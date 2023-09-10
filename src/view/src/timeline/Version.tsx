@@ -21,17 +21,20 @@ import * as Diff from 'diff';
 import { cardStyle } from '../styles/globals';
 import { theme } from './TimelineController';
 import MetaInformationController from './MetaInformationController';
+import { get } from 'lodash';
 
 interface Props {
     version: SerializedChangeBuffer;
     context: GraphController;
+    highlightLogicProp?: (lineNumber: number) => { style: React.CSSProperties };
     color: string;
     priorVersion?: SerializedChangeBuffer;
+    expanded?: boolean;
 }
 
 type EventType = Event.WEB | Event.PASTE | Event.COPY | 'search';
 
-const getHighlightLogic = (
+export const getHighlightLogic = (
     code: string,
     copyBuffer: CopyBuffer,
     type?: EventType
@@ -39,14 +42,14 @@ const getHighlightLogic = (
     const copiedCodeArr = copyBuffer.code.split('\n').map((c) => c.trim());
     const checkTokenLevel = copiedCodeArr.length === 1;
     const lines = code.split('\n').map((c) => c.trim());
-    console.log(
-        'copiedCodeArr',
-        copiedCodeArr,
-        'lines',
-        lines,
-        'copyBuffer',
-        copyBuffer
-    );
+    // console.log(
+    //     'copiedCodeArr',
+    //     copiedCodeArr,
+    //     'lines',
+    //     lines,
+    //     'copyBuffer',
+    //     copyBuffer
+    // );
     const set = new Set();
     const maybeSet = new Set();
     lines.forEach((l, i) => {
@@ -75,9 +78,12 @@ const getHighlightLogic = (
 const Version: React.FC<Props> = ({
     version,
     priorVersion,
+    highlightLogicProp,
     context,
     color,
+    expanded = false,
 }: Props) => {
+    const [shouldExpand, setShouldExpand] = React.useState<boolean>(expanded);
     const getCodeBlock = () => {
         if (version.eventData) {
             if (version.eventData[Event.WEB]) {
@@ -136,7 +142,9 @@ const Version: React.FC<Props> = ({
         return (
             <CodeBlock
                 codeString={version.location.content}
-                highlightLogic={highlightLogic}
+                highlightLogic={
+                    highlightLogicProp ? highlightLogicProp : highlightLogic
+                }
             />
         );
     };
@@ -172,7 +180,8 @@ const Version: React.FC<Props> = ({
                 }
                 case Event.PASTE: {
                     const pasteEvent = version.eventData[Event.PASTE]!;
-                    jsx.push(<div>{meta.render(version.timelineEvent)}</div>);
+
+                    // jsx.push(<div>{meta.render(version.timelineEvent)}</div>);
                     break;
                 }
                 case Event.COPY: {
@@ -214,7 +223,11 @@ const Version: React.FC<Props> = ({
         <div>
             <ThemeProvider theme={theme}>
                 <Card style={cardStyle}>
-                    <Accordion style={{ color: 'white' }}>
+                    <Accordion
+                        style={{ color: 'white' }}
+                        expanded={shouldExpand}
+                        onChange={() => setShouldExpand(!shouldExpand)}
+                    >
                         <AccordionSummary>
                             <div>
                                 <h3
