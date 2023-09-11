@@ -114,7 +114,7 @@ const TimelineScrubber: React.FC<Props> = ({
     return (
         <Slider
             min={min}
-            max={max - 2}
+            max={max}
             defaultValue={0}
             step={1}
             marks={getMarks(events)}

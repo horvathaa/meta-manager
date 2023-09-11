@@ -130,7 +130,7 @@ const Summary: React.FC<SummaryProps> = ({
                         Show Code Pasted From Online
                     </VSCodeButton>
                     <VSCodeButton
-                        appearance="secondary"
+                        // appearance="secondary"
                         onClick={(e: any) => {
                             e.stopPropagation();
                             context.requestLocation(
@@ -172,12 +172,7 @@ const Summary: React.FC<SummaryProps> = ({
                     // }
 
                     jsx.push(
-                        <>
-                            {meta.renderAdditionalMetadata(
-                                copyBuffer,
-                                copyBuffer.type
-                            )}
-                        </>
+                        <div>{meta.render((version as any).timelineEvent)}</div>
                     );
                     break;
                 }
@@ -343,6 +338,10 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
     const [state, setState] = React.useState<VersionState>(
         VersionState.DEFAULT
     );
+
+    const [preview, setPreview] = React.useState<SerializedChangeBuffer | null>(
+        null
+    );
     // const [copyEvents, setCopyEvents] = React.useState<
     //     SerializedChangeBuffer[]
     // >([]);
@@ -402,21 +401,38 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                     <VSCodeButton
                         onClick={(e: any) => {
                             e.stopPropagation();
-                            const nextInstance =
-                                context._searchResults?.results.find(
-                                    (r) => r.idx < currIdx
-                                );
+
+                            const nextInstance = [
+                                ...context._searchResults!.results,
+                            ]
+                                .reverse()
+                                .find((r) => r.idx < currIdx);
                             if (nextInstance) {
+                                setCurrIdx(nextInstance.idx);
                                 context.setFocusedIndex(nextInstance.idx);
-                                context.setScrubberToIdx(nextInstance.idx);
-                            } else {
-                                context.setFocusedIndex(
-                                    context._searchResults?.results[0].idx ||
-                                        currIdx
+                                context.setScrubberEvents(
+                                    context!._searchResults!.results,
+                                    nextInstance.idx
                                 );
-                                context.setScrubberToIdx(
-                                    context._searchResults?.results[0].idx ||
-                                        currIdx
+                            } else {
+                                setCurrIdx(
+                                    context._searchResults?.results[
+                                        context._searchResults!.results.length -
+                                            1
+                                    ].idx || currIdx
+                                );
+                                context.setFocusedIndex(
+                                    context._searchResults?.results[
+                                        context._searchResults!.results.length -
+                                            1
+                                    ].idx || currIdx
+                                );
+                                context.setScrubberEvents(
+                                    context!._searchResults!.results,
+                                    context._searchResults?.results[
+                                        context._searchResults!.results.length -
+                                            1
+                                    ].idx || currIdx
                                 );
                             }
                         }}
@@ -430,15 +446,32 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                                 context._searchResults?.results.find(
                                     (r) => r.idx > currIdx
                                 );
+                            console.log(
+                                'nextInstance',
+                                nextInstance,
+                                'context._searchResults?.results',
+                                context._searchResults?.results,
+                                'curridx',
+                                currIdx
+                            );
                             if (nextInstance) {
+                                setCurrIdx(nextInstance.idx);
                                 context.setFocusedIndex(nextInstance.idx);
-                                context.setScrubberToIdx(nextInstance.idx);
+                                context.setScrubberEvents(
+                                    context!._searchResults!.results,
+                                    nextInstance.idx
+                                );
                             } else {
+                                setCurrIdx(
+                                    context._searchResults?.results[0].idx ||
+                                        currIdx
+                                );
                                 context.setFocusedIndex(
                                     context._searchResults?.results[0].idx ||
                                         currIdx
                                 );
-                                context.setScrubberToIdx(
+                                context.setScrubberEvents(
+                                    context!._searchResults!.results,
                                     context._searchResults?.results[0].idx ||
                                         currIdx
                                 );
@@ -452,7 +485,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
         } else if (state === VersionState.COPY) {
             return (
                 <div className={styles['flex']}>
-                    <VSCodeButton
+                    {/* <VSCodeButton
                         onClick={(e: any) => {
                             e.stopPropagation();
                             context.requestLocation(
@@ -470,11 +503,12 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                         }}
                     >
                         See Copy Code Now
-                    </VSCodeButton>
+                    </VSCodeButton> */}
                     <VSCodeButton
-                    // onClick={() => {
-                    //     context.requestPasteLocations(versions[currIdx]);
-                    // }}
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            context.requestPasteLocations(versions[currIdx]);
+                        }}
                     >
                         See All Paste Locations
                     </VSCodeButton>
@@ -483,7 +517,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
         } else if (state === VersionState.PASTE || state === VersionState.WEB) {
             return (
                 <div className={styles['flex']}>
-                    <VSCodeButton
+                    {/* <VSCodeButton
                         onClick={(e: any) => {
                             e.stopPropagation();
                             // @ ts-ignore
@@ -511,10 +545,11 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                         }}
                     >
                         See Paste Code Now
-                    </VSCodeButton>
+                    </VSCodeButton> */}
                     {state === VersionState.PASTE ? (
                         <VSCodeButton
-                            onClick={() => {
+                            onClick={(e: any) => {
+                                // e.stopPropagation();
                                 context.requestCopyLocations(versions[currIdx]);
                             }}
                         >
@@ -522,7 +557,8 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                         </VSCodeButton>
                     ) : null}
                     <VSCodeButton
-                        onClick={() => {
+                        onClick={(e: any) => {
+                            e.stopPropagation();
                             context.requestPasteLocations(versions[currIdx]);
                         }}
                     >
@@ -564,9 +600,34 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
     };
 
     React.useEffect(() => {
+        window.addEventListener('message', (e) => {
+            const { command } = e.data;
+            if (command === 'foundCopiedCode') {
+                const { payload } = e.data;
+                const version = versions.find((v) => v.idx === currIdx);
+                if (
+                    version &&
+                    version.eventData &&
+                    version.eventData[Event.PASTE]
+                ) {
+                    setPreview(payload.copies);
+                    // context.setFocusedIndex(payload.idx);
+                    // context.setScrubberToIdx(payload.idx);
+                }
+                // const { payload } = e.data;
+                // setCurrIdx(payload.currIdx);
+                // setExpanded(payload.expanded);
+                // setSearchResult(payload.searchResult);
+                // checkIdx(payload.currIdx);
+            }
+        });
+    }, []);
+
+    React.useEffect(() => {
         // console.log('use effect in code node', context._focusedIndex);
         setCurrIdx(context._focusedIndex);
         checkIdx(context._focusedIndex);
+        preview && setPreview(null);
     }, [context._focusedIndex]);
 
     React.useEffect(() => {
@@ -748,7 +809,34 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                                 extraButtons={getExtraButtons()}
                             />
                         </AccordionSummary>
-                        <AccordionDetails>{getCodeBlock()}</AccordionDetails>
+                        <AccordionDetails>
+                            {preview ? (
+                                <div>
+                                    Showing preview of copy from{' '}
+                                    {preview.id.split(':')[0]} in{' '}
+                                    {preview.location.fsPath
+                                        .split(/[\\|\/]/g)
+                                        .pop()}
+                                    <CodeBlock
+                                        codeString={preview.location.content}
+                                        highlightLogic={getHighlightLogic(
+                                            preview.location.content,
+                                            {
+                                                code: preview.eventData[
+                                                    Event.COPY
+                                                ].copyContent,
+                                            } as unknown as CopyBuffer
+                                        )}
+                                    />
+                                    <VSCodeButton
+                                        onClick={() => setPreview(null)}
+                                    >
+                                        Clear preview?
+                                    </VSCodeButton>
+                                </div>
+                            ) : null}
+                            {getCodeBlock()}
+                        </AccordionDetails>
                     </Accordion>
                 </Card>
             </ThemeProvider>

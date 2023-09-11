@@ -77,16 +77,17 @@ class MetaInformationController {
                     return (
                         <div className={styles['git-information']}>
                             <div
-                                className={styles['flex']}
-                                style={{ alignItems: 'center' }}
+                            // className={styles['flex']}
+                            // style={{ alignItems: 'center' }}
                             >
-                                Pasted "{pasteContent}". Originally copied from{' '}
-                                <div className={styles['m4px']}>
-                                    {data.eventData[Event.PASTE].nodeId?.split(
-                                        ':'
-                                    )[0] || 'VS Code'}
-                                </div>
-                                .
+                                {/* <div> */}
+                                Pasted <code>{pasteContent}</code>. Originally
+                                copied from{' '}
+                                {/* <div className={styles['m4px']}> */}
+                                {data.eventData[Event.PASTE].nodeId?.split(
+                                    ':'
+                                )[0] || 'VS Code'}
+                                {/* </div> */}.{/* </div> */}
                             </div>
                             {/* {this.renderOriginalCopiedCode()} */}
                         </div>
@@ -97,10 +98,11 @@ class MetaInformationController {
                 return (
                     <div className={styles['git-information']}>
                         <div
-                            className={styles['flex']}
-                            style={{ alignItems: 'center' }}
+                        // className={styles['flex']}
+                        // style={{ alignItems: 'center' }}
                         >
-                            Pasted "{pasteContent}". Originally copied from{' '}
+                            Pasted <code>{pasteContent}</code>. Originally
+                            copied from{' '}
                             <a
                                 className={styles['m4px']}
                                 onClick={() =>
@@ -299,7 +301,10 @@ class MetaInformationController {
             <div className={`${styles['flex-row']} ${styles['center']}`}>
                 <VSCodeButton
                     className={styles['flat-button']}
-                    onClick={() => this.timelineController.openView(c, type)}
+                    onClick={(e: any) => {
+                        e.stopPropagation();
+                        this.timelineController.openView(c, type);
+                    }}
                 >
                     See More
                 </VSCodeButton>

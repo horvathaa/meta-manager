@@ -123,6 +123,12 @@ class GraphController {
             (e: MessageEvent<any>) => {
                 const { command } = e.data;
                 if (command === 'searchAcrossTime') {
+                    if (
+                        this._searchResults &&
+                        this._searchResults.query === e.data.payload.query
+                    ) {
+                        return;
+                    }
                     const { payload } = e.data;
                     console.log('payload', payload);
                     const { events } = payload;
@@ -708,6 +714,17 @@ class GraphController {
         this._headerRef.render(this.renderHeader());
     }
 
+    resetScrubber() {
+        this._scrubberRef.render(
+            <TimelineScrubber
+                range={[0, this._keyMap[this._currIndex].scale.length]}
+                valueProp={0}
+                parent={this}
+                events={this._canonicalEvents}
+            />
+        );
+    }
+
     requestLocation(
         version: SerializedChangeBuffer,
         code: string,
@@ -797,7 +814,11 @@ class GraphController {
                     </context.Provider>
                 );
             } else {
-                // should show error
+                VS_CODE_API.postMessage({
+                    type: 'requestCopyLocations',
+                    code: pasteContent,
+                    version,
+                });
             }
         }
     }
@@ -805,8 +826,21 @@ class GraphController {
     requestPasteLocations(version: SerializedChangeBuffer) {
         const { eventData } = version;
         if (eventData) {
-            const paste = eventData[Event.PASTE]!;
-            const { pasteContent } = paste;
+            const paste = eventData[Event.PASTE]
+                ? eventData[Event.PASTE]
+                : eventData[Event.COPY];
+            if (!paste) {
+                return;
+            }
+            // const { pasteContent } = paste;
+            let code = '';
+            if (eventData[Event.PASTE]) {
+                // @ts-ignore
+                code = paste.pasteContent || '';
+            } else if (eventData[Event.COPY]) {
+                // @ts-ignore
+                code = paste!.copyContent;
+            }
             const allCopies = Object.keys(this._keyMap[this._currIndex])
                 .filter((d) => d !== 'scale')
                 .flatMap((d) => {
@@ -821,7 +855,7 @@ class GraphController {
                 .filter((d) => d.eventData && d.eventData[Event.PASTE]);
             console.log('lol', allCopies);
             const matches = allCopies.filter(
-                (d) => d.eventData[Event.PASTE].pasteContent === pasteContent
+                (d) => d.eventData[Event.PASTE].pasteContent === code
             );
             if (matches.length) {
                 this._scrubberRef.render(
@@ -848,6 +882,11 @@ class GraphController {
                 );
             } else {
                 // should show error
+                VS_CODE_API.postMessage({
+                    type: 'requestPasteLocations',
+                    code,
+                    version,
+                });
             }
         }
     }

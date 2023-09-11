@@ -203,6 +203,10 @@ export class DataController {
                     msg.id === this.readableNode.id
                 ) {
                     this.handleSearchAcrossTime(msg.location, msg.webviewOpts);
+                } else if (msg.type === 'requestPasteLocations') {
+                    this.searchPastes(msg.code);
+                } else if (msg.type === 'requestCopyLocations') {
+                    this.searchCopies(msg.code);
                 }
             }),
             this.container.onCommented((commentEvent) => {
@@ -294,18 +298,18 @@ export class DataController {
             );
             return;
         }
-        if (webviewOpts && webviewOpts.code.length > 0) {
-            if (this.readableNode.location.content.includes(webviewOpts.code)) {
-                window.activeTextEditor?.revealRange(
-                    RangePlus.fromRangeAndText(
-                        this.readableNode.location.range,
-                        webviewOpts.code
-                    ),
-                    TextEditorRevealType.InCenter
-                );
-                return;
-            }
-        }
+        // if (webviewOpts && webviewOpts.code.length > 0) {
+        //     if (this.readableNode.location.content.includes(webviewOpts.code)) {
+        //         window.activeTextEditor?.revealRange(
+        //             RangePlus.fromRangeAndText(
+        //                 this.readableNode.location.range,
+        //                 webviewOpts.code
+        //             ),
+        //             TextEditorRevealType.InCenter
+        //         );
+        //         return;
+        //     }
+        // }
         const originalCode = webviewOpts
             ? webviewOpts.code
             : document.getText(location.range);
@@ -808,37 +812,45 @@ export class DataController {
             }
         });
         console.log('events lol', events);
-        const cleanedEvents = this.cleanUpAndSendEvents(events);
+        const cleanedEvents = this.cleanUpAndSendEvents(events, originalCode);
         console.log('cleeeeaaan', cleanedEvents);
-        if (webviewOpts) {
-            window.activeTextEditor?.revealRange(
-                RangePlus.deserialize(cleanedEvents['INIT_REMOVE'][0].range)
-            );
+        if (cleanedEvents['INIT_ADD'][0] === null) {
             return;
-        } else {
-            this.container.webviewController?.postMessage({
-                command: 'searchAcrossTime',
-                payload: {
-                    events: cleanedEvents,
-                    query: originalCode,
-                    location:
-                        location instanceof Location
-                            ? LocationPlus.fromLocation(location).serialize()
-                            : location,
-                    node: this.serialize(),
-                },
-            });
         }
+        // if (webviewOpts) {
+        //     window.activeTextEditor?.revealRange(
+        //         RangePlus.deserialize(cleanedEvents['INIT_REMOVE'][0].range)
+        //     );
+        //     return;
+        // } else {
+        this.container.webviewController?.postMessage({
+            command: 'searchAcrossTime',
+            payload: {
+                events: cleanedEvents,
+                query: originalCode,
+                location:
+                    location instanceof Location
+                        ? LocationPlus.fromLocation(location).serialize()
+                        : location,
+                node: this.serialize(),
+            },
+        });
+        // }
     }
 
-    cleanUpAndSendEvents(events: {
-        [k: string]: SearchResultSerializedChangeBuffer[];
-    }) {
+    cleanUpAndSendEvents(
+        events: {
+            [k: string]: SearchResultSerializedChangeBuffer[];
+        },
+        query: string
+    ) {
+        console.log('query', query);
         const cleanedEvents: {
             [k: string]: SearchResultSerializedChangeBuffer[];
         } = {};
         let maxIdx = -1;
         let minIdx = Infinity;
+        let lastKnown: null | number = null;
         let firstSeen: null | SearchResultSerializedChangeBuffer = null;
         let lastSeen: null | SearchResultSerializedChangeBuffer = null;
         Object.keys(events).forEach((k) => {
@@ -936,17 +948,27 @@ export class DataController {
                             cleanedPrevContent || ''
                         ) < 0.5 // drastic change....?
                     ) {
-                        console.log(
-                            'IT HAPPENED!!!!!!',
-                            e,
-                            similarity(
-                                cleanedSearchContent,
-                                cleanedPrevContent || ''
-                            ),
-                            cleanedSearchContent,
-                            cleanedPrevContent
-                        );
-                        return false;
+                        if (
+                            cleanedPrevContent?.includes(cleanedSearchContent)
+                        ) {
+                            return true;
+                        } else {
+                            console.log('IT HAPPENED!!!!!!', e);
+                            lastKnown = e.idx;
+                            // minIdx = e.idx;
+                            return false;
+                            // console.log(
+                            //     'IT HAPPENED!!!!!!',
+                            //     e,
+                            //     similarity(
+                            //         cleanedSearchContent,
+                            //         cleanedPrevContent || ''
+                            //     ),
+                            //     cleanedSearchContent,
+                            //     cleanedPrevContent
+                            // );
+                            // return false;
+                        }
                     }
                     return true;
                     // const { location, ...rest } = e;
@@ -1017,12 +1039,52 @@ export class DataController {
                 });
             }
         });
+        const joint = [
+            ...cleanedEvents['MODIFIED_CONTENT'],
+            ...cleanedEvents['UNCHANGED'],
+            ...cleanedEvents['MOVED_NO_CHANGE'],
+        ];
         cleanedEvents['INIT_ADD'] = [
-            firstSeen as unknown as SearchResultSerializedChangeBuffer,
+            joint.reduce((min, obj) => {
+                if (lastKnown) {
+                    return obj.idx < min.idx && obj.idx > lastKnown ? obj : min;
+                } else {
+                    return obj.idx < min.idx ? obj : min;
+                }
+            }, joint[0]),
+            joint.reduce((min, obj) => {
+                if (lastKnown) {
+                    console.log('min', min, 'obj', obj, 'lastKnown', lastKnown);
+                    return obj.idx < min.idx &&
+                        obj.idx > lastKnown &&
+                        obj.location.content.includes(query)
+                        ? obj
+                        : min;
+                } else {
+                    return obj.idx < min.idx &&
+                        obj.location.content.includes(query)
+                        ? obj
+                        : min;
+                }
+            }, joint[joint.length - 1]),
+            // firstSeen as unknown as SearchResultSerializedChangeBuffer,
         ];
         cleanedEvents['INIT_REMOVE'] = [
-            lastSeen as unknown as SearchResultSerializedChangeBuffer,
+            // lastSeen as unknown as SearchResultSerializedChangeBuffer,
+            // cleanedEvents['UNCHANGED']
+            joint.reduce(
+                (max, obj) => (obj.idx > max.idx ? obj : max),
+                joint[0]
+            ),
         ];
+        if (!cleanedEvents['MODIFIED_CONTENT'].length) {
+            cleanedEvents['MODIFIED_CONTENT'] = joint;
+        }
+        // if (lastKnown !== null) {
+        //     cleanedEvents['MODIFIED_CONTENT'] = cleanedEvents[
+        //         'MODIFIED_CONTENT'
+        //     ].filter((e) => lastKnown && e.idx > lastKnown);
+        // }
         return cleanedEvents;
         // this.container.searchAcrossTimeEmitter(cleanedEvents);
     }
@@ -1272,6 +1334,42 @@ export class DataController {
             return parentContains;
         }
         return false;
+    }
+
+    searchPastes(code: string) {
+        const pastes = this._pasteLocations.filter((p) => {
+            p.pasteContent.replace(/\s+/g, '') === code.replace(/\s+/g, '');
+        });
+        console.log('paste!', pastes, 'this', this);
+    }
+
+    searchCopies(code: string) {
+        const copies = this._pastVersionsTest
+            .filter((d) => d.eventData && d.eventData[Event.COPY])
+            .filter(
+                (p) =>
+                    p.eventData![Event.COPY].copyContent.replace(/\s+/g, '') ===
+                    code.replace(/\s+/g, '')
+            );
+
+        const otherCopies = this._pastVersionsTest
+            .filter((d) => d.eventData && d.eventData[Event.COPY])
+            .filter(
+                (p) =>
+                    p.eventData![Event.COPY].copyContent.replace(/\s+/g, '') ===
+                    code.replace(/\s+/g, '')
+            );
+
+        if (copies.length && copies[0].location.content.includes(code)) {
+            console.log('found copies!', copies, 'this', this);
+            this.container.webviewController?.postMessage({
+                command: 'foundCopiedCode',
+                payload: {
+                    copies: copies[0],
+                    node: this.serialize(),
+                },
+            });
+        }
     }
 
     isContained(location: Location) {

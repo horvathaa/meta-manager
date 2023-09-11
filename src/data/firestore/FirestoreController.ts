@@ -721,31 +721,33 @@ class FirestoreController extends Disposable {
                         )
                     ),
                 });
-                await setDoc(testData, { name: newNode.id });
-                newNode.location.content
-                    .split('\n')
-                    .filter((f) =>
-                        f.matchAll(/^(?=.*[0-9])(?=.*[a-zA-Z])([a-zA-Z0-9]+)$/g)
-                    )
-                    .forEach((line) => {
-                        const lineRef = doc(testDataRef, uuidv4());
-                        setDoc(lineRef, {
-                            line,
-                            time: Math.floor(
-                                getRandomArbitrary(
-                                    // COMMIT_86c56b1_TIME,
-                                    // COMMIT_986de57_TIME,
-                                    // COMMIT_8c8f691_TIME,
-                                    // COMMIT_03466b2_TIME,
-                                    // COMMIT_ce33f0e_TIME,
-                                    // COMMIT_a0b6523_TIME,
-                                    // COMMIT_e683a11_TIME,
-                                    COMMIT_2836a72_TIME,
-                                    COMMIT_5dfd5ba_TIME
-                                )
-                            ),
-                        });
-                    });
+                const testRef = doc(pastVersionsCollectionTest, versionId);
+                setDoc(testRef, { ...newNode });
+                // await setDoc(testData, { name: newNode.id });
+                // newNode.location.content
+                //     .split('\n')
+                //     .filter((f) =>
+                //         f.matchAll(/^(?=.*[0-9])(?=.*[a-zA-Z])([a-zA-Z0-9]+)$/g)
+                //     )
+                //     .forEach((line) => {
+                //         const lineRef = doc(testDataRef, uuidv4());
+                //         setDoc(lineRef, {
+                //             line,
+                //             time: Math.floor(
+                //                 getRandomArbitrary(
+                //                     // COMMIT_86c56b1_TIME,
+                //                     // COMMIT_986de57_TIME,
+                //                     // COMMIT_8c8f691_TIME,
+                //                     // COMMIT_03466b2_TIME,
+                //                     // COMMIT_ce33f0e_TIME,
+                //                     // COMMIT_a0b6523_TIME,
+                //                     // COMMIT_e683a11_TIME,
+                //                     COMMIT_2836a72_TIME,
+                //                     COMMIT_5dfd5ba_TIME
+                //                 )
+                //             ),
+                //         });
+                //     });
             },
             readPastVersions: async () => {
                 const querySnapshot = await getDocs(pastVersionsCollection);
@@ -921,6 +923,9 @@ class FirestoreController extends Disposable {
                             console.log('swapping', o, 'wtih', match);
                             // write to backend and delete unnecessary entries
                             // not doin rn cuz i don't trust myself lmao
+                        } else {
+                            console.log('could not find match for', o);
+                            cleanData.push(o);
                         }
                     }
                 });

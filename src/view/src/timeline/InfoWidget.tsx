@@ -3,6 +3,7 @@ import CodeNode from './CodeNode';
 import { context } from './GraphController';
 import GraphController from './GraphController';
 import * as React from 'react';
+import styles from '../styles/timeline.module.css';
 // import { context }
 
 interface Props {
@@ -32,7 +33,7 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
             <div style={{ margin: '1rem' }}>
                 <h3>Version {graphController._focusedIndex}</h3>
                 {_filtered ? (
-                    <>
+                    <div className={styles['p2']}>
                         <div>
                             Viewing version(s) {_filterRange[0]} to{' '}
                             {_filterRange[1]}
@@ -42,12 +43,10 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
                         >
                             Reset version range?
                         </VSCodeButton>
-                    </>
-                ) : (
-                    <div></div>
-                )}
+                    </div>
+                ) : null}
                 {_searchTerm.length || _searchResults ? (
-                    <div>
+                    <div className={styles['p2']}>
                         <div>
                             Searching for{' '}
                             <code>
@@ -63,6 +62,13 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
                         </VSCodeButton>
                     </div>
                 ) : null}
+                <div>
+                    <VSCodeButton
+                        onClick={() => graphController.resetScrubber()}
+                    >
+                        Reset filter?
+                    </VSCodeButton>
+                </div>
             </div>
             {Object.keys(
                 graphController._keyMap[graphController._currIndex]

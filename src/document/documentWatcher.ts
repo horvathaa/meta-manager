@@ -142,6 +142,7 @@ class DocumentWatcher extends Disposable {
             const past: any[] = nodesArray!
                 .map((n) =>
                     n.dataController?._pastVersionsTest.flatMap((p) => {
+                        // n.dataController?._pastVersions.flatMap((p) => {
                         return {
                             ...p,
                             currNode: n.serialize(),
