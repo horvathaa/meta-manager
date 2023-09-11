@@ -11,6 +11,7 @@ import {
     TextDocument,
     Selection,
     Location,
+    TextEditorRevealType,
 } from 'vscode';
 import { ClipboardMetadata, Container } from '../container';
 import {
@@ -196,6 +197,14 @@ export class DataController {
                     this.handleOnPaste(pasteEvent);
                 }
             }),
+            this.container.webviewController!.onDidReceiveMessage((msg) => {
+                if (
+                    msg.type === 'searchAcrossTime' &&
+                    msg.id === this.readableNode.id
+                ) {
+                    this.handleSearchAcrossTime(msg.location, msg.webviewOpts);
+                }
+            }),
             this.container.onCommented((commentEvent) => {
                 if (this.isContained(commentEvent.location)) {
                     this.handleOnCommented(commentEvent);
@@ -273,12 +282,33 @@ export class DataController {
         return () => this.dispose();
     }
 
-    handleSearchAcrossTime(location: Location) {
+    handleSearchAcrossTime(location: Location, webviewOpts?: any) {
         const document = window.activeTextEditor?.document;
         if (!document) {
             return;
         }
-        const originalCode = document.getText(location.range);
+        if (webviewOpts && webviewOpts.code.length === 0) {
+            window.activeTextEditor?.revealRange(
+                this.readableNode.location.range,
+                TextEditorRevealType.InCenter
+            );
+            return;
+        }
+        if (webviewOpts && webviewOpts.code.length > 0) {
+            if (this.readableNode.location.content.includes(webviewOpts.code)) {
+                window.activeTextEditor?.revealRange(
+                    RangePlus.fromRangeAndText(
+                        this.readableNode.location.range,
+                        webviewOpts.code
+                    ),
+                    TextEditorRevealType.InCenter
+                );
+                return;
+            }
+        }
+        const originalCode = webviewOpts
+            ? webviewOpts.code
+            : document.getText(location.range);
         let codeToSearch = originalCode;
         let events: { [k: string]: SearchResultSerializedChangeBuffer[] } = {
             UNCHANGED: [],
@@ -289,10 +319,15 @@ export class DataController {
             INIT_ADD: [],
             INIT_REMOVE: [],
         };
-        let currRange: Range | null = location.range;
+        let currRange: Range | null = webviewOpts
+            ? RangePlus.deserialize(webviewOpts.range)
+            : location.range;
         const len = this._pastVersionsTest.length;
         // console.log('IM HANDLING IT!!!!', this);
-        [...this._pastVersionsTest].reverse().forEach((v, i) => {
+        const arr = webviewOpts
+            ? webviewOpts.pastVersions
+            : [...this._pastVersionsTest].reverse();
+        arr.forEach((v: SerializedChangeBuffer, i: number) => {
             const pastLocation = LocationPlus.deserialize(
                 v.location as SerializedLocationPlus
             );
@@ -775,15 +810,25 @@ export class DataController {
         console.log('events lol', events);
         const cleanedEvents = this.cleanUpAndSendEvents(events);
         console.log('cleeeeaaan', cleanedEvents);
-        this.container.webviewController?.postMessage({
-            command: 'searchAcrossTime',
-            payload: {
-                events: cleanedEvents,
-                query: originalCode,
-                location: LocationPlus.fromLocation(location).serialize(),
-                node: this.serialize(),
-            },
-        });
+        if (webviewOpts) {
+            window.activeTextEditor?.revealRange(
+                RangePlus.deserialize(cleanedEvents['INIT_REMOVE'][0].range)
+            );
+            return;
+        } else {
+            this.container.webviewController?.postMessage({
+                command: 'searchAcrossTime',
+                payload: {
+                    events: cleanedEvents,
+                    query: originalCode,
+                    location:
+                        location instanceof Location
+                            ? LocationPlus.fromLocation(location).serialize()
+                            : location,
+                    node: this.serialize(),
+                },
+            });
+        }
     }
 
     cleanUpAndSendEvents(events: {

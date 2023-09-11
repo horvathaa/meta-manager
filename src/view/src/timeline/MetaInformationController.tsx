@@ -71,7 +71,8 @@ class MetaInformationController {
                 );
             }
             if (data.eventData[Event.PASTE]) {
-                const { vscodeMetadata } = data.eventData[Event.PASTE];
+                const { vscodeMetadata, pasteContent } =
+                    data.eventData[Event.PASTE];
                 if (!vscodeMetadata) {
                     return (
                         <div className={styles['git-information']}>
@@ -79,7 +80,7 @@ class MetaInformationController {
                                 className={styles['flex']}
                                 style={{ alignItems: 'center' }}
                             >
-                                Code originally copied from{' '}
+                                Pasted "{pasteContent}". Originally copied from{' '}
                                 <div className={styles['m4px']}>
                                     {data.eventData[Event.PASTE].nodeId?.split(
                                         ':'
@@ -99,7 +100,7 @@ class MetaInformationController {
                             className={styles['flex']}
                             style={{ alignItems: 'center' }}
                         >
-                            Code originally copied from{' '}
+                            Pasted "{pasteContent}". Originally copied from{' '}
                             <a
                                 className={styles['m4px']}
                                 onClick={() =>

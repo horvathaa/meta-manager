@@ -25,6 +25,8 @@ import { getHighlightLogic } from './Version';
 import MetaInformationController from './MetaInformationController';
 import styles from '../styles/timeline.module.css';
 import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
+import { ArrowLeft, ArrowRight } from '@mui/icons-material';
+import { getRangeFromSubstring } from '../lib/utils';
 
 interface Props {
     currNode: SerializedReadableNode;
@@ -52,6 +54,7 @@ interface SummaryProps {
     setFilter: (filterObj: any) => void;
     jumpToFirstInstance: () => void;
     state: VersionState;
+    extraButtons?: React.ReactNode;
 }
 
 enum VersionState {
@@ -75,6 +78,7 @@ const Summary: React.FC<SummaryProps> = ({
     setFilter,
     jumpToFirstInstance,
     state,
+    extraButtons,
 }) => {
     console.log('version', version, 'state', state);
 
@@ -82,43 +86,67 @@ const Summary: React.FC<SummaryProps> = ({
 
     const ButtonRow = () => {
         return (
-            <div style={{ display: 'flex' }}>
-                <VSCodeButton
-                    appearance="secondary"
-                    className={filterObj.filterCopy ? styles['active'] : ''}
-                    onClick={() => {
-                        setFilter({
-                            ...filterObj,
-                            filterCopy: !filterObj.filterCopy,
-                        });
-                    }}
-                >
-                    Show Copied Code
-                </VSCodeButton>
-                <VSCodeButton
-                    appearance="secondary"
-                    className={filterObj.filterPaste ? styles['active'] : ''}
-                    onClick={() => {
-                        setFilter({
-                            ...filterObj,
-                            filterPaste: !filterObj.filterPaste,
-                        });
-                    }}
-                >
-                    Show Pasted Code
-                </VSCodeButton>
-                <VSCodeButton
-                    appearance="secondary"
-                    className={filterObj.filterWeb ? styles['active'] : ''}
-                    onClick={() => {
-                        setFilter({
-                            ...filterObj,
-                            filterWeb: !filterObj.filterWeb,
-                        });
-                    }}
-                >
-                    Show Code Pasted From Online
-                </VSCodeButton>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex' }}>
+                    <VSCodeButton
+                        appearance="secondary"
+                        className={filterObj.filterCopy ? styles['active'] : ''}
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            setFilter({
+                                ...filterObj,
+                                filterCopy: !filterObj.filterCopy,
+                            });
+                        }}
+                    >
+                        Show Copied Code
+                    </VSCodeButton>
+                    <VSCodeButton
+                        appearance="secondary"
+                        className={
+                            filterObj.filterPaste ? styles['active'] : ''
+                        }
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            setFilter({
+                                ...filterObj,
+                                filterPaste: !filterObj.filterPaste,
+                            });
+                        }}
+                    >
+                        Show Pasted Code
+                    </VSCodeButton>
+                    <VSCodeButton
+                        appearance="secondary"
+                        className={filterObj.filterWeb ? styles['active'] : ''}
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            setFilter({
+                                ...filterObj,
+                                filterWeb: !filterObj.filterWeb,
+                            });
+                        }}
+                    >
+                        Show Code Pasted From Online
+                    </VSCodeButton>
+                    <VSCodeButton
+                        appearance="secondary"
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            context.requestLocation(
+                                version,
+                                window.getSelection()?.toString() || '',
+                                version.location.range
+                            );
+                        }}
+                    >
+                        See Code Now
+                    </VSCodeButton>
+                    <div>{extraButtons}</div>
+                    {/* {state === VersionState.SEARCH_RESULT ? (
+                    
+                ) : null} */}
+                </div>
             </div>
         );
     };
@@ -293,11 +321,13 @@ const Summary: React.FC<SummaryProps> = ({
                 </div>
                 <ButtonRow></ButtonRow>
             </div>
-            <div>Version {currIdx}</div>
             <div>
-                {summaryHelper()}
-                Edited by {version.userString} at{' '}
-                {new Date(version.time).toLocaleString()}
+                <div>Version {currIdx}</div>
+                <div>
+                    {summaryHelper()}
+                    Edited by {version.userString} at{' '}
+                    {new Date(version.time).toLocaleString()}
+                </div>
             </div>
         </div>
     );
@@ -363,9 +393,149 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
     //     setWebEvents(webEvents);
     // }, [versions]);
 
+    const getExtraButtons = () => {
+        if (state === VersionState.DEFAULT) {
+            return null;
+        } else if (state === VersionState.SEARCH_RESULT) {
+            return (
+                <div className={styles['flex']}>
+                    <VSCodeButton
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            const nextInstance =
+                                context._searchResults?.results.find(
+                                    (r) => r.idx < currIdx
+                                );
+                            if (nextInstance) {
+                                context.setFocusedIndex(nextInstance.idx);
+                                context.setScrubberToIdx(nextInstance.idx);
+                            } else {
+                                context.setFocusedIndex(
+                                    context._searchResults?.results[0].idx ||
+                                        currIdx
+                                );
+                                context.setScrubberToIdx(
+                                    context._searchResults?.results[0].idx ||
+                                        currIdx
+                                );
+                            }
+                        }}
+                    >
+                        <ArrowLeft />
+                    </VSCodeButton>
+                    <VSCodeButton
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            const nextInstance =
+                                context._searchResults?.results.find(
+                                    (r) => r.idx > currIdx
+                                );
+                            if (nextInstance) {
+                                context.setFocusedIndex(nextInstance.idx);
+                                context.setScrubberToIdx(nextInstance.idx);
+                            } else {
+                                context.setFocusedIndex(
+                                    context._searchResults?.results[0].idx ||
+                                        currIdx
+                                );
+                                context.setScrubberToIdx(
+                                    context._searchResults?.results[0].idx ||
+                                        currIdx
+                                );
+                            }
+                        }}
+                    >
+                        <ArrowRight />
+                    </VSCodeButton>
+                </div>
+            );
+        } else if (state === VersionState.COPY) {
+            return (
+                <div className={styles['flex']}>
+                    <VSCodeButton
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            context.requestLocation(
+                                versions[currIdx],
+                                versions[currIdx]?.eventData![Event.COPY]
+                                    ?.copyContent || '',
+                                getRangeFromSubstring(
+                                    versions[currIdx].location.range,
+                                    versions[currIdx].location.content,
+                                    versions[currIdx]?.eventData![Event.COPY]
+                                        ?.copyContent || ''
+                                )
+                            );
+                            context.clearRange();
+                        }}
+                    >
+                        See Copy Code Now
+                    </VSCodeButton>
+                    <VSCodeButton
+                    // onClick={() => {
+                    //     context.requestPasteLocations(versions[currIdx]);
+                    // }}
+                    >
+                        See All Paste Locations
+                    </VSCodeButton>
+                </div>
+            );
+        } else if (state === VersionState.PASTE || state === VersionState.WEB) {
+            return (
+                <div className={styles['flex']}>
+                    <VSCodeButton
+                        onClick={(e: any) => {
+                            e.stopPropagation();
+                            // @ ts-ignore
+                            let event;
+                            let code = '';
+                            if (state === VersionState.PASTE) {
+                                event =
+                                    versions[currIdx]?.eventData![Event.PASTE];
+                                code = event?.pasteContent || '';
+                            } else {
+                                event =
+                                    versions[currIdx]?.eventData![Event.WEB];
+                                code = event?.copyBuffer?.code || '';
+                            }
+                            context.requestLocation(
+                                versions[currIdx],
+                                code,
+                                getRangeFromSubstring(
+                                    versions[currIdx].location.range,
+                                    versions[currIdx].location.content,
+                                    code
+                                )
+                            );
+                            context.clearRange();
+                        }}
+                    >
+                        See Paste Code Now
+                    </VSCodeButton>
+                    {state === VersionState.PASTE ? (
+                        <VSCodeButton
+                            onClick={() => {
+                                context.requestCopyLocations(versions[currIdx]);
+                            }}
+                        >
+                            See Corresponding Copy
+                        </VSCodeButton>
+                    ) : null}
+                    <VSCodeButton
+                        onClick={() => {
+                            context.requestPasteLocations(versions[currIdx]);
+                        }}
+                    >
+                        See All Other Paste Locations
+                    </VSCodeButton>
+                </div>
+            );
+        }
+    };
+
     const checkIdx = (idx: number) => {
         const v = versions.find((v) => v.idx === idx);
-        let state = VersionState.DEFAULT;
+        // let state = VersionState.DEFAULT;
         if (v && v.location) {
             if (v.eventData) {
                 if (v.eventData[Event.COPY]) {
@@ -394,17 +564,18 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
     };
 
     React.useEffect(() => {
-        console.log('use effect in code node', context._focusedIndex);
+        // console.log('use effect in code node', context._focusedIndex);
         setCurrIdx(context._focusedIndex);
         checkIdx(context._focusedIndex);
     }, [context._focusedIndex]);
+
     React.useEffect(() => {
-        console.log(
-            'use effect in code node search',
-            context,
-            'currNode',
-            currNode
-        );
+        // console.log(
+        //     'use effect in code node search',
+        //     context,
+        //     'currNode',
+        //     currNode
+        // );
         if (
             context._searchResults &&
             context._searchResults.node === (currNode as any).parentId
@@ -520,10 +691,13 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
     const jumpToFirstInstance = () => {
         const firstInstance = versions.find((v) => v.location);
         if (firstInstance) {
-            // context._focusedIndex = firstInstance.idx;
-            context.setFocusedIndex(firstInstance.idx);
-            context.setScrubberToIdx(firstInstance.idx);
+            goToIdx(firstInstance.idx);
         }
+    };
+
+    const goToIdx = (idx: number) => {
+        context.setFocusedIndex(idx);
+        context.setScrubberToIdx(idx);
     };
 
     const currVersion = versions.find((v) => v.idx === currIdx);
@@ -571,6 +745,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                                 jumpToFirstInstance={jumpToFirstInstance}
                                 // state={checkIdx(currIdx)}
                                 state={state}
+                                extraButtons={getExtraButtons()}
                             />
                         </AccordionSummary>
                         <AccordionDetails>{getCodeBlock()}</AccordionDetails>

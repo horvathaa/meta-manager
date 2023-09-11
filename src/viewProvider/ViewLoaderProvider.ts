@@ -91,9 +91,9 @@ class ViewLoaderProvider implements WebviewViewProvider {
             <div style="display: flex">
                 <div style="display: flex; flex-direction: column; width: 60%">
                     <svg style="width: 1000px; top: 10px" height="530"></svg>
-                    <div id="scrubberRoot" style="margin-left: 40px; position: absolute; top: 515px; width: 940px"></div>
+                    <div id="scrubberRoot" style="margin-left: 40px; position: fixed; top: 455px; width: 940px"></div>
                 </div>
-                <div id="infoRoot" style="width: 100%;"></div>
+                <div id="infoRoot" style="width: 40%;"></div>
             </div>
         </div>
         <script nonce="${nonce}" src="${reactAppPathOnDisk}"></script>

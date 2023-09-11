@@ -1,3 +1,4 @@
+import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import CodeNode from './CodeNode';
 import { context } from './GraphController';
 import GraphController from './GraphController';
@@ -23,11 +24,45 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
         // console.log('useEffect! info widget');
         // }, [parentProp]);
     }, [parent]);
+
+    const { _searchResults, _searchTerm, _filtered, _keyMap, _filterRange } =
+        graphController;
     return (
         <div>
-            <div>
-                <p>Current index: {graphController._focusedIndex}</p>
-                <p>Current search term: {graphController._searchTerm}</p>
+            <div style={{ margin: '1rem' }}>
+                <h3>Version {graphController._focusedIndex}</h3>
+                {_filtered ? (
+                    <>
+                        <div>
+                            Viewing version(s) {_filterRange[0]} to{' '}
+                            {_filterRange[1]}
+                        </div>
+                        <VSCodeButton
+                            onClick={() => graphController.clearRange()}
+                        >
+                            Reset version range?
+                        </VSCodeButton>
+                    </>
+                ) : (
+                    <div></div>
+                )}
+                {_searchTerm.length || _searchResults ? (
+                    <div>
+                        <div>
+                            Searching for{' '}
+                            <code>
+                                {_searchTerm.length
+                                    ? _searchTerm
+                                    : _searchResults?.query}
+                            </code>
+                        </div>
+                        <VSCodeButton
+                            onClick={() => graphController.clearSearch()}
+                        >
+                            Clear search?
+                        </VSCodeButton>
+                    </div>
+                ) : null}
             </div>
             {Object.keys(
                 graphController._keyMap[graphController._currIndex]

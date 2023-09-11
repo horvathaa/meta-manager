@@ -15,6 +15,7 @@ import {
     DataSourceType,
     CopyBuffer,
     SearchResultSerializedChangeBuffer,
+    SerializedRangePlus,
 } from '../types/types';
 import * as React from 'react';
 import { Root, createRoot } from 'react-dom/client';
@@ -31,6 +32,7 @@ import { CancelOutlined } from '@mui/icons-material';
 import Search from './Search';
 import Carousel from 'react-material-ui-carousel';
 import InfoWidget from './InfoWidget';
+import { VS_CODE_API } from '../VSCodeApi';
 // const color = d3.scaleOrdinal(
 //     ['hJyV36Xgy8gO67UJVmnQUrRgJih1', 'ambear9@gmail.com'],
 //     ['#4e79a7', '#e15759']
@@ -704,6 +706,172 @@ class GraphController {
             </context.Provider>
         );
         this._headerRef.render(this.renderHeader());
+    }
+
+    requestLocation(
+        version: SerializedChangeBuffer,
+        code: string,
+        range: SerializedRangePlus
+    ) {
+        VS_CODE_API.postMessage({
+            type: 'searchAcrossTime',
+            id: (version as any).parentId,
+            location: version.location,
+            webviewOpts: {
+                range,
+                code,
+                pastVersions: this._keyMap[this._currIndex][
+                    (version as any).parentId
+                ][1].data.slice((version as any).idx),
+            },
+        });
+    }
+
+    clearRange() {
+        this._filtered = false;
+        this._filterRange = [0, 0];
+        this.drawStream(
+            [], // nightmare
+            [],
+            [],
+            this._keyMap
+        );
+        // this._searchTerm = '';
+        this._scrubberRef.render(
+            <TimelineScrubber
+                range={[0, this._keyMap[this._currIndex].scale.length]}
+                valueProp={0}
+                parent={this}
+                events={this._canonicalEvents}
+            />
+        );
+        this._infoRef.render(
+            <context.Provider value={{ graphController: this }}>
+                <InfoWidget parentProp={this} />
+            </context.Provider>
+        );
+    }
+
+    requestCopyLocations(version: SerializedChangeBuffer) {
+        const { eventData } = version;
+        if (eventData) {
+            const paste = eventData[Event.PASTE]!;
+            const { pasteContent } = paste;
+            const allCopies = Object.keys(this._keyMap[this._currIndex])
+                .filter((d) => d !== 'scale')
+                .flatMap((d) => {
+                    console.log(
+                        'how tf is this structured',
+                        this._keyMap[this._currIndex][d],
+                        'at idx',
+                        this._keyMap[this._currIndex]
+                    );
+                    return this._keyMap[this._currIndex][d][1].data;
+                })
+                .filter((d) => d.eventData && d.eventData[Event.COPY]);
+            console.log('lol', allCopies);
+            const match = allCopies.find(
+                (d) => d.eventData[Event.COPY].copyContent === pasteContent
+            );
+            if (match) {
+                this._scrubberRef.render(
+                    <TimelineScrubber
+                        range={
+                            this._filtered
+                                ? this._filterRange
+                                : [
+                                      0,
+                                      this._keyMap[this._currIndex].scale
+                                          .length,
+                                  ]
+                        }
+                        valueProp={match.idx}
+                        parent={this}
+                        events={[match]}
+                    />
+                );
+                this._focusedIndex = match.idx;
+                this._infoRef.render(
+                    <context.Provider value={{ graphController: this }}>
+                        <InfoWidget parentProp={this} />
+                    </context.Provider>
+                );
+            } else {
+                // should show error
+            }
+        }
+    }
+
+    requestPasteLocations(version: SerializedChangeBuffer) {
+        const { eventData } = version;
+        if (eventData) {
+            const paste = eventData[Event.PASTE]!;
+            const { pasteContent } = paste;
+            const allCopies = Object.keys(this._keyMap[this._currIndex])
+                .filter((d) => d !== 'scale')
+                .flatMap((d) => {
+                    console.log(
+                        'how tf is this structured',
+                        this._keyMap[this._currIndex][d],
+                        'at idx',
+                        this._keyMap[this._currIndex]
+                    );
+                    return this._keyMap[this._currIndex][d][1].data;
+                })
+                .filter((d) => d.eventData && d.eventData[Event.PASTE]);
+            console.log('lol', allCopies);
+            const matches = allCopies.filter(
+                (d) => d.eventData[Event.PASTE].pasteContent === pasteContent
+            );
+            if (matches.length) {
+                this._scrubberRef.render(
+                    <TimelineScrubber
+                        range={
+                            this._filtered
+                                ? this._filterRange
+                                : [
+                                      0,
+                                      this._keyMap[this._currIndex].scale
+                                          .length,
+                                  ]
+                        }
+                        valueProp={matches[0]}
+                        parent={this}
+                        events={matches}
+                    />
+                );
+                this._focusedIndex = matches[0].idx;
+                this._infoRef.render(
+                    <context.Provider value={{ graphController: this }}>
+                        <InfoWidget parentProp={this} />
+                    </context.Provider>
+                );
+            } else {
+                // should show error
+            }
+        }
+    }
+
+    clearSearch() {
+        this._searchResults = null;
+        this._searchTerm = '';
+        this._scrubberRef.render(
+            <TimelineScrubber
+                range={
+                    this._filtered
+                        ? this._filterRange
+                        : [0, this._keyMap[this._currIndex].scale.length]
+                }
+                valueProp={0}
+                parent={this}
+                events={this._canonicalEvents}
+            />
+        );
+        this._infoRef.render(
+            <context.Provider value={{ graphController: this }}>
+                <InfoWidget parentProp={this} />
+            </context.Provider>
+        );
     }
 
     pointerentered(e: any, k: any) {

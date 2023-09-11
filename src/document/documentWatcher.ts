@@ -156,6 +156,8 @@ class DocumentWatcher extends Disposable {
                             treeParent:
                                 n.dataController?.tree?.parent?.name || '',
                             depth: n.dataController?.tree?.depth || 0,
+                            allPasteLocations:
+                                n.dataController?._pasteLocations,
                         };
                     })
                 )
