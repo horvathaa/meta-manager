@@ -90,8 +90,8 @@ class ViewLoaderProvider implements WebviewViewProvider {
             <div id="header"></div>
             <div style="display: flex">
                 <div style="display: flex; flex-direction: column; width: 60%">
-                    <svg style="width: 1000px; top: 10px; position: fixed" height="530"></svg>
-                    <div id="scrubberRoot" style="margin-left: 40px; position: fixed; top: 455px; width: 940px"></div>
+                    <svg style="width: 900px; top: 60px; position: fixed" height="450"></svg>
+                    <div id="scrubberRoot" style="margin-left: 40px; position: fixed; top: 455px; width: 840px"></div>
                 </div>
                 <div id="infoRoot" style="width: 40%;"></div>
             </div>

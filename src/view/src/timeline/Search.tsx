@@ -27,7 +27,7 @@ const Search: React.FC<{ context: GraphController }> = ({ context }) => {
             <div className={styles['center']}>
                 <VSCodeTextField
                     // className={styles['m2']}
-                    placeholder="Search for a keyword"
+                    placeholder="Search"
                     onChange={(e: any) => {
                         if (e.target.value.length === 0) {
                             context.search('');

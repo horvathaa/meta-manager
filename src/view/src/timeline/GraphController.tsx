@@ -63,12 +63,12 @@ const lightenOrd = d3.scaleOrdinal(
 );
 
 const colorArr = [
-    '#4e79a761',
+    '#4e79a7',
     META_MANAGER_COLOR,
-    '#CCCCFF61',
-    '#7575CF61',
-    '#5453A661',
-    '#9EA9ED61',
+    '#CCCCFF',
+    '#7575CF',
+    '#5453A6',
+    '#9EA9ED',
 ];
 
 const seenColors = new Set();
@@ -82,8 +82,8 @@ export interface SearchResult {
     query: string;
 }
 class GraphController {
-    private readonly width = 1000;
-    private readonly height = 500;
+    private readonly width = 900;
+    private readonly height = 450;
     private readonly marginTop = 20;
     private readonly marginRight = 30;
     private readonly marginBottom = 30;
@@ -142,6 +142,8 @@ class GraphController {
                             <InfoWidget parentProp={this} />
                         </context.Provider>
                     );
+                    // this._currScrubberEvents =
+                    //     this._searchResults?.results || [];
                     this._scrubberRef.render(
                         <TimelineScrubber
                             range={
@@ -155,7 +157,10 @@ class GraphController {
                             }
                             valueProp={0}
                             parent={this}
-                            events={this._searchResults?.results || []}
+                            // events={this._currScrubberEvents}
+                            events={this._canonicalEvents.concat(
+                                this._searchResults?.results || []
+                            )}
                         />
                     );
                     // this.render(payload);
@@ -186,6 +191,7 @@ class GraphController {
                 }
                 valueProp={idx}
                 parent={this}
+                // events={this._currScrubberEvents}
                 events={this._canonicalEvents}
             />
         );
@@ -193,6 +199,7 @@ class GraphController {
 
     setScrubberEvents(events: SerializedChangeBuffer[], valueProp?: number) {
         // this._canonicalEvents = events;
+        // this._currScrubberEvents = events;
         this._scrubberRef.render(
             <TimelineScrubber
                 range={
@@ -202,6 +209,7 @@ class GraphController {
                 }
                 valueProp={valueProp || 0}
                 parent={this}
+                // events={this._currScrubberEvents}
                 events={events}
             />
         );
@@ -229,9 +237,17 @@ class GraphController {
             .map((c: SearchResultSerializedChangeBuffer) => {
                 const match = changed.find((d) => d.fsId === c.fsId);
                 if (match) {
-                    return { ...c, searchContent: match.searchContent };
+                    return {
+                        ...c,
+                        searchContent: match.searchContent,
+                        prevContent: match.prevContent || '',
+                    };
                 } else {
-                    return { ...c, searchContent: query };
+                    return {
+                        ...c,
+                        searchContent: query,
+                        prevContent: match.prevContent || '',
+                    };
                 }
             });
         console.log('res', res, 'arr', arr, 'codePart', codePart);
@@ -697,12 +713,15 @@ class GraphController {
                 //     });
             });
         this._canonicalEvents = events;
+        // if (!this._currScrubberEvents.length) {
+        //     this._currScrubberEvents = events;
+        // }
         this._scrubberRef.render(
             <TimelineScrubber
                 range={range ? range : [0, scale.length]}
                 valueProp={0}
                 parent={this}
-                events={events}
+                events={this._canonicalEvents}
             />
         );
         // this._infoRef.render(<div>{this.getHighLevelSummary()}</div>);
@@ -759,6 +778,7 @@ class GraphController {
                 range={[0, this._keyMap[this._currIndex].scale.length]}
                 valueProp={0}
                 parent={this}
+                // events={this._currScrubberEvents}
                 events={this._canonicalEvents}
             />
         );
@@ -790,6 +810,7 @@ class GraphController {
             const match = allCopies.find(
                 (d) => d.eventData[Event.COPY].copyContent === pasteContent
             );
+            console.log('match', match);
             if (match) {
                 this._scrubberRef.render(
                     <TimelineScrubber
@@ -892,8 +913,13 @@ class GraphController {
     }
 
     clearSearch() {
+        if (!this._searchResults) {
+            return;
+        }
+        const res = [...this._searchResults.results].map((i) => i.fsId);
         this._searchResults = null;
         this._searchTerm = '';
+        // this._currScrubberEvents = this._currScrubberEvents.filter(e => e.fsId && !res.includes(e.fsId));
         this._scrubberRef.render(
             <TimelineScrubber
                 range={

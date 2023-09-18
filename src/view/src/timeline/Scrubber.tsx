@@ -39,7 +39,26 @@ const TimelineScrubber: React.FC<Props> = ({
         const marks = events.map((event) => {
             let name = '';
             if (!event.eventData) {
-                name = 'Search Result';
+                if (event.searchContent && event.prevContent) {
+                    if (
+                        event.prevContent.match(/[\/\\]/g) &&
+                        event.prevContent
+                            .replace(/[\/\\]/g, '')
+                            .replace(/s/g, '') ===
+                            event.searchContent.replace(/s/g, '')
+                    ) {
+                        name = 'Commented Out';
+                    } else if (
+                        event.searchContent.match(/[\/\\]/g) &&
+                        !event.prevContent.match(/[\/\\]/g)
+                    ) {
+                        name = 'Commented In';
+                    } else {
+                        name = 'Search Result';
+                    }
+                } else {
+                    name = 'Search Result';
+                }
             } else {
                 name = event.eventData;
                 if (event.eventData[Event.WEB]) {
@@ -102,6 +121,13 @@ const TimelineScrubber: React.FC<Props> = ({
             },
             '& .MuiSlider-mark': {
                 height: '8px',
+                background: '#e37933',
+            },
+            '& .MuiSlider-thumb': {
+                color: '#e37933',
+            },
+            '& .MuiSlider-track': {
+                color: '#d6975600',
             },
         },
         ...(highlightTrack && {

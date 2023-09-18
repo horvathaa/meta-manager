@@ -767,7 +767,12 @@ class FirestoreController extends Disposable {
                 //     return;
                 // }
                 const hewwo = await getDocs(pastVersionsCollectionTest);
-                console.log('hewwo????', hewwo);
+                console.log(
+                    'hewwo????',
+                    hewwo,
+                    'COUNT',
+                    await getCountFromServer(pastVersionsCollectionTest)
+                );
                 // const count = await getCountFromServer(
                 //     pastVersionsCollectionTest
                 // );

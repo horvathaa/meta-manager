@@ -116,6 +116,49 @@ class DocumentWatcher extends Disposable {
             }
         });
 
+        const indexBlockListener = this.container.indexBlockEmitter((event) => {
+            console.log(
+                'owned?',
+                !this._nodesInFile
+                    ?.toArray()
+                    .filter((t) => t.humanReadableKind !== 'file')
+                    .some((s) => s.location.range.contains(event.selection)),
+                event.selection,
+                'nodes',
+                this._nodesInFile
+            );
+            if (
+                this.document.uri.fsPath ===
+                    window.activeTextEditor?.document.uri.fsPath &&
+                !this._nodesInFile
+                    ?.toArray()
+                    .filter((t) => t.humanReadableKind !== 'file')
+                    .some((s) => s.location.range.contains(event.selection))
+            ) {
+                console.log('nodes before', this._nodesInFile);
+                this._nodesInFile = this.traverse(
+                    this._nodesInFile,
+                    undefined,
+                    undefined,
+                    true
+                );
+                console.log('node after', this._nodesInFile);
+                const arr = this._nodesInFile?.toArray();
+                const nodeToUpdate = arr.find((n) => {
+                    return n.location.range.contains(event.selection);
+                });
+                if (nodeToUpdate) {
+                    const thisNode = arr.find(
+                        (p) => p.humanReadableKind === 'file'
+                    );
+                    if (thisNode) {
+                        nodeToUpdate.dataController!._changeBuffer =
+                            thisNode._dataController?._changeBuffer || [];
+                    }
+                }
+            }
+        });
+
         const saveListener = workspace.onDidSaveTextDocument((e) =>
             this.handleOnDidSaveDidClose(e)
         );
@@ -511,12 +554,25 @@ class DocumentWatcher extends Disposable {
                                           ]);
                                 }
                             } else {
-                                startLinesByTime.data.push({
-                                    ...lastEntry[k][1].data[
+                                const lastDataEntry =
+                                    lastEntry[k][1].data[
                                         lastEntry[k][1].data.length - 1
-                                    ],
-                                    idx,
-                                });
+                                    ];
+                                if (lastDataEntry.eventData) {
+                                    const { eventData, ...rest } =
+                                        lastDataEntry;
+                                    startLinesByTime.data.push({
+                                        ...rest,
+                                        idx,
+                                    });
+                                } else {
+                                    startLinesByTime.data.push({
+                                        ...lastEntry[k][1].data[
+                                            lastEntry[k][1].data.length - 1
+                                        ],
+                                        idx,
+                                    });
+                                }
                             }
                             endLinesByTime.x.push(n.time);
                             endLinesByTime.y.push(
@@ -667,6 +723,7 @@ class DocumentWatcher extends Disposable {
             firestoreReadListener,
             reindexListener,
             activeListener,
+            indexBlockListener,
             // commandDisposable,
             // docChangeListener,
         ].filter((d) => d) as Disposable[];

@@ -13,6 +13,7 @@ interface CssExports {
   'inactive': string;
   'm2': string;
   'm4px': string;
+  'ml4': string;
   'p2': string;
   'simulate-link': string;
 }

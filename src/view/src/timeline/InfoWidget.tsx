@@ -41,7 +41,7 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
                         <VSCodeButton
                             onClick={() => graphController.clearRange()}
                         >
-                            Reset version range?
+                            Reset version range
                         </VSCodeButton>
                     </div>
                 ) : null}
@@ -58,7 +58,7 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
                         <VSCodeButton
                             onClick={() => graphController.clearSearch()}
                         >
-                            Clear search?
+                            Clear search
                         </VSCodeButton>
                     </div>
                 ) : null}
@@ -66,7 +66,7 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
                     <VSCodeButton
                         onClick={() => graphController.resetScrubber()}
                     >
-                        Reset filter?
+                        Reset filter
                     </VSCodeButton>
                 </div>
             </div>

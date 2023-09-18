@@ -190,9 +190,10 @@ export class DataController {
             // tbd
             this.container.onPaste((pasteEvent) => {
                 if (
-                    this.readableNode.location.containsStart(
-                        pasteEvent.location
-                    )
+                    this.isOwnerOfRange(pasteEvent.location.range)
+                    // this.readableNode.location.containsStart(
+                    //     pasteEvent.location
+                    // )
                 ) {
                     this.handleOnPaste(pasteEvent);
                 }
@@ -218,7 +219,7 @@ export class DataController {
                 if (
                     this.readableNode.location.uri.fsPath ===
                         window.activeTextEditor?.document.uri.fsPath &&
-                    this.readableNode.location.contains(block.selection) &&
+                    // this.readableNode.location.contains(block.selection) &&
                     this.isOwnerOfRange(block.selection)
                 ) {
                     this.handleInsertBlock(
@@ -286,6 +287,113 @@ export class DataController {
         return () => this.dispose();
     }
 
+    handleFirstCommentedOut(query: string) {
+        const queryWithoutComment = query.replace(/[\/\\]/g, '');
+        console.log('queryWithoutComment', queryWithoutComment);
+        const queryWithoutCommentWithoutWhitespace =
+            queryWithoutComment.replace(/\s/g, '');
+        console.log(
+            'queryWithoutCommentWithoutWhitespace',
+            queryWithoutCommentWithoutWhitespace
+        );
+        const queryWithNoWhitespace = query.replace(/\s/g, '');
+        console.log('queryWithNoWhitespace', queryWithNoWhitespace);
+        let count = 0;
+        const res = [...this._pastVersionsTest].reverse().find((c, i) => {
+            count = this._pastVersionsTest.length - i;
+            const contentWithNoWhitespace = c.location.content.replace(
+                /\s/g,
+                ''
+            );
+            if (contentWithNoWhitespace.includes(queryWithNoWhitespace)) {
+                console.log('FALSE', contentWithNoWhitespace);
+                return false; // still has commented version
+            } else {
+                if (
+                    contentWithNoWhitespace.includes(
+                        queryWithoutCommentWithoutWhitespace
+                    )
+                ) {
+                    // commented in
+                    return true;
+                    // const range = LocationPlus.deserialize(
+                    //     c.location
+                    // ).deriveRangeFromSearchString(
+                    //     queryWithoutCommentWithoutWhitespace
+                    // );
+                    // if (range) {
+                    //     window.activeTextEditor?.revealRange(
+                    //         range,
+                    //         TextEditorRevealType.InCenter
+                    //     );
+                    // }
+                }
+                return false;
+            }
+        });
+        if (res) {
+            return { ...res, idx: count };
+        }
+        return undefined;
+    }
+
+    handleFirstCommentedIn(query: string) {
+        const queryWithComments = query.includes('\n')
+            ? query
+                  .split('\n')
+                  .map((l) => `// ${l}`)
+                  .join('\n')
+            : `// ${query}`;
+        console.log('queryWithComments', queryWithComments);
+        const queryWithCommentsWithoutWhitespace = queryWithComments.replace(
+            /\s/g,
+            ''
+        );
+        console.log(
+            'queryWithCommentsWithoutWhitespace',
+            queryWithCommentsWithoutWhitespace
+        );
+        const queryWithoutWhitespace = query.replace(/\s/g, '');
+        console.log('queryWithoutWhitespace', queryWithoutWhitespace);
+        let count = 0;
+        const res = [...this._pastVersionsTest].reverse().find((c, i) => {
+            count = this._pastVersionsTest.length - i;
+            const contentWithoutWhitespace = c.location.content.replace(
+                /\s/g,
+                ''
+            );
+            if (contentWithoutWhitespace.includes(queryWithoutWhitespace)) {
+                console.log('FALSE', contentWithoutWhitespace);
+                return false; // still has uncommented version
+            } else {
+                if (
+                    contentWithoutWhitespace.includes(
+                        queryWithCommentsWithoutWhitespace
+                    )
+                ) {
+                    // commented in
+                    return true;
+                    // const range = LocationPlus.deserialize(
+                    //     c.location
+                    // ).deriveRangeFromSearchString(
+                    //     queryWithoutCommentWithoutWhitespace
+                    // );
+                    // if (range) {
+                    //     window.activeTextEditor?.revealRange(
+                    //         range,
+                    //         TextEditorRevealType.InCenter
+                    //     );
+                    // }
+                }
+                return false;
+            }
+        });
+        if (res) {
+            return { ...res, idx: count };
+        }
+        return undefined;
+    }
+
     handleSearchAcrossTime(location: Location, webviewOpts?: any) {
         const document = window.activeTextEditor?.document;
         if (!document) {
@@ -314,6 +422,9 @@ export class DataController {
             ? webviewOpts.code
             : document.getText(location.range);
         let codeToSearch = originalCode;
+        const commentedOut = this.handleFirstCommentedOut(codeToSearch);
+        const commentedIn = this.handleFirstCommentedIn(codeToSearch);
+        console.log('COMMENTED OUT', commentedOut);
         let events: { [k: string]: SearchResultSerializedChangeBuffer[] } = {
             UNCHANGED: [],
             MODIFIED_CONTENT: [],
@@ -814,9 +925,42 @@ export class DataController {
         console.log('events lol', events);
         const cleanedEvents = this.cleanUpAndSendEvents(events, originalCode);
         console.log('cleeeeaaan', cleanedEvents);
+
         if (cleanedEvents['INIT_ADD'][0] === null) {
             return;
         }
+        if (
+            commentedOut &&
+            !cleanedEvents['MODIFIED_CONTENT'].some(
+                (e) => e.fsId === commentedOut.fsId
+            )
+        ) {
+            cleanedEvents['MODIFIED_CONTENT'].push({
+                ...commentedOut,
+                searchContent: originalCode.replace(/[\/\\]/g, ''),
+                prevContent: originalCode,
+                range: currRange,
+            });
+        }
+        if (
+            commentedIn &&
+            !cleanedEvents['MODIFIED_CONTENT'].some(
+                (e) => e.fsId === commentedIn.fsId
+            )
+        ) {
+            cleanedEvents['MODIFIED_CONTENT'].push({
+                ...commentedIn,
+                searchContent: originalCode.includes('\n')
+                    ? originalCode
+                          .split('\n')
+                          .map((l) => `// ${l}`)
+                          .join('\n')
+                    : `// ${originalCode}`,
+                prevContent: originalCode,
+                range: currRange,
+            });
+        }
+        // cleanedEvents['MODIFIED_CONTENT']
         // if (webviewOpts) {
         //     window.activeTextEditor?.revealRange(
         //         RangePlus.deserialize(cleanedEvents['INIT_REMOVE'][0].range)
@@ -1340,6 +1484,44 @@ export class DataController {
         const pastes = this._pasteLocations.filter((p) => {
             p.pasteContent.replace(/\s+/g, '') === code.replace(/\s+/g, '');
         });
+        // try searching past versions
+        if (!pastes.length) {
+            const pasteVersions = this._pastVersions.filter((p) => {
+                return (
+                    p.eventData &&
+                    p.eventData[Event.PASTE] &&
+                    p.eventData[Event.PASTE].pasteContent.replace(
+                        /\s+/g,
+                        ''
+                    ) === code.replace(/\s+/g, '')
+                );
+            });
+            if (
+                pasteVersions.length
+                // &&
+                // pasteVersions[0].location.content.includes(code)
+            ) {
+                console.log('sending this!', pasteVersions);
+                this.container.webviewController?.postMessage({
+                    command: 'foundPastedCode',
+                    payload: {
+                        pastes: pasteVersions[0],
+                        node: this.serialize(),
+                    },
+                });
+            }
+        } else {
+            if (pastes.length && pastes[0].location.content.includes(code)) {
+                // console.log('found copies!', copies, 'this', this);
+                this.container.webviewController?.postMessage({
+                    command: 'foundPastedCode',
+                    payload: {
+                        pastes: pastes[0],
+                        node: this.serialize(),
+                    },
+                });
+            }
+        }
         console.log('paste!', pastes, 'this', this);
     }
 

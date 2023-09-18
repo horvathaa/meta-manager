@@ -87,10 +87,12 @@ const Summary: React.FC<SummaryProps> = ({
     const ButtonRow = () => {
         return (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
                     <VSCodeButton
                         appearance="secondary"
-                        className={filterObj.filterCopy ? styles['active'] : ''}
+                        className={
+                            filterObj.filterCopy ? `${styles['active']}` : ''
+                        }
                         onClick={(e: any) => {
                             e.stopPropagation();
                             setFilter({
@@ -104,7 +106,9 @@ const Summary: React.FC<SummaryProps> = ({
                     <VSCodeButton
                         appearance="secondary"
                         className={
-                            filterObj.filterPaste ? styles['active'] : ''
+                            filterObj.filterPaste
+                                ? `${styles['active']} ${styles['ml4']}`
+                                : styles['ml4']
                         }
                         onClick={(e: any) => {
                             e.stopPropagation();
@@ -118,7 +122,11 @@ const Summary: React.FC<SummaryProps> = ({
                     </VSCodeButton>
                     <VSCodeButton
                         appearance="secondary"
-                        className={filterObj.filterWeb ? styles['active'] : ''}
+                        className={
+                            filterObj.filterWeb
+                                ? `${styles['active']} ${styles['ml4']}`
+                                : styles['ml4']
+                        }
                         onClick={(e: any) => {
                             e.stopPropagation();
                             setFilter({
@@ -130,7 +138,9 @@ const Summary: React.FC<SummaryProps> = ({
                         Show Code Pasted From Online
                     </VSCodeButton>
                     <VSCodeButton
+                        className={styles['ml4']}
                         // appearance="secondary"
+                        // disabled={window.getSelection()?.toString() === ''}
                         onClick={(e: any) => {
                             e.stopPropagation();
                             context.requestLocation(
@@ -140,7 +150,7 @@ const Summary: React.FC<SummaryProps> = ({
                             );
                         }}
                     >
-                        See Code Now
+                        Search for Selected Code
                     </VSCodeButton>
                     <div>{extraButtons}</div>
                     {/* {state === VersionState.SEARCH_RESULT ? (
@@ -317,7 +327,7 @@ const Summary: React.FC<SummaryProps> = ({
                 <ButtonRow></ButtonRow>
             </div>
             <div>
-                <div>Version {currIdx}</div>
+                {/* <div>Version {currIdx}</div> */}
                 <div>
                     {summaryHelper()}
                     Edited by {version.userString} at{' '}
@@ -330,7 +340,12 @@ const Summary: React.FC<SummaryProps> = ({
 
 const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
     const [expanded, setExpanded] = React.useState<boolean>(false);
-    const [currIdx, setCurrIdx] = React.useState<number>(0);
+    const [currIdx, _setCurrIdx] = React.useState<number>(0);
+    const currIdxRef = React.useRef<number>(0);
+    const setCurrIdx = (idx: number) => {
+        currIdxRef.current = idx;
+        _setCurrIdx(idx);
+    };
     const [filterObj, _setFilter] = React.useState(defaultFilterObj);
     const [searchResult, setSearchResult] = React.useState<SearchResult | null>(
         null
@@ -399,6 +414,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
             return (
                 <div className={styles['flex']}>
                     <VSCodeButton
+                        className={styles['ml4']}
                         onClick={(e: any) => {
                             e.stopPropagation();
 
@@ -440,6 +456,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                         <ArrowLeft />
                     </VSCodeButton>
                     <VSCodeButton
+                        className={styles['ml4']}
                         onClick={(e: any) => {
                             e.stopPropagation();
                             const nextInstance =
@@ -505,6 +522,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                         See Copy Code Now
                     </VSCodeButton> */}
                     <VSCodeButton
+                        className={styles['ml4']}
                         onClick={(e: any) => {
                             e.stopPropagation();
                             context.requestPasteLocations(versions[currIdx]);
@@ -548,18 +566,33 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                     </VSCodeButton> */}
                     {state === VersionState.PASTE ? (
                         <VSCodeButton
+                            className={styles['ml4']}
                             onClick={(e: any) => {
-                                // e.stopPropagation();
-                                context.requestCopyLocations(versions[currIdx]);
+                                e.stopPropagation();
+                                if (preview) {
+                                    setPreview(null);
+                                } else {
+                                    context.requestCopyLocations(
+                                        versions[currIdx]
+                                    );
+                                }
                             }}
                         >
                             See Corresponding Copy
                         </VSCodeButton>
                     ) : null}
                     <VSCodeButton
+                        className={styles['ml4']}
                         onClick={(e: any) => {
                             e.stopPropagation();
-                            context.requestPasteLocations(versions[currIdx]);
+                            // className={styles['ml4']}
+                            if (preview) {
+                                setPreview(null);
+                            } else {
+                                context.requestPasteLocations(
+                                    versions[currIdx]
+                                );
+                            }
                         }}
                     >
                         See All Other Paste Locations
@@ -604,13 +637,37 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
             const { command } = e.data;
             if (command === 'foundCopiedCode') {
                 const { payload } = e.data;
-                const version = versions.find((v) => v.idx === currIdx);
+                const version = versions.find(
+                    (v) => v.idx === currIdxRef.current
+                );
                 if (
                     version &&
                     version.eventData &&
                     version.eventData[Event.PASTE]
                 ) {
                     setPreview(payload.copies);
+                    // context.setFocusedIndex(payload.idx);
+                    // context.setScrubberToIdx(payload.idx);
+                }
+                // const { payload } = e.data;
+                // setCurrIdx(payload.currIdx);
+                // setExpanded(payload.expanded);
+                // setSearchResult(payload.searchResult);
+                // checkIdx(payload.currIdx);
+            }
+            if (command === 'foundPastedCode') {
+                const { payload } = e.data;
+                const version = versions.find(
+                    (v) => v.idx === currIdxRef.current
+                );
+                console.log('payload', payload, 'version', version);
+                if (
+                    version &&
+                    version.eventData &&
+                    version.eventData[Event.COPY]
+                ) {
+                    console.log('SETTING PREVIEW');
+                    setPreview(payload.pastes);
                     // context.setFocusedIndex(payload.idx);
                     // context.setScrubberToIdx(payload.idx);
                 }
@@ -756,6 +813,53 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
         }
     };
 
+    const formatPreview = () => {
+        if (!preview) {
+            return null;
+        }
+        if (preview.eventData && preview.eventData[Event.COPY]) {
+            return (
+                <div>
+                    Showing preview of copy from {preview.id.split(':')[0]} in{' '}
+                    {preview.location.fsPath.split(/[\\|\/]/g).pop()}
+                    <CodeBlock
+                        codeString={preview.location.content}
+                        highlightLogic={getHighlightLogic(
+                            preview.location.content,
+                            {
+                                code: preview.eventData[Event.COPY].copyContent,
+                            } as unknown as CopyBuffer
+                        )}
+                    />{' '}
+                    <VSCodeButton onClick={() => setPreview(null)}>
+                        Clear preview
+                    </VSCodeButton>
+                </div>
+            );
+        } else if (preview.eventData && preview.eventData[Event.PASTE]) {
+            console.log('ELSE IF????', preview);
+            return (
+                <div>
+                    Showing preview of paste in {preview.id.split(':')[0]} in{' '}
+                    {preview.location.fsPath.split(/[\\|\/]/g).pop()}
+                    <CodeBlock
+                        codeString={preview.location.content}
+                        highlightLogic={getHighlightLogic(
+                            preview.location.content,
+                            {
+                                code: preview.eventData[Event.PASTE]
+                                    .pasteContent,
+                            } as unknown as CopyBuffer
+                        )}
+                    />
+                    <VSCodeButton onClick={() => setPreview(null)}>
+                        Clear preview
+                    </VSCodeButton>
+                </div>
+            );
+        }
+    };
+
     const goToIdx = (idx: number) => {
         context.setFocusedIndex(idx);
         context.setScrubberToIdx(idx);
@@ -810,31 +914,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                             />
                         </AccordionSummary>
                         <AccordionDetails>
-                            {preview ? (
-                                <div>
-                                    Showing preview of copy from{' '}
-                                    {preview.id.split(':')[0]} in{' '}
-                                    {preview.location.fsPath
-                                        .split(/[\\|\/]/g)
-                                        .pop()}
-                                    <CodeBlock
-                                        codeString={preview.location.content}
-                                        highlightLogic={getHighlightLogic(
-                                            preview.location.content,
-                                            {
-                                                code: preview.eventData[
-                                                    Event.COPY
-                                                ].copyContent,
-                                            } as unknown as CopyBuffer
-                                        )}
-                                    />
-                                    <VSCodeButton
-                                        onClick={() => setPreview(null)}
-                                    >
-                                        Clear preview?
-                                    </VSCodeButton>
-                                </div>
-                            ) : null}
+                            {formatPreview()}
                             {getCodeBlock()}
                         </AccordionDetails>
                     </Accordion>
