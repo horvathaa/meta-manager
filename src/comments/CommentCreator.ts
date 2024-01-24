@@ -55,8 +55,7 @@ export class MetaInformationExtractor {
             SEARCH_VALUES.LOG,
             this.content
         );
-        this.debug &&
-            console.log('MADE FOUND COMMENTS', this._foundLogStatements);
+        this.debug && console.log('MADE LOGS', this._foundLogStatements);
     }
 
     // get id(): string {

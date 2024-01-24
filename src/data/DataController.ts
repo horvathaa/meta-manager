@@ -148,7 +148,10 @@ export class DataController {
             this.debug,
             this.readableNode.location.uri
         );
-        this._displayName = this.readableNode.id.split(':')[0];
+        this.debug && console.log('META MADE', this._metaInformationExtractor);
+        this._displayName = this.readableNode.id.includes(':')
+            ? this.readableNode.id.split(':')[0]
+            : this.readableNode.id;
         this.debug && console.log('this', this);
         // this._pasteDisposable =
         this.initListeners();
@@ -170,51 +173,58 @@ export class DataController {
         this._displayName = displayName;
     }
 
+    copyListener(copyEvent: ClipboardMetadata) {
+        // console.log('copy event', copyEvent);
+        if (this.readableNode.location.containsPartOf(copyEvent.location)) {
+            this.handleOnCopy(copyEvent);
+        }
+    }
+
+    pasteListener(pasteEvent: ClipboardMetadata) {
+        if (
+            this.readableNode.location.range.contains(
+                pasteEvent.location.range
+            ) &&
+            this.readableNode.location.uri.fsPath ===
+                pasteEvent.location.uri.fsPath
+            // this.isOwnerOfRange(pasteEvent.location.range)
+            // this.readableNode.location.containsStart(
+            //     pasteEvent.location
+            // )
+        ) {
+            this.handleOnPaste(pasteEvent);
+        }
+    }
+
+    webviewOnDidReceiveMessage(msg: any) {
+        if (
+            msg.type === 'searchAcrossTime' &&
+            msg.id === this.readableNode.id
+        ) {
+            this.handleSearchAcrossTime(msg.location, msg.webviewOpts);
+        } else if (msg.type === 'requestPasteLocations') {
+            this.searchPastes(msg.code);
+        } else if (msg.type === 'requestCopyLocations') {
+            this.searchCopies(msg.code);
+        }
+    }
+
     initListeners() {
-        (this._disposable = Disposable.from(
-            // this._pasteDisposable,
-            // tbd how much info to copy in the copy event -- probably would need
-            // to transmit back to container? put in copy buffer
-            this.container.onCopy((copyEvent) => {
-                if (
-                    this.readableNode.location.containsPartOf(
-                        copyEvent.location
-                    )
-                ) {
-                    this.handleOnCopy(copyEvent);
-                }
-            }),
-            // same questions as above for paste -- what to save
-            // from console logs it seems like this event gets fired before the
-            // on change but that's probably due to the debounce for that...?
-            // tbd
-            this.container.onPaste((pasteEvent) => {
-                if (
-                    this.readableNode.location.range.contains(
-                        pasteEvent.location.range
-                    ) &&
-                    this.readableNode.location.uri.fsPath ===
-                        pasteEvent.location.uri.fsPath
-                    // this.isOwnerOfRange(pasteEvent.location.range)
-                    // this.readableNode.location.containsStart(
-                    //     pasteEvent.location
-                    // )
-                ) {
-                    this.handleOnPaste(pasteEvent);
-                }
-            }),
-            this.container.webviewController!.onDidReceiveMessage((msg) => {
-                if (
-                    msg.type === 'searchAcrossTime' &&
-                    msg.id === this.readableNode.id
-                ) {
-                    this.handleSearchAcrossTime(msg.location, msg.webviewOpts);
-                } else if (msg.type === 'requestPasteLocations') {
-                    this.searchPastes(msg.code);
-                } else if (msg.type === 'requestCopyLocations') {
-                    this.searchCopies(msg.code);
-                }
-            }),
+        const copyDisposable = this.container.onCopy(this.copyListener);
+        console.log('copyDis', copyDisposable);
+        const pasteDisposable = this.container.onPaste(this.pasteListener);
+        console.log('pasteDis', pasteDisposable);
+        const webviewDisposable =
+            this.container.webviewController?.onDidReceiveMessage(
+                this.webviewOnDidReceiveMessage.bind(this)
+            );
+        console.log('webviewDis', webviewDisposable);
+        this._disposable = Disposable.from(
+            this.container.onCopy(this.copyListener),
+            this.container.onPaste(this.pasteListener),
+            // this.container.webviewController!.onDidReceiveMessage(
+            //     webviewDisposable
+            // ),
             this.container.onCommented((commentEvent) => {
                 if (this.isContained(commentEvent.location)) {
                     this.handleOnCommented(commentEvent);
@@ -261,8 +271,7 @@ export class DataController {
                 ) {
                     this.handleSearchAcrossTime(location);
                 }
-            })
-        )),
+            }),
             this.readableNode.location.onChanged.event(
                 // debounce(async (changeEvent: ChangeEvent) => {
                 (changeEvent: ChangeEvent) => this.handleOnChange(changeEvent)
@@ -287,8 +296,9 @@ export class DataController {
             window.onDidChangeActiveTextEditor((editor) => {
                 // console.log('is this getting called lol', document);
                 this.handleOnDidChangeActiveTextEditor(editor?.document);
-            });
-
+            })
+        );
+        this.debug && console.log('finished init listeners');
         return () => this.dispose();
     }
 
@@ -397,6 +407,10 @@ export class DataController {
             return { ...res, idx: count };
         }
         return undefined;
+    }
+
+    getPastVersions() {
+        return this._pastVersions.map((s) => s);
     }
 
     handleSearchAcrossTime(location: Location, webviewOpts?: any) {
@@ -937,7 +951,7 @@ export class DataController {
         if (
             commentedOut &&
             !cleanedEvents['MODIFIED_CONTENT'].some(
-                (e) => e.fsId === commentedOut.fsId
+                (e) => (e as any).fsId === (commentedOut as any).fsId
             )
         ) {
             cleanedEvents['MODIFIED_CONTENT'].push({
@@ -950,7 +964,7 @@ export class DataController {
         if (
             commentedIn &&
             !cleanedEvents['MODIFIED_CONTENT'].some(
-                (e) => e.fsId === commentedIn.fsId
+                (e) => (e as any).fsId === (commentedIn as any).fsId
             )
         ) {
             cleanedEvents['MODIFIED_CONTENT'].push({
@@ -958,7 +972,7 @@ export class DataController {
                 searchContent: originalCode.includes('\n')
                     ? originalCode
                           .split('\n')
-                          .map((l) => `// ${l}`)
+                          .map((l: any) => `// ${l}`)
                           .join('\n')
                     : `// ${originalCode}`,
                 prevContent: originalCode,
@@ -1535,16 +1549,20 @@ export class DataController {
             .filter((d) => d.eventData && d.eventData[Event.COPY])
             .filter(
                 (p) =>
-                    p.eventData![Event.COPY].copyContent.replace(/\s+/g, '') ===
-                    code.replace(/\s+/g, '')
+                    p.eventData![Event.COPY]?.copyContent.replace(
+                        /\s+/g,
+                        ''
+                    ) === code.replace(/\s+/g, '')
             );
 
         const otherCopies = this._pastVersionsTest
             .filter((d) => d.eventData && d.eventData[Event.COPY])
             .filter(
                 (p) =>
-                    p.eventData![Event.COPY].copyContent.replace(/\s+/g, '') ===
-                    code.replace(/\s+/g, '')
+                    p.eventData![Event.COPY]?.copyContent.replace(
+                        /\s+/g,
+                        ''
+                    ) === code.replace(/\s+/g, '')
             );
 
         if (copies.length && copies[0].location.content.includes(code)) {

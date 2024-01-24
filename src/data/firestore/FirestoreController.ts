@@ -229,7 +229,7 @@ const COMMIT_e683a11_TIME = 1627785780000; // jul 31
 const COMMIT_2836a72_TIME = 1647863760000; // mar 21 22
 const COMMIT_5dfd5ba_TIME = 1648909200000;
 
-const catseyeAnnos = [];
+// const catseyeAnnos = [];
 
 class FirestoreController extends Disposable {
     _disposable: Disposable;
@@ -258,84 +258,6 @@ class FirestoreController extends Disposable {
             console.log('hewwo?');
             // this.getCatseyeAnnos();
         }
-    }
-
-    getCatseyeAnnos() {
-        const ref = this._refs?.get(DB_COLLECTIONS.CODE_ANNOTATIONS);
-        if (!ref) {
-            throw new Error(
-                'FirestoreController: Could not read from firestore -- no collection reference'
-            );
-        }
-        const authorQuery = query(
-            ref,
-            where('authorId', '==', 'hJyV36Xgy8gO67UJVmnQUrRgJih1'),
-            where('createdTimestamp', '>', 1649421211342)
-        );
-        const querySnapshot = getDocs(authorQuery);
-        // console.log('querySnapshot', querySnapshot);
-        querySnapshot.then((snap) => {
-            snap.forEach((doc) => {
-                catseyeAnnos.push(doc.data());
-            });
-            console.log('catseyeAnnos', catseyeAnnos);
-            const inProjectWithContentAnnos = catseyeAnnos
-                .filter((f) => {
-                    return (
-                        (f.projectName === 'adamite-vscode' ||
-                            f.projectName === 'catseye-vscode') &&
-                        f.annotation.length
-                    );
-                })
-                .map((m) => {
-                    let anchors = '',
-                        replies = '';
-                    if (m.replies && m.replies.length) {
-                        replies = m.replies
-                            .map((r) => r.replyContent.replace(/,/, ''))
-                            .join(';');
-                    }
-                    anchors = m.anchors
-                        .map((a) => a.anchorText.replace(/,/, ''))
-                        .join(';');
-                    return {
-                        ...m,
-                        anchors,
-                        replies,
-                    };
-                })
-                .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
-            const replacer = (key, value) => (value === null ? '' : value); // specify how you want to handle null values here
-            // const commaReplace = (key, value: string) => {
-            //     console.log('key', key, 'value', value);
-            //     return value && value.length
-            //         ? JSON.stringify(value).replace(/,/g, ';')
-            //         : '';
-            // };
-            const header = Object.keys(inProjectWithContentAnnos[0]);
-            const csv = [
-                header.join(','), // header row first
-                ...inProjectWithContentAnnos.map((row) =>
-                    header
-                        .map((fieldName) =>
-                            JSON.stringify(row[fieldName], replacer)
-                        )
-                        .join(',')
-                ),
-            ].join('\r\n');
-            const wsEdit = new WorkspaceEdit();
-            wsEdit.createFile(
-                Uri.parse(this.container.workspaceFolder?.uri! + '/test.csv')
-            );
-            workspace.applyEdit(wsEdit).then(() => {
-                workspace.fs.writeFile(
-                    Uri.parse(
-                        this.container.workspaceFolder?.uri! + '/test.csv'
-                    ),
-                    Buffer.from(csv)
-                );
-            });
-        });
     }
 
     get firebaseApp() {
@@ -714,7 +636,7 @@ class FirestoreController extends Disposable {
         }
 
         const data = await getDocs(filesRef);
-
+        console.log('got this data', data);
         data.forEach(async (doc) => {
             const parentRefPath = `${DB_COLLECTIONS.CODE_METADATA}/${topLevelCollectionId}/${SUB_COLLECTIONS.FILES}/${doc.id}/${SUB_COLLECTIONS.NODES}`;
             const res = this._refs?.get(parentRefPath);
@@ -727,7 +649,7 @@ class FirestoreController extends Disposable {
                 querySnapshot,
                 parentRefPath
             );
-            // console.log('got this data', subData, 'for this doc', doc.id);
+            console.log('got this data', subData, 'for this doc', doc.id);
 
             this._onRead.fire({
                 filename: doc.id.replace(/-/g, '/'),

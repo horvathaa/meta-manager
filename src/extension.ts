@@ -68,7 +68,7 @@ export async function activate(context: ExtensionContext) {
         window.registerWebviewViewProvider(ViewLoaderProvider.viewType, view, {
             webviewOptions: { retainContextWhenHidden: true },
         }),
-        commands.registerCommand('extension.openView', () => {}),
+        // commands.registerCommand('extension.openView', () => {}),
         explainDisposable
     );
 
@@ -104,25 +104,25 @@ export async function activate(context: ExtensionContext) {
             });
         }
     });
-    setTimeout(() => {
-        console.log('about to run...');
-        // container.firestoreController?.renameFile(
-        //     'src-utils-sortResults.ts',
-        //     'src-utils-extractStackOverflowResults.ts'
-        // );
-        container.firestoreController?.getCatseyeAnnos();
-        // const test = Test.create(container);
-        // const proj = 'hieunc229-copilot-clone';
-        // container.firestoreController?.copyOver(
-        //     'hieunc229-copilot-clone',
-        //     'src-search.ts',
-        //     'getSnippetResults:d23b78ef-9d50-4f0d-8a1e-57ea383af9e5',
-        //     'src-utils-sortResults.ts',
-        //     'extractSnippetResults'
-        // );
-        // test.run();
-        // setInterval(() => test.run(), 5000);
-    }, 10000);
+    // setTimeout(() => {
+    //     console.log('about to run...');
+    //     // container.firestoreController?.renameFile(
+    //     //     'src-utils-sortResults.ts',
+    //     //     'src-utils-extractStackOverflowResults.ts'
+    //     // );
+    //     // container.firestoreController?.getCatseyeAnnos();
+    //     // const test = Test.create(container);
+    //     // const proj = 'hieunc229-copilot-clone';
+    //     // container.firestoreController?.copyOver(
+    //     //     'hieunc229-copilot-clone',
+    //     //     'src-search.ts',
+    //     //     'getSnippetResults:d23b78ef-9d50-4f0d-8a1e-57ea383af9e5',
+    //     //     'src-utils-sortResults.ts',
+    //     //     'extractSnippetResults'
+    //     // );
+    //     // test.run();
+    //     // setInterval(() => test.run(), 5000);
+    // }, 10000);
 }
 
 // This method is called when your extension is deactivated

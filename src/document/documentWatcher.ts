@@ -13,11 +13,11 @@ import {
 } from 'vscode';
 import { Container } from '../container';
 import {
-    filterOutliers,
+    // filterOutliers,
     getProjectName,
     getVisiblePath,
     makeReadableNode,
-    quantile,
+    // quantile,
 } from './lib';
 import {
     SimplifiedTree,
@@ -76,7 +76,7 @@ class DocumentWatcher extends Disposable {
                 const { filename, data, map, collectionPath } = event;
 
                 if (filename === this._relativeFilePath) {
-                    // console.log('HEWWWWOOOO!!!!!!!!!', event);
+                    console.log('HEWWWWOOOO!!!!!!!!!', event);
                     this._firestoreCollectionPath = collectionPath;
                     // fudge for new files
                     if (!data) {
@@ -95,7 +95,9 @@ class DocumentWatcher extends Disposable {
                             ),
                             this._relativeFilePath
                         );
+                        console.log('tree', tree);
                         this._nodesInFile = this.initNodes(tree, map, data);
+                        console.log('nodes in file', this._nodesInFile);
                     }
 
                     console.log(
@@ -187,10 +189,11 @@ class DocumentWatcher extends Disposable {
         if (e?.document.uri.fsPath !== this.document.uri.fsPath) {
             return;
         }
-        console.log('nodes', this._nodesInFile);
+        console.log('nodes', this._nodesInFile, this);
         const nodesArray = this._nodesInFile
             ?.toArray()
             .filter((d) => d.humanReadableKind !== 'file');
+        console.log('nodesArray', nodesArray);
         let keyMap: { [k: string]: any[] } = {};
         let key2Map: { [k: string]: any } = {};
         const keys = nodesArray!.map((i) => {
@@ -198,157 +201,307 @@ class DocumentWatcher extends Disposable {
             key2Map = { ...key2Map, [i.id]: [] };
             return i.id;
         });
-        console.log('hewwo?', key2Map);
-        const windowed = [];
-        const past: any[] = nodesArray!
-            .map((n) =>
-                n.dataController?._pastVersionsTest.flatMap((p) => {
-                    // n.dataController?._pastVersions.flatMap((p) => {
+        // temp hack because for some reason pastVersions isn't populated on load?
+        // I'm not sure why this is as everything else is...?
+        setTimeout(() => {
+            // console.log(n._dataController?._pastVersions);
+
+            console.log('hewwo?', key2Map);
+            const windowed = [];
+            const past: any[] = nodesArray!
+                .map((n) =>
+                    // n.dataController?._pastVersionsTest.flatMap((p) => {
+                    {
+                        const { _pastVersions, ...rest } =
+                            n.dataController || {};
+                        console.log(
+                            'n',
+                            n,
+                            'n.data',
+                            n.dataController,
+                            'im so conffused',
+                            n._dataController?._pastVersions,
+                            'copy?',
+                            _pastVersions,
+                            'rest',
+                            rest,
+                            '???????????????',
+                            n._dataController?.getPastVersions()
+                        );
+
+                        return n.dataController?._pastVersions.flatMap((p) => {
+                            console.log('p!', p);
+                            const item = {
+                                ...p,
+                                currNode: n.serialize(),
+                                ...(n.dataController?._pasteLocations.some(
+                                    (pa) => pa.id === p.id
+                                ) && {
+                                    paste: n.dataController?._pasteLocations.find(
+                                        (pa) => pa.id === p.id
+                                    ),
+                                }),
+                                timelineEvent: new TimelineEvent(p),
+                                treeParent:
+                                    n.dataController?.tree?.parent?.name || '',
+                                depth: n.dataController?.tree?.depth || 0,
+                                allPasteLocations:
+                                    n.dataController?._pasteLocations,
+                            };
+                            console.log('item', item);
+                            return item;
+                        });
+                    }
+                )
+                .flat();
+            console.log('past', past);
+            const lol = past
+                // .sort((a, b) => (a?.time || -1) - (b?.time || -1))
+                .sort(
+                    (a, b) =>
+                        parseInt(a?.id.split(':')[2]) -
+                        parseInt(b?.id.split(':')[2])
+                )
+                .map((n, i) => {
+                    const key = keys?.find((k) => n?.id.includes(k)) || '';
                     return {
-                        ...p,
-                        currNode: n.serialize(),
-                        ...(n.dataController?._pasteLocations.some(
-                            (pa) => pa.id === p.id
-                        ) && {
-                            paste: n.dataController?._pasteLocations.find(
-                                (pa) => pa.id === p.id
-                            ),
-                        }),
-                        timelineEvent: new TimelineEvent(p),
-                        treeParent: n.dataController?.tree?.parent?.name || '',
-                        depth: n.dataController?.tree?.depth || 0,
-                        allPasteLocations: n.dataController?._pasteLocations,
+                        ...n,
+                        [key]: [
+                            n?.location.range.start.line,
+                            n?.location.range.end.line,
+                        ],
+                        parentId: key,
+                        editTimeDiff: Math.abs(
+                            n!.time - (past[i - 1]?.time || n!.time)
+                        ),
                     };
-                })
-            )
-            .flat();
+                });
+            console.log('lol......', lol);
 
-        const lol = past
-            // .sort((a, b) => (a?.time || -1) - (b?.time || -1))
-            .sort(
-                (a, b) =>
-                    parseInt(a?.id.split(':')[2]) -
-                    parseInt(b?.id.split(':')[2])
-            )
-            .map((n, i) => {
-                const key = keys?.find((k) => n?.id.includes(k)) || '';
-                return {
-                    ...n,
-                    [key]: [
-                        n?.location.range.start.line,
-                        n?.location.range.end.line,
-                    ],
-                    parentId: key,
-                    editTimeDiff: Math.abs(
-                        n!.time - (past[i - 1]?.time || n!.time)
-                    ),
-                };
+            let km1 = {};
+            keys.forEach((k) => {
+                km1 = { ...km1, [k]: [] };
             });
-        console.log('lol......', lol);
-        const timeDiffs = lol.map((n) => n.editTimeDiff);
-        const q25 = quantile(timeDiffs, 0.25);
+            const chunkyChunk: any[] = [km1];
+            console.log('km1!', km1);
+            let newThing = true;
+            let knownKey: string = '';
+            let otherInfo: { [k: string]: any } = {
+                global: {
+                    filename: this.relativeFilePath,
+                    commits: [],
+                    user: lol[0]?.userString || 'unknown',
+                },
+            };
+            let scale = {
+                xMin: 0,
+                xMax: 0,
+                yMin: 0,
+                yMax: 0,
+                otherInfo,
+            };
+            const seenKeys = new Set();
+            const seenCommits = new Set();
+            lol.forEach((n, i) => {
+                // if (!knownKey.length) {
 
-        const q50 = quantile(timeDiffs, 0.5);
+                knownKey = n.parentId;
+                // }
+                // combine chunking approach with clustering approach
+                // on each new chunk, copy over last known values for each key
+                // each key starts with default value of 0 start 0 end, and time of current n
 
-        const q75 = quantile(timeDiffs, 0.75);
+                // I guess we can have every chunk get updated, even if it isn't appearing in n
+                // such that the lists stay in sync -- hence copying over last known n value
 
-        // const median = (arr) => q50(arr);
-        // console.log(
-        //     'jesus christ',
-        //     timeDiffs,
-        //     'lewl',
-        //     lol,
-        //     'upper',
-        //     timeDiffs.filter((f) => f > q75),
-        //     'lower',
-        //     timeDiffs.filter((f) => f < q25),
-        //     'outlier?',
-        //     filterOutliers(timeDiffs)
-        // );
-        const chunks = filterOutliers(timeDiffs);
-        let km1 = {};
-        keys.forEach((k) => {
-            km1 = { ...km1, [k]: [] };
-        });
-        const chunkyChunk: any[] = [km1];
-        console.log('km1!', km1);
-        let newThing = true;
-        let knownKey: string = '';
-        let otherInfo: { [k: string]: any } = {
-            global: {
-                filename: this.relativeFilePath,
-                commits: [],
-                user: lol[0]?.userString || 'unknown',
-            },
-        };
-        let scale = {
-            xMin: 0,
-            xMax: 0,
-            yMin: 0,
-            yMax: 0,
-            otherInfo,
-        };
-        const seenKeys = new Set();
-        const seenCommits = new Set();
-        lol.forEach((n, i) => {
-            // if (!knownKey.length) {
-
-            knownKey = n.parentId;
-            // }
-            // combine chunking approach with clustering approach
-            // on each new chunk, copy over last known values for each key
-            // each key starts with default value of 0 start 0 end, and time of current n
-
-            // I guess we can have every chunk get updated, even if it isn't appearing in n
-            // such that the lists stay in sync -- hence copying over last known n value
-
-            // update key as it appears in chunk
-            // then switch to new chunk when enough time has passed
-            const lastEntry = chunkyChunk[chunkyChunk.length - 1]; // n.editTimeDiff >= 28800000 ||
-            if (newThing) {
-                newThing = false;
-                // console.log(
-                //     'huh?',
-                //     lastEntry[n.parentId][0]?.x[
-                //         lastEntry[n.parentId][0]?.length - 1
-                //     ],
-                //     'last',
-                //     lastEntry
-                // );
-                // scale.xMax =
-                //     lastEntry[n.parentId][0]?.x[
-                //         lastEntry[n.parentId][0]?.length - 1
-                //     ] || 0;
-                lastEntry['scale'] = {
-                    ...scale,
-                    length: lastEntry[n.parentId][0]?.x.length || 0,
-                };
-                let newEntry = lastEntry;
-                scale.xMin = n.time || 0;
-                // lastEntry.scale.xMax =
-                //     lastEntry[n.parentId][0]?.x[
-                //         lastEntry[n.parentId][0]?.length - 1
-                //     ] || 0;
-                Object.keys(lastEntry)
-                    .filter((k) => k !== 'scale')
-                    .forEach((k) => {
-                        // console.log('k', k);
-                        let idx = i - lastEntry?.scale.length || 0;
-                        if (!seenCommits.has(n.commit)) {
-                            seenCommits.add(n.commit);
-                            scale.otherInfo.commits
-                                ? scale.otherInfo.global.commits.push({
-                                      commit: n.commit,
-                                      idx,
-                                  })
-                                : (scale.otherInfo.global.commits = [
-                                      {
+                // update key as it appears in chunk
+                // then switch to new chunk when enough time has passed
+                const lastEntry = chunkyChunk[chunkyChunk.length - 1]; // n.editTimeDiff >= 28800000 ||
+                if (newThing) {
+                    newThing = false;
+                    // console.log(
+                    //     'huh?',
+                    //     lastEntry[n.parentId][0]?.x[
+                    //         lastEntry[n.parentId][0]?.length - 1
+                    //     ],
+                    //     'last',
+                    //     lastEntry
+                    // );
+                    // scale.xMax =
+                    //     lastEntry[n.parentId][0]?.x[
+                    //         lastEntry[n.parentId][0]?.length - 1
+                    //     ] || 0;
+                    lastEntry['scale'] = {
+                        ...scale,
+                        length: lastEntry[n.parentId][0]?.x.length || 0,
+                    };
+                    let newEntry = lastEntry;
+                    scale.xMin = n.time || 0;
+                    // lastEntry.scale.xMax =
+                    //     lastEntry[n.parentId][0]?.x[
+                    //         lastEntry[n.parentId][0]?.length - 1
+                    //     ] || 0;
+                    Object.keys(lastEntry)
+                        .filter((k) => k !== 'scale')
+                        .forEach((k) => {
+                            // console.log('k', k);
+                            let idx = i - lastEntry?.scale.length || 0;
+                            if (!seenCommits.has(n.commit)) {
+                                seenCommits.add(n.commit);
+                                scale.otherInfo.commits
+                                    ? scale.otherInfo.global.commits.push({
                                           commit: n.commit,
                                           idx,
-                                      },
-                                  ]);
-                        }
-                        if (k === n.parentId) {
+                                      })
+                                    : (scale.otherInfo.global.commits = [
+                                          {
+                                              commit: n.commit,
+                                              idx,
+                                          },
+                                      ]);
+                            }
+                            if (k === n.parentId) {
+                                if (!seenKeys.has(k)) {
+                                    scale.otherInfo[k] = {
+                                        firstSeen: {
+                                            ...n,
+                                            idx,
+                                        },
+                                        count: 0,
+                                    };
+                                    seenKeys.add(k);
+                                }
+                                scale.otherInfo[k].count++;
+                                scale.yMax =
+                                    (n.location!.range.end.line || 0) >
+                                    scale.yMax
+                                        ? n.location!.range.end.line
+                                        : scale.yMax;
+                                scale.yMin =
+                                    (n.location!.range.start.line || 0) <
+                                    scale.yMin
+                                        ? n.location!.range.start.line
+                                        : scale.yMin;
+                                if (n['eventData']) {
+                                    // scale.otherInfo.globalEvents
+                                    scale.otherInfo[k].events
+                                        ? scale.otherInfo[k].events.push({
+                                              ...n,
+                                              time: n.time,
+                                              idx,
+                                          })
+                                        : (scale.otherInfo[k].events = [
+                                              {
+                                                  ...n,
+                                                  time: n.time,
+                                                  idx,
+                                              },
+                                          ]);
+                                }
+                                if (n['eventData']) {
+                                    n = {
+                                        ...n,
+                                        idx,
+                                    };
+                                }
+                                newEntry = {
+                                    ...newEntry,
+                                    [k]: [
+                                        {
+                                            x: [n.time],
+                                            y: [n.location?.range.end.line],
+                                            data: [{ ...n, inEdit: true, idx }],
+                                        },
+                                        {
+                                            x: [n.time],
+                                            y: [n.location?.range.start.line],
+                                            data: [{ ...n, inEdit: true, idx }],
+                                            events: n['eventData']
+                                                ? [
+                                                      {
+                                                          ...n,
+                                                          time: n.time,
+                                                          idx,
+                                                      },
+                                                  ]
+                                                : [],
+                                        },
+                                    ],
+                                };
+                                // console.log('new entry after', newEntry);
+                            } else {
+                                // console.log('in else');
+
+                                newEntry = {
+                                    ...newEntry,
+                                    [k]: [
+                                        {
+                                            x: [n.time],
+                                            y: [
+                                                lastEntry[k][0]?.y[
+                                                    lastEntry[k][0]?.y.length -
+                                                        1
+                                                ] || 0,
+                                            ],
+                                            data: [
+                                                {
+                                                    ...lastEntry[k][0]?.data[
+                                                        lastEntry[k][0]
+                                                            ?.length - 1
+                                                    ],
+                                                    idx,
+                                                } || null,
+                                            ],
+                                        },
+                                        {
+                                            x: [n.time],
+                                            y: [
+                                                lastEntry[k][1]?.y[
+                                                    lastEntry[k][1]?.y.length -
+                                                        1
+                                                ] || 0,
+                                            ],
+                                            data: [
+                                                {
+                                                    ...lastEntry[k][0]?.data[
+                                                        lastEntry[k][0]
+                                                            ?.length - 1
+                                                    ],
+                                                    idx,
+                                                } || null,
+                                            ],
+                                            events: [],
+                                        },
+                                    ],
+                                };
+                                // console.log('else new entry', newEntry);
+                            }
+                            // console.log('huh?', newEntry);
+                            // return { ...newEntry, [k]: lastEntry[k] };
+                        });
+                    chunkyChunk.push(newEntry);
+                    // chunkyChunk.push({
+
+                    // })
+                    // chunkyChunk.push([
+                    //     {
+                    //         x: [n.time],
+                    //         y: [n.location?.range.end.line],
+                    //         data: [n],
+                    //     },
+                    //     {
+                    //         x: [n.time],
+                    //         y: [n.location?.range.start.line],
+                    //         data: [n],
+                    //     },
+                    // ]);
+                } else {
+                    Object.keys(lastEntry)
+                        .filter((k) => k !== 'scale')
+                        .forEach((k) => {
+                            let idx = i - lastEntry?.scale.length || 0;
+                            const startLinesByTime = lastEntry[k][1];
+                            const endLinesByTime = lastEntry[k][0];
                             if (!seenKeys.has(k)) {
                                 scale.otherInfo[k] = {
                                     firstSeen: {
@@ -359,7 +512,22 @@ class DocumentWatcher extends Disposable {
                                 };
                                 seenKeys.add(k);
                             }
-                            scale.otherInfo[k].count++;
+                            if (!seenCommits.has(n.commit)) {
+                                seenCommits.add(n.commit);
+                                scale.otherInfo.global.commits
+                                    ? scale.otherInfo.global.commits.push({
+                                          commit: n.commit,
+                                          idx: i - lastEntry?.scale.length || 0,
+                                      })
+                                    : (scale.otherInfo.global.commits = [
+                                          {
+                                              commit: n.commit,
+                                              idx,
+                                          },
+                                      ]);
+                            }
+                            n.parentId === k && scale.otherInfo[k].count++;
+                            startLinesByTime.x.push(n.time);
                             scale.yMax =
                                 (n.location!.range.end.line || 0) > scale.yMax
                                     ? n.location!.range.end.line
@@ -368,359 +536,214 @@ class DocumentWatcher extends Disposable {
                                 (n.location!.range.start.line || 0) < scale.yMin
                                     ? n.location!.range.start.line
                                     : scale.yMin;
-                            if (n['eventData']) {
-                                // scale.otherInfo.globalEvents
-                                scale.otherInfo[k].events
-                                    ? scale.otherInfo[k].events.push({
-                                          ...n,
-                                          time: n.time,
-                                          idx,
-                                      })
-                                    : (scale.otherInfo[k].events = [
-                                          {
-                                              ...n,
-                                              time: n.time,
-                                              idx,
-                                          },
-                                      ]);
-                            }
-                            if (n['eventData']) {
+                            startLinesByTime.y.push(
+                                k === n.parentId
+                                    ? n.location?.range.start.line
+                                    : lastEntry[k][1].y[
+                                          lastEntry[k][1].y.length - 1
+                                      ]
+                            );
+                            if (k === n.parentId) {
                                 n = {
                                     ...n,
                                     idx,
+                                    inEdit: true,
+                                    // eventData: {
+                                    //     ...n.eventData,
+
+                                    // },
                                 };
-                            }
-                            newEntry = {
-                                ...newEntry,
-                                [k]: [
-                                    {
-                                        x: [n.time],
-                                        y: [n.location?.range.end.line],
-                                        data: [{ ...n, inEdit: true, idx }],
-                                    },
-                                    {
-                                        x: [n.time],
-                                        y: [n.location?.range.start.line],
-                                        data: [{ ...n, inEdit: true, idx }],
-                                        events: n['eventData']
-                                            ? [
-                                                  {
-                                                      ...n,
-                                                      time: n.time,
-                                                      idx,
-                                                  },
-                                              ]
-                                            : [],
-                                    },
-                                ],
-                            };
-                            // console.log('new entry after', newEntry);
-                        } else {
-                            // console.log('in else');
+                                !n['eventData'] &&
+                                    startLinesByTime.data.push({ ...n, idx });
+                                if (n['eventData']) {
+                                    // if (n['eventData']) {
 
-                            newEntry = {
-                                ...newEntry,
-                                [k]: [
-                                    {
-                                        x: [n.time],
-                                        y: [
-                                            lastEntry[k][0]?.y[
-                                                lastEntry[k][0]?.y.length - 1
-                                            ] || 0,
-                                        ],
-                                        data: [
-                                            {
-                                                ...lastEntry[k][0]?.data[
-                                                    lastEntry[k][0]?.length - 1
-                                                ],
-                                                idx,
-                                            } || null,
-                                        ],
-                                    },
-                                    {
-                                        x: [n.time],
-                                        y: [
-                                            lastEntry[k][1]?.y[
-                                                lastEntry[k][1]?.y.length - 1
-                                            ] || 0,
-                                        ],
-                                        data: [
-                                            {
-                                                ...lastEntry[k][0]?.data[
-                                                    lastEntry[k][0]?.length - 1
-                                                ],
-                                                idx,
-                                            } || null,
-                                        ],
-                                        events: [],
-                                    },
-                                ],
-                            };
-                            // console.log('else new entry', newEntry);
-                        }
-                        // console.log('huh?', newEntry);
-                        // return { ...newEntry, [k]: lastEntry[k] };
-                    });
-                chunkyChunk.push(newEntry);
-                // chunkyChunk.push({
-
-                // })
-                // chunkyChunk.push([
-                //     {
-                //         x: [n.time],
-                //         y: [n.location?.range.end.line],
-                //         data: [n],
-                //     },
-                //     {
-                //         x: [n.time],
-                //         y: [n.location?.range.start.line],
-                //         data: [n],
-                //     },
-                // ]);
-            } else {
-                Object.keys(lastEntry)
-                    .filter((k) => k !== 'scale')
-                    .forEach((k) => {
-                        let idx = i - lastEntry?.scale.length || 0;
-                        const startLinesByTime = lastEntry[k][1];
-                        const endLinesByTime = lastEntry[k][0];
-                        if (!seenKeys.has(k)) {
-                            scale.otherInfo[k] = {
-                                firstSeen: {
-                                    ...n,
-                                    idx,
-                                },
-                                count: 0,
-                            };
-                            seenKeys.add(k);
-                        }
-                        if (!seenCommits.has(n.commit)) {
-                            seenCommits.add(n.commit);
-                            scale.otherInfo.global.commits
-                                ? scale.otherInfo.global.commits.push({
-                                      commit: n.commit,
-                                      idx: i - lastEntry?.scale.length || 0,
-                                  })
-                                : (scale.otherInfo.global.commits = [
-                                      {
-                                          commit: n.commit,
-                                          idx,
-                                      },
-                                  ]);
-                        }
-                        n.parentId === k && scale.otherInfo[k].count++;
-                        startLinesByTime.x.push(n.time);
-                        scale.yMax =
-                            (n.location!.range.end.line || 0) > scale.yMax
-                                ? n.location!.range.end.line
-                                : scale.yMax;
-                        scale.yMin =
-                            (n.location!.range.start.line || 0) < scale.yMin
-                                ? n.location!.range.start.line
-                                : scale.yMin;
-                        startLinesByTime.y.push(
-                            k === n.parentId
-                                ? n.location?.range.start.line
-                                : lastEntry[k][1].y[
-                                      lastEntry[k][1].y.length - 1
-                                  ]
-                        );
-                        if (k === n.parentId) {
-                            n = {
-                                ...n,
-                                idx,
-                                inEdit: true,
-                                // eventData: {
-                                //     ...n.eventData,
-
-                                // },
-                            };
-                            !n['eventData'] &&
-                                startLinesByTime.data.push({ ...n, idx });
-                            if (n['eventData']) {
-                                // if (n['eventData']) {
-
-                                startLinesByTime.data.push({ ...n, idx });
-                                // }
-                                startLinesByTime.events.push({
-                                    ...n,
-                                    time: n.time,
-                                    idx: i - lastEntry.scale.length,
-                                });
-                                scale.otherInfo[k].events
-                                    ? scale.otherInfo[k].events.push({
-                                          ...n,
-                                          time: n.time,
-                                          idx: i - lastEntry.scale.length,
-                                      })
-                                    : (scale.otherInfo[k].events = [
-                                          {
+                                    startLinesByTime.data.push({ ...n, idx });
+                                    // }
+                                    startLinesByTime.events.push({
+                                        ...n,
+                                        time: n.time,
+                                        idx: i - lastEntry.scale.length,
+                                    });
+                                    scale.otherInfo[k].events
+                                        ? scale.otherInfo[k].events.push({
                                               ...n,
                                               time: n.time,
                                               idx: i - lastEntry.scale.length,
-                                          },
-                                      ]);
-                            }
-                        } else {
-                            const lastDataEntry =
-                                lastEntry[k][1].data[
-                                    lastEntry[k][1].data.length - 1
-                                ];
-                            if (lastDataEntry.eventData) {
-                                const { eventData, ...rest } = lastDataEntry;
-                                startLinesByTime.data.push({
-                                    ...rest,
-                                    idx,
-                                });
+                                          })
+                                        : (scale.otherInfo[k].events = [
+                                              {
+                                                  ...n,
+                                                  time: n.time,
+                                                  idx:
+                                                      i -
+                                                      lastEntry.scale.length,
+                                              },
+                                          ]);
+                                }
                             } else {
-                                startLinesByTime.data.push({
-                                    ...lastEntry[k][1].data[
+                                const lastDataEntry =
+                                    lastEntry[k][1].data[
                                         lastEntry[k][1].data.length - 1
-                                    ],
-                                    idx,
-                                });
+                                    ];
+                                if (lastDataEntry.eventData) {
+                                    const { eventData, ...rest } =
+                                        lastDataEntry;
+                                    startLinesByTime.data.push({
+                                        ...rest,
+                                        idx,
+                                    });
+                                } else {
+                                    startLinesByTime.data.push({
+                                        ...lastEntry[k][1].data[
+                                            lastEntry[k][1].data.length - 1
+                                        ],
+                                        idx,
+                                    });
+                                }
                             }
-                        }
+                            endLinesByTime.x.push(n.time);
+                            endLinesByTime.y.push(
+                                k === n.parentId
+                                    ? n.location?.range.end.line
+                                    : lastEntry[k][0].y[
+                                          lastEntry[k][0].y.length - 1
+                                      ]
+                            );
+
+                            // return { ...newEntry, [k]: lastEntry[k] };
+                        });
+
+                    // const startLinesByTime =
+                    //     chunkyChunk[chunkyChunk.length - 1][1];
+                    // const endLinesByTime =
+                    //     chunkyChunk[chunkyChunk.length - 1][0];
+
+                    // startLinesByTime.x.push(n.time);
+                    // startLinesByTime.y.push(n.location?.range.start.line);
+                    // startLinesByTime.data.push(n);
+                    // endLinesByTime.x.push(n.time);
+                    // endLinesByTime.y.push(n.location?.range.end.line);
+                    // chunkyChunk[chunkyChunk.length - 1][2].push(n);
+                }
+                scale.xMax = n.time || 0;
+                if (n.parentId) {
+                    const entry = keyMap[n.parentId];
+                    const entry2 = key2Map[n.parentId];
+                    // console.log('wuhwoh', entry2, 'chunks', chunks, 'n', n);
+                    if (n.editTimeDiff >= 28800000 || !entry2.length) {
+                        entry2.push([
+                            {
+                                x: [n.time],
+                                y: [n.location?.range.end.line],
+                            },
+                            {
+                                x: [n.time],
+                                y: [n.location?.range.start.line],
+                            },
+                        ]);
+                    } else {
+                        const startLinesByTime = entry2[entry2.length - 1][1];
+                        // console.log('2d array skull', startLinesByTime);
+                        const endLinesByTime = entry2[entry2.length - 1][0];
+                        // console.log('2d array skull', endLinesByTime);
+                        startLinesByTime.x.push(n.time);
+                        startLinesByTime.y.push(n.location?.range.start.line);
                         endLinesByTime.x.push(n.time);
-                        endLinesByTime.y.push(
-                            k === n.parentId
-                                ? n.location?.range.end.line
-                                : lastEntry[k][0].y[
-                                      lastEntry[k][0].y.length - 1
-                                  ]
-                        );
-
-                        // return { ...newEntry, [k]: lastEntry[k] };
-                    });
-
-                // const startLinesByTime =
-                //     chunkyChunk[chunkyChunk.length - 1][1];
-                // const endLinesByTime =
-                //     chunkyChunk[chunkyChunk.length - 1][0];
-
-                // startLinesByTime.x.push(n.time);
-                // startLinesByTime.y.push(n.location?.range.start.line);
-                // startLinesByTime.data.push(n);
-                // endLinesByTime.x.push(n.time);
-                // endLinesByTime.y.push(n.location?.range.end.line);
-                // chunkyChunk[chunkyChunk.length - 1][2].push(n);
-            }
-            scale.xMax = n.time || 0;
-            if (n.parentId) {
-                const entry = keyMap[n.parentId];
-                const entry2 = key2Map[n.parentId];
-                // console.log('wuhwoh', entry2, 'chunks', chunks, 'n', n);
-                if (n.editTimeDiff >= 28800000 || !entry2.length) {
-                    entry2.push([
-                        {
+                        endLinesByTime.y.push(n.location?.range.end.line);
+                        // console.log(
+                        //     'start end',
+                        //     startLinesByTime,
+                        //     endLinesByTime
+                        // );
+                    }
+                    if (entry.length) {
+                        const startLinesByTime = entry[1];
+                        const endLinesByTime = entry[0];
+                        startLinesByTime.x.push(n.time);
+                        startLinesByTime.y.push(n.location?.range.start.line);
+                        endLinesByTime.x.push(n.time);
+                        endLinesByTime.y.push(n.location?.range.end.line);
+                    } else {
+                        entry.push({
                             x: [n.time],
                             y: [n.location?.range.end.line],
-                        },
-                        {
+                        });
+                        entry.push({
                             x: [n.time],
                             y: [n.location?.range.start.line],
-                        },
-                    ]);
-                } else {
-                    const startLinesByTime = entry2[entry2.length - 1][1];
-                    // console.log('2d array skull', startLinesByTime);
-                    const endLinesByTime = entry2[entry2.length - 1][0];
-                    // console.log('2d array skull', endLinesByTime);
-                    startLinesByTime.x.push(n.time);
-                    startLinesByTime.y.push(n.location?.range.start.line);
-                    endLinesByTime.x.push(n.time);
-                    endLinesByTime.y.push(n.location?.range.end.line);
-                    // console.log(
-                    //     'start end',
-                    //     startLinesByTime,
-                    //     endLinesByTime
-                    // );
+                        });
+                    }
                 }
-                if (entry.length) {
-                    const startLinesByTime = entry[1];
-                    const endLinesByTime = entry[0];
-                    startLinesByTime.x.push(n.time);
-                    startLinesByTime.y.push(n.location?.range.start.line);
-                    endLinesByTime.x.push(n.time);
-                    endLinesByTime.y.push(n.location?.range.end.line);
-                } else {
-                    entry.push({
-                        x: [n.time],
-                        y: [n.location?.range.end.line],
-                    });
-                    entry.push({
-                        x: [n.time],
-                        y: [n.location?.range.start.line],
-                    });
-                }
-            }
-        });
-        const entry = chunkyChunk[chunkyChunk.length - 1][knownKey];
-        console.log('huh', entry, 'c', chunkyChunk);
-        chunkyChunk[chunkyChunk.length - 1]['scale'] = {
-            ...scale,
-            length: entry ? entry[0]?.x.length : 0,
-        };
-        chunkyChunk.shift();
-        console.log(
-            'what is she cooking',
-            key2Map,
-            'im going insane',
-            chunkyChunk
-        );
-        const windowLength = 20;
-        for (let i = 0; i < (lol.length || 0); i += windowLength) {
-            const currWindow = lol.slice(i, i + windowLength);
-            // windowed.push();
-            let keyObj: { [k: string]: any } = {};
-            let windowMax = -Infinity;
-            let windowMin = Infinity;
-
-            keys?.forEach((k) => {
-                keyObj[k] = currWindow
-                    .filter((n) => n.parentId === k)
-                    .reduce(
-                        // consider capturing specific start and end time + line range to then translate/bezier curve across
-                        // in vis
-                        (acc, curr, i) => {
-                            const update = {
-                                start: Math.min(
-                                    acc.start,
-                                    curr.location?.range.start.line || 0
-                                ),
-                                end: Math.max(
-                                    acc.end,
-                                    curr.location?.range.end.line || 0
-                                ),
-                            };
-                            if (update.start < windowMin)
-                                windowMin = update.start;
-                            if (update.end > windowMax) windowMax = update.end;
-                            return update;
-                        },
-                        { start: Infinity, end: -Infinity }
-                    );
             });
-            const window = {
-                start: currWindow?.[0]?.time,
-                end: currWindow?.[currWindow.length - 1]?.time,
-                windowMax,
-                windowMin,
-                ...keyObj,
+            const entry = chunkyChunk[chunkyChunk.length - 1][knownKey];
+            console.log('huh', entry, 'c', chunkyChunk);
+            chunkyChunk[chunkyChunk.length - 1]['scale'] = {
+                ...scale,
+                length: entry ? entry[0]?.x.length : 0,
             };
-            windowed.push(window);
-        }
-        console.log('lol!', windowed, this.container.webviewController);
-        lol?.length &&
-            this.container.webviewController?.postMessage({
-                command: 'updateTimeline',
-                data: {
-                    metadata: lol,
-                    keys,
-                    windowed,
-                    chunkyChunk,
-                },
-            });
+            chunkyChunk.shift();
+            console.log(
+                'what is she cooking',
+                key2Map,
+                'im going insane',
+                chunkyChunk
+            );
+            const windowLength = 20;
+            for (let i = 0; i < (lol.length || 0); i += windowLength) {
+                const currWindow = lol.slice(i, i + windowLength);
+                // windowed.push();
+                let keyObj: { [k: string]: any } = {};
+                let windowMax = -Infinity;
+                let windowMin = Infinity;
+
+                keys?.forEach((k) => {
+                    keyObj[k] = currWindow
+                        .filter((n) => n.parentId === k)
+                        .reduce(
+                            // consider capturing specific start and end time + line range to then translate/bezier curve across
+                            // in vis
+                            (acc, curr, i) => {
+                                const update = {
+                                    start: Math.min(
+                                        acc.start,
+                                        curr.location?.range.start.line || 0
+                                    ),
+                                    end: Math.max(
+                                        acc.end,
+                                        curr.location?.range.end.line || 0
+                                    ),
+                                };
+                                if (update.start < windowMin)
+                                    windowMin = update.start;
+                                if (update.end > windowMax)
+                                    windowMax = update.end;
+                                return update;
+                            },
+                            { start: Infinity, end: -Infinity }
+                        );
+                });
+                const window = {
+                    start: currWindow?.[0]?.time,
+                    end: currWindow?.[currWindow.length - 1]?.time,
+                    windowMax,
+                    windowMin,
+                    ...keyObj,
+                };
+                windowed.push(window);
+            }
+            console.log('lol!', windowed, this.container.webviewController);
+            lol?.length &&
+                this.container.webviewController?.postMessage({
+                    command: 'updateTimeline',
+                    data: {
+                        metadata: lol,
+                        keys,
+                        windowed,
+                        chunkyChunk,
+                    },
+                });
+        }, 3000);
     }
 
     get relativeFilePath() {
@@ -799,6 +822,7 @@ class DocumentWatcher extends Disposable {
         const tree = new SimplifiedTree<ReadableNode>({
             name: this._relativeFilePath,
         });
+        console.log('tree in trav first', tree);
         const fileData = new ReadableNode(
             'file',
             new LocationPlus(
@@ -807,11 +831,21 @@ class DocumentWatcher extends Disposable {
                 { doc: docCopy }
             )
         );
+        console.log('fileData in trav first', fileData);
         fileData.setId(this._relativeFilePath.replace('/', '-'));
+        console.log('fileData in id', fileData);
         fileData.location.updateContent(docCopy);
-        fileData.dataController = new DataController(fileData, this.container);
+        console.log('fileData content', fileData);
+        fileData.dataController = new DataController(
+            fileData,
+            this.container,
+            true
+        );
+        console.log('fileData data', fileData);
         fileData.dataController._tree = tree;
+        console.log('fileData data tree', fileData);
         fileData.registerListeners();
+        console.log('file data', fileData);
         tree.initRoot(fileData); // initialize the root node
         // const fileLevelNode = new ReadableNode(
         //     'file',
@@ -820,7 +854,7 @@ class DocumentWatcher extends Disposable {
         //         new Range(0, 0, docCopy.lineCount, 1000)
         //     )
         // );
-
+        console.log('tree in trav', tree);
         // tree.insert(fileLevelNode, { name: this._relativeFilePath });
         let currTreeInstance: SimplifiedTree<ReadableNode>[] = [tree];
         const context = this;
