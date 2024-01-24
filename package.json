@@ -42,6 +42,10 @@
             {
                 "command": "meta-manager.search-across-time",
                 "title": "Meta Manager: Search for Code Across Time"
+            },
+            {
+                "command": "meta-manager.github-copilot-explain-wrapper",
+                "title": "Meta Manager: Explain With Copilot"
             }
         ],
         "viewsContainers": {

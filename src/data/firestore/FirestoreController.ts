@@ -6,6 +6,8 @@ import {
     window,
     Extension,
     ExtensionContext,
+    WorkspaceEdit,
+    workspace,
 } from 'vscode';
 import { FirebaseApp, initializeApp } from 'firebase/app';
 import {
@@ -227,6 +229,8 @@ const COMMIT_e683a11_TIME = 1627785780000; // jul 31
 const COMMIT_2836a72_TIME = 1647863760000; // mar 21 22
 const COMMIT_5dfd5ba_TIME = 1648909200000;
 
+const catseyeAnnos = [];
+
 class FirestoreController extends Disposable {
     _disposable: Disposable;
     readonly _firebaseApp: FirebaseApp | undefined;
@@ -251,7 +255,87 @@ class FirestoreController extends Disposable {
             this._functions = getFunctions(this._firebaseApp);
             this._auth = getAuth(this._firebaseApp);
             this._refs = this.initRefs();
+            console.log('hewwo?');
+            // this.getCatseyeAnnos();
         }
+    }
+
+    getCatseyeAnnos() {
+        const ref = this._refs?.get(DB_COLLECTIONS.CODE_ANNOTATIONS);
+        if (!ref) {
+            throw new Error(
+                'FirestoreController: Could not read from firestore -- no collection reference'
+            );
+        }
+        const authorQuery = query(
+            ref,
+            where('authorId', '==', 'hJyV36Xgy8gO67UJVmnQUrRgJih1'),
+            where('createdTimestamp', '>', 1649421211342)
+        );
+        const querySnapshot = getDocs(authorQuery);
+        // console.log('querySnapshot', querySnapshot);
+        querySnapshot.then((snap) => {
+            snap.forEach((doc) => {
+                catseyeAnnos.push(doc.data());
+            });
+            console.log('catseyeAnnos', catseyeAnnos);
+            const inProjectWithContentAnnos = catseyeAnnos
+                .filter((f) => {
+                    return (
+                        (f.projectName === 'adamite-vscode' ||
+                            f.projectName === 'catseye-vscode') &&
+                        f.annotation.length
+                    );
+                })
+                .map((m) => {
+                    let anchors = '',
+                        replies = '';
+                    if (m.replies && m.replies.length) {
+                        replies = m.replies
+                            .map((r) => r.replyContent.replace(/,/, ''))
+                            .join(';');
+                    }
+                    anchors = m.anchors
+                        .map((a) => a.anchorText.replace(/,/, ''))
+                        .join(';');
+                    return {
+                        ...m,
+                        anchors,
+                        replies,
+                    };
+                })
+                .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+            const replacer = (key, value) => (value === null ? '' : value); // specify how you want to handle null values here
+            // const commaReplace = (key, value: string) => {
+            //     console.log('key', key, 'value', value);
+            //     return value && value.length
+            //         ? JSON.stringify(value).replace(/,/g, ';')
+            //         : '';
+            // };
+            const header = Object.keys(inProjectWithContentAnnos[0]);
+            const csv = [
+                header.join(','), // header row first
+                ...inProjectWithContentAnnos.map((row) =>
+                    header
+                        .map((fieldName) =>
+                            JSON.stringify(row[fieldName], replacer)
+                        )
+                        .join(',')
+                ),
+            ].join('\r\n');
+            const wsEdit = new WorkspaceEdit();
+            wsEdit.createFile(
+                Uri.parse(this.container.workspaceFolder?.uri! + '/test.csv')
+            );
+            workspace.applyEdit(wsEdit).then(() => {
+                workspace.fs.writeFile(
+                    Uri.parse(
+                        this.container.workspaceFolder?.uri! + '/test.csv'
+                    ),
+                    Buffer.from(csv)
+                );
+            });
+        });
     }
 
     get firebaseApp() {
@@ -917,10 +1001,10 @@ class FirestoreController extends Disposable {
                 );
                 const set = new Set();
                 console.log('clean data', cleanData, 'outcasts', outcasts);
-                outcasts.forEach((o) => {
+                outcasts.forEach((o: any) => {
                     if (o['eventData']) {
                         console.log('event data', o['eventData']);
-                        let match = cleanData.find((c) => c.id === o.id);
+                        let match = cleanData.find((c: any) => c.id === o.id);
                         if (match) {
                             console.log('swapping', match, 'wtih', o);
                             match['eventData'] = o['eventData'];
@@ -937,158 +1021,14 @@ class FirestoreController extends Disposable {
                 // TODO: take "outcasts" and filter for ones that are interesting (i.e., have eventData)
                 // then find their "partners" (i.e., other elements with same original ID)
                 // and choose a new time that is in the range of the partners
-                console.log(
-                    'updated cleanData lol',
-                    cleanData.filter((c) => set.has(c.id))
-                );
+                // console.log(
+                //     'updated cleanData lol',
+                //     cleanData.filter((c) => set.has(c.id))
+                // );
                 return {
                     pastVersionsTest: cleanData,
                     pastVersions: list,
                 };
-
-                // if (id === 'activate:028723b4-0578-4aa6-9654-6333e3291fcf') {
-                //     // const vers = getListFromSnapshots(hewwo);
-                // }
-                // const linesInRange = getListFromSnapshots(hewwo); // .filter((e) => e.time >= range[0] && e.time < range[1]);
-                // console.log('linesInRange', linesInRange, 'ref', testDataRef);
-                // const edits = linesInRange.filter(
-                //     (e) =>
-                //         e.line
-                //             .split('')
-                //             .filter((f: string) => !symbols.includes(f))
-                //             .join('')
-                //             .trim().length > 0
-                // );
-                // if (!edits.length) edits.push('console.log(test);');
-                // const editList = list.filter((l) => l.commit === commit);
-
-                // //.forEach((c, i) => {
-                // let i = 0;
-                // for (const c of editList) {
-                //     console.log('edits????', edits);
-                //     const realEditTime = c.id.split(':')[2];
-                //     const baseTime = parseInt(realEditTime) - diff;
-                //     const docRef = doc(pastVersionsCollectionTest, c.id);
-                //     // const time =
-                //     //     range[0] + (range[1] - range[0]) * (i / list.length);
-                //     setDoc(docRef, {
-                //         ...c,
-                //         baseTime,
-                //     });
-                //     const nextTime =
-                //         i + 1 < editList.length
-                //             ? parseInt(editList[i + 1].id.split(':')[2]) - diff
-                //             : baseTime + 1000;
-                //     // const nextTime =
-                //     //     range[0] +
-                //     //     (range[1] - range[0]) * (i + 1 / list.length);
-                //     const numNewEdits =
-                //         nextTime - baseTime > 10000
-                //             ? Math.floor(Math.random() * 20) + 2
-                //             : 2;
-                //     let currVer: SerializedLocationPlus =
-                //         c.location as SerializedLocationPlus;
-                //     const seenEdits = new Set();
-                //     const intervals = getEvenlySpacedIntervals(
-                //         baseTime,
-                //         nextTime,
-                //         numNewEdits
-                //     );
-                //     for (let j = 0; j < numNewEdits; j++) {
-                //         const newTime = intervals[j];
-                //         // Math.floor(
-                //         //     baseTime + (nextTime - baseTime) * (j / numNewEdits)
-                //         // );
-                //         if (Math.random() > 0.5) {
-                //             const edit =
-                //                 edits[Math.floor(Math.random() * edits.length)];
-                //             console.log('edit', edit);
-                //             const split = currVer.content.split('\n');
-                //             const insertionPoint = Math.floor(
-                //                 getRandomArbitrary(
-                //                     currVer.range.start.line + 1,
-                //                     currVer.range.end.line - 1
-                //                 )
-                //             );
-                //             seenEdits.add(edit?.line || '');
-                //             const idx = currVer.range.end.line - insertionPoint;
-                //             console.log('idx', idx);
-                //             split.splice(idx, 0, edit?.line || '');
-                //             console.log('split', split);
-                //             const newContent = split.join('\n');
-                //             // const start = Math.floor(Math.random() * currVer.content.length);
-                //             // const end = Math.floor(Math.random() * currVer.content.length);
-                //             // const newContent = currVer.content.slice(0, start) + edit + currVer.content.slice(end, currVer.content.length);
-                //             currVer = {
-                //                 ...currVer,
-                //                 content: newContent,
-                //                 range: {
-                //                     ...currVer.range,
-                //                     end: {
-                //                         ...currVer.range.end,
-                //                         line: currVer.range.end.line + 1,
-                //                     },
-                //                 },
-                //             };
-                //             const newRef = doc(
-                //                 pastVersionsCollectionTest,
-                //                 c.id + '-FAKE-' + j
-                //             );
-                //             const { changeInfo, eventData, ...rest } = c; // take fun things out
-                //             setDoc(newRef, {
-                //                 ...rest,
-                //                 time: newTime,
-                //                 location: currVer,
-                //             });
-                //         } else {
-                //             const lines = currVer.content.split('\n');
-                //             const filtered = lines.filter(
-                //                 (l) => !seenEdits.has(l)
-                //             );
-                //             const newContent = filtered.join('\n');
-                //             const newRef = doc(
-                //                 pastVersionsCollectionTest,
-                //                 c.id + '-FAKE-' + j
-                //             );
-                //             currVer = {
-                //                 ...currVer,
-                //                 content: newContent,
-                //                 range: {
-                //                     ...currVer.range,
-                //                     end: {
-                //                         ...currVer.range.end,
-                //                         line:
-                //                             currVer.range.end.line -
-                //                             (lines.length - filtered.length),
-                //                     },
-                //                 },
-                //             };
-                //             const { changeInfo, eventData, ...rest } = c; // take fun things out
-                //             setDoc(newRef, {
-                //                 ...rest,
-                //                 time: newTime,
-                //                 location: currVer,
-                //             });
-                //             // currVer = {
-                //             //     ...currVer,
-                //             //     content: newContent,
-                //             // };
-                //         }
-                //     }
-                //     i++;
-                // }
-                // .map((l, i) => {
-                //     return {
-                //         ...l,
-                //         time:
-                //             range[0] +
-                //             (range[1] - range[0]) * (i / list.length),
-                //     };
-                // });
-                // translate.forEach(async (t) => {
-                //     const docRef = doc(pastVersionsCollection, t.id);
-                //     await setDoc(docRef, t);
-                // });
             },
         };
         return firestoreMetadata;

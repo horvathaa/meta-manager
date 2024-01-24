@@ -533,7 +533,7 @@ class GraphController {
             .append('g')
             .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-        console.log('CALLING DRAW STREAM');
+        console.log('CALLING DRAW STREAM', keyMap); // scale may have off by one maybe use idx at keyMap?
 
         const scale = keyMap[0]['scale'];
 
@@ -543,11 +543,11 @@ class GraphController {
                   .scaleLinear() // Use linear scale for x
                   .range([0, chartWidth]) // Adjust the range for horizontal orientation
                   //   .domain([0, range[1] - range[0]]) // ????
-                  .domain([range[0], range[1]]) // ???? -- seems right lol
+                  .domain([range[0], range[1] - 1]) // ???? -- seems right lol
             : d3
                   .scaleLinear() // Use linear scale for x
                   .range([0, chartWidth]) // Adjust the range for horizontal orientation
-                  .domain([0, scale.length]); // Time never < 0
+                  .domain([0, scale.length - 1]); // Time never < 0
         // .domain(d3.extent(windowed, (w) => w.end))
 
         const yscale = d3
@@ -620,6 +620,7 @@ class GraphController {
                     lowerYScale = test[1].y.slice(range[0], range[1]);
                 }
                 const indexies = d3.range(lowerYScale.length);
+                console.log('indexies?', indexies);
                 // range &&
                 //     console.log(
                 //         'indexies',
@@ -644,13 +645,43 @@ class GraphController {
                         //         return 0;
                         //     }
                         // }
+                        console.log(
+                            'd',
+                            d,
+                            'i',
+                            i,
+                            'range',
+                            range,
+                            'xscale i',
+                            xscale(i)
+                        );
                         return range ? xscale(range[0] + i) : xscale(i);
                     })
                     .y0((d, i) => {
+                        console.log(
+                            'd',
+                            d,
+                            'i',
+                            i,
+                            'range',
+                            range,
+                            'yscale(lowerYScale[i]) i',
+                            yscale(lowerYScale[i])
+                        );
                         // range && console.log('lowerYScale', lowerYScale[i]);
                         return yscale(lowerYScale[i]);
                     })
                     .y1((d, i) => {
+                        console.log(
+                            'd',
+                            d,
+                            'i',
+                            i,
+                            'range',
+                            range,
+                            'yscale(upperYScale[i]) i',
+                            yscale(upperYScale[i])
+                        );
                         return yscale(upperYScale[i]);
                     });
 
@@ -672,45 +703,6 @@ class GraphController {
                     )
                     // @ts-ignore
                     .attr('d', area);
-                // .on('mousemove', function (d, i) {
-                //     const [xm, ym] = d3.pointer(d);
-                //     console.log('ahhhhh - xm', xm, 'xy', ym, 'xs', xs);
-                //     const closestInstance = xs.findIndex((x: number) => {
-                //         // console.log('x', x);
-                //         return x > xm;
-                //     });
-                //     const instance = test[1].data[closestInstance];
-                //     // console.log('instance', instance);
-                //     // console.log('hewwo?', closestInstance, test[1].data[closestInstance]);
-                //     d3.select(this)
-                //         .transition()
-                //         .duration(50)
-                //         .attr('opacity', '.85');
-                //     div.transition().duration(50).style('opacity', 1);
-                //     // console.log('d', d, 'i?', i, 'area??', area);
-                //     let num = d;
-                //     // div.html(num)
-                //     //     .style('left', d3.event.pageX + 10 + 'px')
-                //     //     .style('top', d3.event.pageY - 15 + 'px');
-                // })
-                // .on('mouseout', function (d, i) {
-                //     d3.select(this)
-                //         .transition()
-                //         .duration(50)
-                //         .attr('opacity', '1');
-                //     div.transition().duration(50).style('opacity', 0);
-                // });
-
-                // const line = d3
-                //     .line()
-                //     .curve(d3.curveCardinal)
-                //     .x(function (d, i) {
-                //         // console.log('d!', d);
-                //         return xscale(d[0]);
-                //     })
-                //     .y(function (d, i) {
-                //         return yscale(d[1]);
-                //     });
             });
         this._canonicalEvents = events;
         // if (!this._currScrubberEvents.length) {

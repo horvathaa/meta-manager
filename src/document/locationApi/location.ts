@@ -297,6 +297,7 @@ export default class LocationPlus extends Location {
         onTextDocumentChanged: TextDocumentChangeEvent,
         time?: number
     ) {
+        console.log('triggered', onTextDocumentChanged);
         // debounce(() => {
         const { document, contentChanges } = onTextDocumentChanged;
         if (this.uri.fsPath === document.uri.fsPath) {

@@ -36,30 +36,52 @@ const TimelineScrubber: React.FC<Props> = ({
 
     const getMarks = (events: any[]) => {
         console.log('EVENTS!!!!!', events);
-        const marks = events.map((event) => {
+        const seenIdx = new Set();
+        const marks: any[] = [];
+        events.forEach((event) => {
+            if (seenIdx.has(event.idx)) {
+                const prevLabel = marks.find((c) => c.value === event.idx);
+                if (prevLabel) {
+                    prevLabel.label = (
+                        <div
+                            onClick={(e) => {
+                                handleScrubChange(e, event.idx, 0);
+                                setValue(event.idx);
+                            }}
+                        >
+                            {prevLabel.label.props.children +
+                                ' + Search Result'}
+                        </div>
+                    );
+                    return; // since search results are concatenated i think this is safe to have search result after whatever else it's been matched on
+                }
+            }
+            seenIdx.add(event.idx);
             let name = '';
-            if (!event.eventData) {
-                if (event.searchContent && event.prevContent) {
-                    if (
-                        event.prevContent.match(/[\/\\]/g) &&
-                        event.prevContent
-                            .replace(/[\/\\]/g, '')
-                            .replace(/s/g, '') ===
-                            event.searchContent.replace(/s/g, '')
-                    ) {
-                        name = 'Commented Out';
-                    } else if (
-                        event.searchContent.match(/[\/\\]/g) &&
-                        !event.prevContent.match(/[\/\\]/g)
-                    ) {
-                        name = 'Commented In';
-                    } else {
-                        name = 'Search Result';
-                    }
+            if (event.searchContent && event.prevContent) {
+                if (
+                    event.prevContent.match(/[\/\\]/g) &&
+                    event.prevContent
+                        .replace(/[\/\\]/g, '')
+                        .replace(/s/g, '') ===
+                        event.searchContent.replace(/s/g, '')
+                ) {
+                    name = 'Commented Out';
+                } else if (
+                    event.searchContent.match(/[\/\\]/g) &&
+                    !event.prevContent.match(/[\/\\]/g)
+                ) {
+                    name = 'Commented In';
                 } else {
                     name = 'Search Result';
                 }
-            } else {
+            } else if (!event.eventData || event.searchContent) {
+                name = 'Search Result';
+            }
+            // if (!event.eventData) {
+
+            // } else {
+            if (event.eventData && !name.length) {
                 name = event.eventData;
                 if (event.eventData[Event.WEB]) {
                     name =
@@ -73,7 +95,8 @@ const TimelineScrubber: React.FC<Props> = ({
                     name = 'Copied code';
                 }
             }
-            return {
+            // return {
+            marks.push({
                 value: event.idx,
                 label: (
                     <div
@@ -85,7 +108,7 @@ const TimelineScrubber: React.FC<Props> = ({
                         {name}
                     </div>
                 ),
-            };
+            });
         });
         return marks;
     };
@@ -140,7 +163,7 @@ const TimelineScrubber: React.FC<Props> = ({
     return (
         <Slider
             min={min}
-            max={max}
+            max={max - 1}
             defaultValue={0}
             step={1}
             marks={getMarks(events)}

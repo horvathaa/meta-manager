@@ -105,20 +105,21 @@ class MetaInformationController {
                             copied from{' '}
                             <a
                                 className={styles['m4px']}
-                                onClick={() =>
+                                onClick={(e) => {
+                                    e.stopPropagation();
                                     VS_CODE_API.postMessage({
                                         command: 'goToNode',
                                         data: {
                                             nodeId: id,
                                         },
-                                    })
-                                }
+                                    });
+                                }}
                             >
                                 {data.eventData[Event.PASTE].nodeId?.split(
                                     ':'
                                 )[0] || 'VS Code'}
                             </a>
-                            .
+                            in {location.fsPath.split(/[\/\\]/g).pop()}.
                         </div>
                         {/* {this.renderOriginalCopiedCode()} */}
                     </div>

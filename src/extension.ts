@@ -5,6 +5,7 @@ import {
     workspace,
     Position,
     commands,
+    Disposable,
 } from 'vscode';
 import ViewLoaderProvider from './viewProvider/ViewLoaderProvider';
 import { Container } from './container';
@@ -22,11 +23,53 @@ export async function activate(context: ExtensionContext) {
 
     const view = new ViewLoaderProvider(context.extensionUri);
     // const otherView = new ViewLoader(context.extensionUri);
+    let inlineDisposable = commands.registerCommand(
+        // overwriting this command works because it's a system command
+        // even tho it's copilot chat? very odd
+        // entering text into the interactive widget also triggers
+        // the onDocumentChange event, so we can get the user query with that
+        // if accepted - then we can get the next bulk change?
+        'interactive.acceptChanges',
+        () => myInteractive(inlineDisposable)
+    );
+    async function myInteractive(inlineDisposable: Disposable) {
+        inlineDisposable.dispose();
+        console.log('HEWWO');
+        await commands.executeCommand('interactive.acceptChanges');
+        inlineDisposable = commands.registerCommand(
+            'interactive.acceptChanges',
+            async (arg) => myInteractive(inlineDisposable)
+        );
+        context.subscriptions.push(inlineDisposable);
+    }
+
+    let explainDisposable = commands.registerCommand(
+        // can't overwrite extension-contributed commands because then
+        // the extension can't properly contribute its commands because
+        // my extension already took that command name
+        'meta-manager.github-copilot-explain-wrapper',
+
+        () => myExplain(explainDisposable)
+    );
+    async function myExplain(explainDisposable: Disposable) {
+        explainDisposable.dispose();
+        console.log('selection', window.activeTextEditor?.selection);
+        await commands.executeCommand(
+            'github.copilot.interactiveEditor.explain'
+        );
+        // explainDisposable = commands.registerCommand(
+        //     'github.copilot.interactiveEditor.explain',
+        //     async (arg) => myExplain(explainDisposable)
+        // );
+        // context.subscriptions.push(explainDisposable);
+    }
+
     context.subscriptions.push(
         window.registerWebviewViewProvider(ViewLoaderProvider.viewType, view, {
             webviewOptions: { retainContextWhenHidden: true },
         }),
-        commands.registerCommand('extension.openView', () => {})
+        commands.registerCommand('extension.openView', () => {}),
+        explainDisposable
     );
 
     const container = await Container.create(context);
@@ -67,7 +110,8 @@ export async function activate(context: ExtensionContext) {
         //     'src-utils-sortResults.ts',
         //     'src-utils-extractStackOverflowResults.ts'
         // );
-        const test = Test.create(container);
+        container.firestoreController?.getCatseyeAnnos();
+        // const test = Test.create(container);
         // const proj = 'hieunc229-copilot-clone';
         // container.firestoreController?.copyOver(
         //     'hieunc229-copilot-clone',

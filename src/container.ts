@@ -355,6 +355,16 @@ export class Container {
         return newContainer;
     }
 
+    public requestWebviewUpdate() {
+        const activeDoc = this.fileParser?.docs.get(
+            window.activeTextEditor?.document.uri.fsPath || ''
+        );
+        if (activeDoc) {
+            activeDoc.handleWindowChange(window.activeTextEditor);
+            // this._webviewController
+        }
+    }
+
     public setWebviewController(webviewController: Webview) {
         this._webviewController = webviewController;
     }

@@ -33,6 +33,7 @@ class DebugController extends Disposable {
     // _debugAdapter: DebugAdapterTracker
     constructor(private readonly container: Container) {
         // super(() => this.initListeners());
+
         super(() => this.dispose());
         // this._terminal = window.createTerminal({
         //     name: 'Meta Manager',

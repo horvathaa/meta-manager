@@ -101,7 +101,7 @@ const Summary: React.FC<SummaryProps> = ({
                             });
                         }}
                     >
-                        Show Copied Code
+                        Show Copy Events
                     </VSCodeButton>
                     <VSCodeButton
                         appearance="secondary"
@@ -118,7 +118,7 @@ const Summary: React.FC<SummaryProps> = ({
                             });
                         }}
                     >
-                        Show Pasted Code
+                        Show Paste Events
                     </VSCodeButton>
                     <VSCodeButton
                         appearance="secondary"
@@ -135,7 +135,7 @@ const Summary: React.FC<SummaryProps> = ({
                             });
                         }}
                     >
-                        Show Code Pasted From Online
+                        Show Events with Online Code
                     </VSCodeButton>
                     <VSCodeButton
                         className={styles['ml4']}
@@ -234,12 +234,23 @@ const Summary: React.FC<SummaryProps> = ({
                 <h3
                     style={{
                         textAlign: 'left',
-                        backgroundColor: color,
+                        // backgroundColor: color,
+                        display: 'flex',
                         padding: '0.5rem',
                     }}
-                    className={styles['inactive']}
                 >
-                    {currNode.id.split(':')[0]}
+                    {currNode.id.split(':')[0]} (
+                    {(currNode as any).currNode.humanReadableKind})
+                    <span
+                        style={{
+                            width: '20px',
+                            height: '20px',
+                            backgroundColor: color,
+                            display: 'flex',
+                            marginLeft: '10px',
+                            alignSelf: 'flex-start',
+                        }}
+                    ></span>
                 </h3>
                 <div>
                     Not on current version.{' '}
@@ -306,6 +317,8 @@ const Summary: React.FC<SummaryProps> = ({
         }
     };
 
+    console.log('currNode', currNode);
+
     return (
         <div style={{ width: '100%' }}>
             <div>
@@ -316,11 +329,23 @@ const Summary: React.FC<SummaryProps> = ({
                     <h3
                         style={{
                             textAlign: 'left',
-                            backgroundColor: color,
+                            // backgroundColor: color,
+                            display: 'flex',
                             padding: '0.5rem',
                         }}
                     >
-                        {currNode.id.split(':')[0]}
+                        {currNode.id.split(':')[0]} (
+                        {(currNode as any).currNode.humanReadableKind})
+                        <span
+                            style={{
+                                width: '20px',
+                                height: '20px',
+                                backgroundColor: color,
+                                display: 'flex',
+                                marginLeft: '10px',
+                                alignSelf: 'flex-start',
+                            }}
+                        ></span>
                     </h3>
                     <div>{getStatus()}</div>
                 </div>
@@ -330,13 +355,14 @@ const Summary: React.FC<SummaryProps> = ({
                 {/* <div>Version {currIdx}</div> */}
                 <div>
                     {summaryHelper()}
-                    Edited by {version.userString} at{' '}
-                    {new Date(version.time).toLocaleString()}
+                    Edited at {new Date(version.time).toLocaleString()}
                 </div>
             </div>
         </div>
     );
 };
+
+// by {version.userString} // - take out for anonymity in video
 
 const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
     const [expanded, setExpanded] = React.useState<boolean>(false);
@@ -578,7 +604,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                                 }
                             }}
                         >
-                            See Corresponding Copy
+                            See Copy
                         </VSCodeButton>
                     ) : null}
                     <VSCodeButton
@@ -721,6 +747,29 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
             'curr',
             currNode
         );
+        if (searchResult) {
+            console.log('search result', searchResult);
+            // const { query } = searchResult;
+            const { results } = searchResult;
+            const match = results.find((c) => c.idx === currIdx);
+            if (match) {
+                const highlightLogic = getHighlightLogic(
+                    version.location.content,
+                    {
+                        code: match.searchContent,
+                    } as unknown as CopyBuffer,
+                    'search'
+                );
+                return (
+                    <CodeBlock
+                        codeString={version.location.content}
+                        highlightLogic={highlightLogic}
+                    />
+                );
+            } else {
+                return <CodeBlock codeString={version.location.content} />;
+            }
+        }
         if (version.eventData) {
             if (version.eventData[Event.WEB]) {
                 const copyBuffer = version.eventData[Event.WEB].copyBuffer;
@@ -766,29 +815,7 @@ const CodeNode: React.FC<Props> = ({ currNode, versions, context, color }) => {
                 );
             }
         }
-        if (searchResult) {
-            console.log('search result', searchResult);
-            // const { query } = searchResult;
-            const { results } = searchResult;
-            const match = results.find((c) => c.idx === currIdx);
-            if (match) {
-                const highlightLogic = getHighlightLogic(
-                    version.location.content,
-                    {
-                        code: match.searchContent,
-                    } as unknown as CopyBuffer,
-                    'search'
-                );
-                return (
-                    <CodeBlock
-                        codeString={version.location.content}
-                        highlightLogic={highlightLogic}
-                    />
-                );
-            } else {
-                return <CodeBlock codeString={version.location.content} />;
-            }
-        }
+
         const highlightLogic = context._searchTerm.length
             ? getHighlightLogic(
                   version.location.content,

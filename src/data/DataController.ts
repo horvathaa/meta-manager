@@ -190,7 +190,12 @@ export class DataController {
             // tbd
             this.container.onPaste((pasteEvent) => {
                 if (
-                    this.isOwnerOfRange(pasteEvent.location.range)
+                    this.readableNode.location.range.contains(
+                        pasteEvent.location.range
+                    ) &&
+                    this.readableNode.location.uri.fsPath ===
+                        pasteEvent.location.uri.fsPath
+                    // this.isOwnerOfRange(pasteEvent.location.range)
                     // this.readableNode.location.containsStart(
                     //     pasteEvent.location
                     // )
@@ -1723,6 +1728,7 @@ export class DataController {
                     },
                 };
                 this._changeBuffer.push(eventObj);
+                // this._pastVersionsTest.push(eventObj);
             }
 
             const pasteInfo = {
@@ -1731,6 +1737,8 @@ export class DataController {
                 pasteMetadata: eventObj,
             };
             this._didPaste = pasteInfo;
+
+            // this.container.requestWebviewUpdate();
             setTimeout(
                 () => {
                     const pasteTracker: TrackedPasteDetails = {
@@ -1762,6 +1770,7 @@ export class DataController {
                         }
                     );
                     this._pasteLocations.push(pasteTracker);
+                    // this.container.webviewController
                 },
                 5000,
                 pasteInfo
@@ -2077,7 +2086,8 @@ export class DataController {
             return;
         }
 
-        // if the node has been deleted, notify the parent up until the parent no longer has the
+        // if the node has been deleted, notify the parent
+        // up until the parent no longer has the
         // status of deleted and update db
 
         if (
@@ -2110,8 +2120,13 @@ export class DataController {
                     ...obj,
                     node: this.readableNode.serialize(),
                 });
-                this._firestoreControllerInterface?.logVersion(c.id, obj);
+                this._pastVersionsTest.push({
+                    ...obj,
+                    node: this.readableNode.serialize(),
+                });
+                // this._firestoreControllerInterface?.logVersion(c.id, obj); // for demo, remove so we don't have to clean up db between cuts
             });
+            this.container.requestWebviewUpdate();
             this._changeBuffer = [];
         }
     }

@@ -34,9 +34,9 @@ const InfoWidget: React.FC<Props> = ({ parentProp }) => {
                 <h3>Version {graphController._focusedIndex}</h3>
                 {_filtered ? (
                     <div className={styles['p2']}>
-                        <div>
+                        <div style={{ paddingBottom: '4px' }}>
                             Viewing version(s) {_filterRange[0]} to{' '}
-                            {_filterRange[1]}
+                            {_filterRange[1] - 1}
                         </div>
                         <VSCodeButton
                             onClick={() => graphController.clearRange()}
